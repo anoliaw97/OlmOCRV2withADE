@@ -91,61 +91,55 @@ class VLMExtractor:
     def load_model(self):
         if self.loaded:
             return "already loaded"
-        
+
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA GPU required")
-        
+
         gpu_mem = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-        
-        print(f"Loading model on {gpu_mem:.0f}GB GPU...")
-        
-        # Processor comes from the base Qwen model (FP8 model card doesn't ship its own)
+        print(f"Loading {self.model_name} on {gpu_mem:.0f}GB GPU...")
+
+        # Processor from base Qwen model — FP8 variant doesn't include its own
         self.processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct")
-        
-        # device_map="auto" + no torch_dtype override → HuggingFace respects FP8 quantization config
+
+        # Load FP8 model — compressed-tensors handles quantization automatically
+        # torch_dtype="auto" reads dtype from model config (FP8), no upcasting
         self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             self.model_name,
-            device_map="auto",
+            torch_dtype="auto",   # respects FP8 weights from compressed-tensors
+            device_map="auto",    # spreads across available VRAM
         ).eval()
-        
+
         torch.cuda.empty_cache()
         gc.collect()
-        
+
         self.loaded = True
         return f"loaded {self.model_name} ({gpu_mem:.0f}GB)"
 
     def extract(self, image_base64=None, image_path=None, prompt=None):
         if not self.loaded:
             self.load_model()
-        
-        clear_gpu()
-        
-        # Always work with base64 — convert image_path to base64 if needed
-        if image_path and not image_base64:
-            img = Image.open(image_path).convert('RGB')
+
+        # Load image — render_pdf_to_base64png already outputs at 1288px, no resize needed
+        if image_base64:
+            img = Image.open(io.BytesIO(base64.b64decode(image_base64))).convert("RGB")
+        elif image_path:
+            img = Image.open(image_path).convert("RGB")
             img = resize_image(img, 1288)
             buf = io.BytesIO()
-            img.save(buf, format='PNG')
-            image_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-        elif image_base64:
-            img_data = base64.b64decode(image_base64)
-            img = Image.open(io.BytesIO(img_data)).convert('RGB')
-            img = resize_image(img, 1288)
-            buf = io.BytesIO()
-            img.save(buf, format='PNG')
+            img.save(buf, format="PNG")
             image_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
         else:
             raise ValueError("Must provide image_base64 or image_path")
-        
+
         if prompt is None:
             prompt = DEFAULT_OLMOCR_PROMPT
-        
-        # Use image_url format as per official HuggingFace model card
+
+        # Official message format from HuggingFace model card
         msgs = [{"role": "user", "content": [
             {"type": "text", "text": prompt},
             {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}},
         ]}]
-        
+
         txt = self.processor.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
         inputs = self.processor(
             text=[txt],
@@ -153,36 +147,36 @@ class VLMExtractor:
             padding=True,
             return_tensors="pt",
         )
-        
-        # Move all inputs to model device without overriding dtypes
+
+        # Move to model device — no dtype override, let FP8 stay as-is
         device = next(self.model.parameters()).device
         inputs = {k: v.to(device) for k, v in inputs.items()}
-        
+
         input_ids = inputs["input_ids"]
-        
+
         with torch.no_grad():
             out = self.model.generate(
                 **inputs,
-                temperature=0.1,
+                temperature=0.0,    # greedy — faster and matches official pipeline
                 max_new_tokens=8000,
-                do_sample=True,
+                do_sample=False,    # greedy decoding, no sampling overhead
             )
-        
+
         output_tokens = out.shape[1] - input_ids.shape[1]
-        
         decoded = self.processor.tokenizer.batch_decode(
             out[:, input_ids.shape[1]:], skip_special_tokens=True
         )[0]
-        
-        del inputs, out, img, msgs
-        clear_gpu()
-        
+
+        del inputs, out, msgs
+        gc.collect()
+        torch.cuda.empty_cache()
+
         return {
             "raw_response": decoded,
             "prompt_used": prompt,
             "input_tokens": input_ids.shape[1],
             "output_tokens": output_tokens,
-            "total_tokens": input_ids.shape[1] + output_tokens
+            "total_tokens": input_ids.shape[1] + output_tokens,
         }
 
 class IntelligentAssistant:
