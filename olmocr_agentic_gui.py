@@ -139,8 +139,17 @@ class VLMExtractor:
         inputs = self.processor(text=[txt], images=[img], padding=True, return_tensors="pt")
         
         device = "cuda"
-        # Keep pixel_values as int64 (long), only convert other tensors to float16
-        inputs = {k: v.to(device, dtype=torch.int64) if k == "pixel_values" else v.to(device, dtype=torch.float16) for k, v in inputs.items()}
+        # pixel_values → float16 (vision encoder input)
+        # integer tensors (input_ids, attention_mask, image_grid_thw) → int64
+        # everything else → float16
+        def move(k, v):
+            if k == "pixel_values":
+                return v.to(device, dtype=torch.float16)
+            elif v.dtype in (torch.int32, torch.int64, torch.bool, torch.uint8, torch.long):
+                return v.to(device)
+            else:
+                return v.to(device, dtype=torch.float16)
+        inputs = {k: move(k, v) for k, v in inputs.items()}
         
         input_ids = inputs["input_ids"]
         
