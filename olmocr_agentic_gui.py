@@ -484,7 +484,7 @@ class OlmoCRAgenticGUI:
         self.root = root
         self.root.title("olmOCR Agentic Document Extraction")
         self.root.geometry("1600x950")
-        self.root.minsize(1400, 800)
+        self.root.minsize(1200, 700)
 
         self.mode = tk.StringVar(value="single")
         self.selected_files = []
@@ -570,8 +570,19 @@ class OlmoCRAgenticGUI:
         ttk.Entry(control_frame, textvariable=self.api_key_var, width=15, show="*").pack(side=tk.LEFT, padx=5)
         ttk.Button(control_frame, text="Set API", command=self.set_api_key, width=8).pack(side=tk.LEFT, padx=2)
         
-        # Main content
-        main_paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        # Main content - scrollable canvas
+        self.main_canvas = tk.Canvas(self.root, bg='#f0f0f0')
+        self.main_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        self.main_scrollbar = ttk.Scrollbar(self.root, orient=tk.VERTICAL, command=self.main_canvas.yview)
+        self.main_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.main_canvas.configure(yscrollcommand=self.main_scrollbar.set)
+        
+        self.main_frame = ttk.Frame(self.main_canvas)
+        self.main_canvas.create_window((0, 0), window=self.main_frame, anchor=tk.NW)
+        
+        main_paned = ttk.PanedWindow(self.main_frame, orient=tk.HORIZONTAL)
         main_paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         left_frame = ttk.Frame(main_paned, width=500)
@@ -583,11 +594,21 @@ class OlmoCRAgenticGUI:
         self._create_right_panel(right_frame)
         
         # Bottom
-        self.progress_bar = ttk.Progressbar(self.root, mode='indeterminate')
+        self.progress_bar = ttk.Progressbar(self.main_frame, mode='indeterminate')
         self.progress_bar.pack(fill=tk.X, padx=10, pady=(0, 5))
         
-        self.status_label = ttk.Label(self.root, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
+        self.status_label = ttk.Label(self.main_frame, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
         self.status_label.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        # Update scroll region after all widgets are added
+        self.main_frame.update_idletasks()
+        self.main_canvas.configure(scrollregion=self.main_canvas.bbox("all"))
+        
+        # Bind mousewheel to scroll
+        self.main_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+    
+    def _on_mousewheel(self, event):
+        self.main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
     def _create_left_panel(self, parent):
         preview_frame = ttk.LabelFrame(parent, text="📄 Document Preview", padding=10)
