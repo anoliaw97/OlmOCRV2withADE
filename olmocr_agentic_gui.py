@@ -483,8 +483,8 @@ class OlmoCRAgenticGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("olmOCR Agentic Document Extraction")
-        self.root.geometry("1600x900")
-        self.root.minsize(1200, 700)
+        self.root.geometry("1400x800")
+        self.root.minsize(1000, 600)
 
         self.mode = tk.StringVar(value="single")
         self.selected_files = []
@@ -574,12 +574,12 @@ class OlmoCRAgenticGUI:
         main_paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         main_paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        left_frame = ttk.Frame(main_paned, width=500)
+        left_frame = ttk.Frame(main_paned, width=400)
         main_paned.add(left_frame, weight=1)
         self._create_left_panel(left_frame)
         
-        right_frame = ttk.Frame(main_paned, width=900)
-        main_paned.add(right_frame, weight=2)
+        right_frame = ttk.Frame(main_paned, width=600)
+        main_paned.add(right_frame, weight=1)
         self._create_right_panel(right_frame)
         
         # Bottom
@@ -590,7 +590,7 @@ class OlmoCRAgenticGUI:
         self.status_label.pack(fill=tk.X, padx=10, pady=(0, 10))
 
     def _create_left_panel(self, parent):
-        preview_frame = ttk.LabelFrame(parent, text="📄 Document Preview", padding=10)
+        preview_frame = ttk.LabelFrame(parent, text="📄 Document Preview", padding=5)
         preview_frame.pack(fill=tk.BOTH, expand=True)
         
         nav_frame = ttk.Frame(preview_frame)
@@ -614,7 +614,7 @@ class OlmoCRAgenticGUI:
         thumb_frame = ttk.LabelFrame(parent, text="Page Thumbnails", padding=5)
         thumb_frame.pack(fill=tk.X, pady=5)
         
-        self.thumb_canvas = tk.Canvas(thumb_frame, bg='#1e1e1e', height=120)
+        self.thumb_canvas = tk.Canvas(thumb_frame, bg='#1e1e1e', height=80)
         thumb_scroll = ttk.Scrollbar(thumb_frame, orient="horizontal", command=self.thumb_canvas.xview)
         self.thumb_canvas.configure(xscrollcommand=thumb_scroll.set)
         
