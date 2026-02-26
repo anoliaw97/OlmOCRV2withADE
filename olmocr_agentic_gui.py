@@ -625,7 +625,33 @@ class OlmoCRAgenticGUI:
         self.thumb_canvas.create_window((0, 0), window=self.thumb_frame_inner, anchor="nw")
 
     def _create_right_panel(self, parent):
-        prompt_frame = ttk.LabelFrame(parent, text="📝 Extraction Prompt", padding="10")
+        # Use notebook for right panel sections
+        right_notebook = ttk.Notebook(parent)
+        right_notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Tab 1: Extraction (Prompt + Results)
+        extract_tab = ttk.Frame(right_notebook)
+        right_notebook.add(extract_tab, text="🔍 Extraction")
+        self._create_extraction_tab(extract_tab)
+        
+        # Tab 2: Chat
+        chat_tab = ttk.Frame(right_notebook)
+        right_notebook.add(chat_tab, text="💬 Chat")
+        self._create_chat_tab(chat_tab)
+        
+        # Tab 3: Error Log
+        error_tab = ttk.Frame(right_notebook)
+        right_notebook.add(error_tab, text="❌ Error Log")
+        self._create_error_tab(error_tab)
+        
+        # Tab 4: Status Log
+        status_tab = ttk.Frame(right_notebook)
+        right_notebook.add(status_tab, text="📋 Status Log")
+        self._create_status_tab(status_tab)
+    
+    def _create_extraction_tab(self, parent):
+        # Prompt section
+        prompt_frame = ttk.LabelFrame(parent, text="📝 Extraction Prompt", padding="5")
         prompt_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Row 1: preset selector + save
@@ -685,10 +711,9 @@ class OlmoCRAgenticGUI:
         self.stop_btn = ttk.Button(btn_frame, text="⏹ STOP", command=self.stop_extraction, state=tk.DISABLED)
         self.stop_btn.pack(side=tk.LEFT)
         
-        # Output — limited height so bottom sections visible
-        output_frame = ttk.LabelFrame(parent, text="📊 Extraction Results", padding="10")
-        output_frame.pack(fill=tk.X, padx=5, pady=5)
-        output_frame.configure(height=350)
+        # Output
+        output_frame = ttk.LabelFrame(parent, text="📊 Extraction Results", padding="5")
+        output_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         self.response_notebook = ttk.Notebook(output_frame)
         self.response_notebook.pack(fill=tk.BOTH, expand=True)
@@ -733,55 +758,32 @@ class OlmoCRAgenticGUI:
         # Token / timing summary bar
         self.page_token_var = tk.StringVar(value="Tokens: -  |  Duration: -")
         ttk.Label(output_frame, textvariable=self.page_token_var, font=('Consolas', 9)).pack(anchor=tk.W, pady=(4, 0))
+    
+    def _create_chat_tab(self, parent):
+        chat_input_frame = ttk.Frame(parent)
+        chat_input_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # Chat & Logs — horizontal layout: tabs on left, status log on right
-        bottom_frame = ttk.LabelFrame(parent, text="💬 Chat & Logs", padding="5")
-        bottom_frame.pack(fill=tk.BOTH, padx=5, pady=5)
-        bottom_frame.configure(height=200)
-
-        bottom_paned = ttk.PanedWindow(bottom_frame, orient=tk.HORIZONTAL)
-        bottom_paned.pack(fill=tk.BOTH, expand=True)
-
-        # Left: chat tabs + input
-        chat_side = ttk.Frame(bottom_paned)
-        bottom_paned.add(chat_side, weight=1)
-
-        chat_notebook = ttk.Notebook(chat_side)
-        chat_notebook.pack(fill=tk.BOTH, expand=True)
-
-        chat_tab = ttk.Frame(chat_notebook)
-        chat_notebook.add(chat_tab, text="Chat")
-
-        self.chat_text = scrolledtext.ScrolledText(chat_tab, height=8, font=('Consolas', 8), bg='#1e1e2e', fg='#cdd6f4')
-        self.chat_text.pack(fill=tk.BOTH, expand=True)
-        self.chat_text.tag_config("user", foreground="#89b4fa")
-        self.chat_text.tag_config("assistant", foreground="#a6e3a1")
-        self.chat_text.tag_config("system", foreground="#9399b2")
-
-        error_tab = ttk.Frame(chat_notebook)
-        chat_notebook.add(error_tab, text="Error Log")
-
-        self.error_text = scrolledtext.ScrolledText(error_tab, height=8, font=('Consolas', 8), bg='#2d1f1f', fg='#f0a0a0')
-        self.error_text.pack(fill=tk.BOTH, expand=True)
-        self.error_text.tag_config("error", foreground="#ff6666")
-
-        chat_input_frame = ttk.Frame(chat_side)
-        chat_input_frame.pack(fill=tk.X, pady=3)
-
         ttk.Label(chat_input_frame, text="You:").pack(side=tk.LEFT, padx=5)
         self.chat_input = ttk.Entry(chat_input_frame)
         self.chat_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         self.chat_input.bind('<Return>', lambda e: self.send_chat())
         ttk.Button(chat_input_frame, text="Send", command=self.send_chat).pack(side=tk.LEFT, padx=5)
-
-        # Right: status log (scrollable)
-        log_side = ttk.LabelFrame(bottom_paned, text="📋 Status Log")
-        bottom_paned.add(log_side, weight=1)
-
-        self.log_text = scrolledtext.ScrolledText(log_side, height=8, font=('Consolas', 8), bg='#1e2d1e', fg='#a6e3a1')
-        self.log_text.pack(fill=tk.BOTH, expand=True)
+        
+        self.chat_text = scrolledtext.ScrolledText(parent, font=('Consolas', 9), bg='#1e1e2e', fg='#cdd6f4')
+        self.chat_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.chat_text.tag_config("user", foreground="#89b4fa")
+        self.chat_text.tag_config("assistant", foreground="#a6e3a1")
+        self.chat_text.tag_config("system", foreground="#9399b2")
+    
+    def _create_error_tab(self, parent):
+        self.error_text = scrolledtext.ScrolledText(parent, font=('Consolas', 9), bg='#2d1f1f', fg='#f0a0a0')
+        self.error_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.error_text.tag_config("error", foreground="#ff6666")
+    
+    def _create_status_tab(self, parent):
+        self.log_text = scrolledtext.ScrolledText(parent, font=('Consolas', 9), bg='#1e2d1e', fg='#a6e3a1')
+        self.log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         self.log_text.tag_config("info", foreground="#a6e3a1")
-        self.log_text.tag_config("status", foreground="#cdd6f4")
 
     def log(self, msg):
         timestamp = datetime.now().strftime("%H:%M:%S")
