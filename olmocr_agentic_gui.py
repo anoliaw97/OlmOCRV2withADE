@@ -991,7 +991,9 @@ class OlmoCRAgenticGUI:
                             image_base64 = render_pdf_to_base64png(self.selected_files[0], page_idx + 1, target_longest_image_dim=1288)
                             result = self.vlm.extract(image_base64=image_base64, prompt=prompt)
                         except Exception as e:
-                            self.root.after(0, lambda err=str(e): self.log_error(f"Render error: {err}, using fallback..."))
+                            import traceback
+                            tb = traceback.format_exc()
+                            self.root.after(0, lambda err=str(e), t=tb: self.log_error(f"Render error: {err}\nTraceback: {t[-500:]}"))
                             try:
                                 temp_path = Path(self.output_dir or ".") / f"temp_p{page_idx}.png"
                                 self.pdf_pages[page_idx].save(temp_path)
