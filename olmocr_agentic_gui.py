@@ -483,8 +483,8 @@ class OlmoCRAgenticGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("olmOCR Agentic Document Extraction")
-        self.root.geometry("1400x800")
-        self.root.minsize(1000, 600)
+        self.root.geometry("1200x700")
+        self.root.minsize(900, 500)
 
         self.mode = tk.StringVar(value="single")
         self.selected_files = []
@@ -501,15 +501,15 @@ class OlmoCRAgenticGUI:
         self.current_prompt = DEFAULT_OLMOCR_PROMPT
         
         # LLM settings
-        self.llm_provider = tk.StringVar(value="local")  # local, groq, openai
+        self.llm_provider = tk.StringVar(value="local")
         self.api_key = ""
-        self.api_llm = None  # API-based LLM
-        self.structured_data = None  # Processed output
+        self.api_llm = None
+        self.structured_data = None
 
         # Post-process state
-        self.template_columns = []   # column headers from uploaded template
-        self.pp_records = []         # list[dict] — output of PostProcessAgent
-        self.pp_model_used = ""      # which LLM was used for post-processing
+        self.template_columns = []
+        self.pp_records = []
+        self.pp_model_used = ""
         
         self.setup_ui()
         
@@ -521,85 +521,83 @@ class OlmoCRAgenticGUI:
         style = ttk.Style()
         style.theme_use('clam')
         
-        # Top bar
-        top_frame = ttk.Frame(self.root, padding=10)
+        # Top bar - just title and status
+        top_frame = ttk.Frame(self.root, padding=5)
         top_frame.pack(fill=tk.X)
         
         ttk.Label(top_frame, text="📄 olmOCR Agentic Document Extraction", 
-                 font=('Arial', 16, 'bold')).pack(side=tk.LEFT)
+                 font=('Arial', 14, 'bold')).pack(side=tk.LEFT)
         
         self.model_status = ttk.Label(top_frame, text="Models: Not loaded", 
-                                      foreground="gray", font=('Arial', 10))
+                                      foreground="gray", font=('Arial', 9))
         self.model_status.pack(side=tk.RIGHT, padx=10)
         
-        # Control bar
-        control_frame = ttk.Frame(self.root, padding=(10, 0, 10, 5))
+        # Control bar - compact
+        control_frame = ttk.Frame(self.root, padding=(5, 2, 5, 2))
         control_frame.pack(fill=tk.X)
         
-        ttk.Button(control_frame, text="🔄 Load VLM", command=self.cmd_load_vlm, width=15).pack(side=tk.LEFT, padx=3)
-        ttk.Button(control_frame, text="💬 Load LLM", command=self.cmd_load_llm, width=15).pack(side=tk.LEFT, padx=3)
+        ttk.Button(control_frame, text="Load VLM", command=self.cmd_load_vlm, width=10).pack(side=tk.LEFT, padx=2)
+        ttk.Button(control_frame, text="Load LLM", command=self.cmd_load_llm, width=10).pack(side=tk.LEFT, padx=2)
         
-        ttk.Separator(control_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=10, fill=tk.Y)
+        ttk.Separator(control_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=5, fill=tk.Y)
         
-        ttk.Label(control_frame, text="Mode:").pack(side=tk.LEFT, padx=5)
+        ttk.Label(control_frame, text="Mode:").pack(side=tk.LEFT, padx=2)
         ttk.Radiobutton(control_frame, text="Single", variable=self.mode, value="single").pack(side=tk.LEFT)
         ttk.Radiobutton(control_frame, text="Batch", variable=self.mode, value="batch").pack(side=tk.LEFT)
         
-        ttk.Button(control_frame, text="📁 Select Files", command=self.select_files, width=18).pack(side=tk.LEFT, padx=10)
-        self.file_label = ttk.Label(control_frame, text="No files", font=('Arial', 9))
-        self.file_label.pack(side=tk.LEFT, padx=5)
+        ttk.Button(control_frame, text="Select Files", command=self.select_files, width=12).pack(side=tk.LEFT, padx=5)
+        self.file_label = ttk.Label(control_frame, text="No files", font=('Arial', 8))
+        self.file_label.pack(side=tk.LEFT, padx=2)
         
-        ttk.Button(control_frame, text="Select All", command=self.select_all_pages, width=10).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="Deselect", command=self.deselect_all_pages, width=10).pack(side=tk.LEFT, padx=5)
-        self.page_label = ttk.Label(control_frame, text="0 pages", font=('Arial', 9))
-        self.page_label.pack(side=tk.LEFT, padx=5)
+        ttk.Button(control_frame, text="Select All", command=self.select_all_pages, width=8).pack(side=tk.LEFT, padx=2)
+        ttk.Button(control_frame, text="Deselect", command=self.deselect_all_pages, width=8).pack(side=tk.LEFT, padx=2)
+        self.page_label = ttk.Label(control_frame, text="0 pages", font=('Arial', 8))
+        self.page_label.pack(side=tk.LEFT, padx=2)
         
-        ttk.Button(control_frame, text="💾 Output", command=self.select_output, width=12).pack(side=tk.LEFT, padx=10)
-        self.output_label = ttk.Label(control_frame, text="Not set", font=('Arial', 9))
-        self.output_label.pack(side=tk.LEFT, padx=5)
+        ttk.Button(control_frame, text="Output", command=self.select_output, width=8).pack(side=tk.LEFT, padx=5)
+        self.output_label = ttk.Label(control_frame, text="Not set", font=('Arial', 8))
+        self.output_label.pack(side=tk.LEFT, padx=2)
         
-        # LLM Provider selector
-        ttk.Separator(control_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=10, fill=tk.Y)
+        ttk.Separator(control_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=5, fill=tk.Y)
         
-        ttk.Label(control_frame, text="LLM:").pack(side=tk.LEFT, padx=5)
+        ttk.Label(control_frame, text="LLM:").pack(side=tk.LEFT, padx=2)
         ttk.Radiobutton(control_frame, text="Local", variable=self.llm_provider, value="local").pack(side=tk.LEFT)
         ttk.Radiobutton(control_frame, text="Groq", variable=self.llm_provider, value="groq").pack(side=tk.LEFT)
         
-        # API Key input
         self.api_key_var = tk.StringVar(value=os.getenv("GROQ_API_KEY", ""))
-        ttk.Entry(control_frame, textvariable=self.api_key_var, width=15, show="*").pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="Set API", command=self.set_api_key, width=8).pack(side=tk.LEFT, padx=2)
+        ttk.Entry(control_frame, textvariable=self.api_key_var, width=10, show="*").pack(side=tk.LEFT, padx=2)
+        ttk.Button(control_frame, text="Set", command=self.set_api_key, width=5).pack(side=tk.LEFT, padx=2)
         
-        # Main content
+        # Main content - PanedWindow for resizable panels
         main_paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        main_paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        main_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        left_frame = ttk.Frame(main_paned, width=400)
+        left_frame = ttk.Frame(main_paned)
         main_paned.add(left_frame, weight=1)
         self._create_left_panel(left_frame)
         
-        right_frame = ttk.Frame(main_paned, width=600)
-        main_paned.add(right_frame, weight=1)
+        right_frame = ttk.Frame(main_paned)
+        main_paned.add(right_frame, weight=2)
         self._create_right_panel(right_frame)
         
         # Bottom
         self.progress_bar = ttk.Progressbar(self.root, mode='indeterminate')
-        self.progress_bar.pack(fill=tk.X, padx=10, pady=(0, 5))
+        self.progress_bar.pack(fill=tk.X, padx=5, pady=(0, 2))
         
-        self.status_label = ttk.Label(self.root, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
-        self.status_label.pack(fill=tk.X, padx=10, pady=(0, 10))
+        self.status_label = ttk.Label(self.root, text="Ready", relief=tk.SUNKEN, anchor=tk.W, padding=2)
+        self.status_label.pack(fill=tk.X, padx=5, pady=(0, 5))
 
     def _create_left_panel(self, parent):
-        preview_frame = ttk.LabelFrame(parent, text="📄 Document Preview", padding=5)
+        preview_frame = ttk.LabelFrame(parent, text="📄 Preview", padding=3)
         preview_frame.pack(fill=tk.BOTH, expand=True)
         
         nav_frame = ttk.Frame(preview_frame)
-        nav_frame.pack(fill=tk.X, pady=5)
+        nav_frame.pack(fill=tk.X, pady=2)
         
-        ttk.Button(nav_frame, text="◀ Prev", command=self.prev_page, width=10).pack(side=tk.LEFT)
-        self.page_nav_label = ttk.Label(nav_frame, text="Page: 0 / 0", width=15)
-        self.page_nav_label.pack(side=tk.LEFT, padx=10)
-        ttk.Button(nav_frame, text="Next ▶", command=self.next_page, width=10).pack(side=tk.LEFT)
+        ttk.Button(nav_frame, text="◀", command=self.prev_page, width=5).pack(side=tk.LEFT, padx=2)
+        self.page_nav_label = ttk.Label(nav_frame, text="Page: 0 / 0", width=12)
+        self.page_nav_label.pack(side=tk.LEFT, padx=5)
+        ttk.Button(nav_frame, text="▶", command=self.next_page, width=5).pack(side=tk.LEFT, padx=2)
         
         canvas_frame = ttk.Frame(preview_frame)
         canvas_frame.pack(fill=tk.BOTH, expand=True)
@@ -614,7 +612,7 @@ class OlmoCRAgenticGUI:
         thumb_frame = ttk.LabelFrame(parent, text="Page Thumbnails", padding=5)
         thumb_frame.pack(fill=tk.X, pady=5)
         
-        self.thumb_canvas = tk.Canvas(thumb_frame, bg='#1e1e1e', height=80)
+        self.thumb_canvas = tk.Canvas(thumb_frame, bg='#1e1e1e', height=60)
         thumb_scroll = ttk.Scrollbar(thumb_frame, orient="horizontal", command=self.thumb_canvas.xview)
         self.thumb_canvas.configure(xscrollcommand=thumb_scroll.set)
         
