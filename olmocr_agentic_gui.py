@@ -483,8 +483,8 @@ class OlmoCRAgenticGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("olmOCR Agentic Document Extraction")
-        self.root.geometry("1800x1000")
-        self.root.minsize(1400, 800)
+        self.root.geometry("1600x900")
+        self.root.minsize(1200, 700)
 
         self.mode = tk.StringVar(value="single")
         self.selected_files = []
@@ -685,9 +685,9 @@ class OlmoCRAgenticGUI:
         self.stop_btn = ttk.Button(btn_frame, text="⏹ STOP", command=self.stop_extraction, state=tk.DISABLED)
         self.stop_btn.pack(side=tk.LEFT)
         
-        # Output — full width, no "Current Page" panel
+        # Output — smaller height to fit screen
         output_frame = ttk.LabelFrame(parent, text="📊 Extraction Results", padding="10")
-        output_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        output_frame.pack(fill=tk.BOTH, expand=False, padx=5, pady=5)
 
         self.response_notebook = ttk.Notebook(output_frame)
         self.response_notebook.pack(fill=tk.BOTH, expand=True)
