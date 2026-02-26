@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OLM OCR Agentic GUI - Web Version</title>
+    <style>
+        :root {
+            --navy: #002060;
+            --blue: #4472C4;
+            --green: #70AD47;
+            --orange: #ED7D31;
+            --light-gray: #F2F2F2;
+            --border: #D6DCE4;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 12px;
+            background: #fff;
+            color: #000;
+            min-height: 100vh;
+        }
+        
+        /* Header */
+        .header {
+            background: var(--navy);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header h1 {
+            font-size: 18px;
+            font-weight: normal;
+        }
+        
+        .header .subtitle {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+        
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            min-height: calc(100vh - 50px);
+        }
+        
+        /* Left Panel - File Selection */
+        .left-panel {
+            width: 280px;
+            border-right: 1px solid var(--border);
+            padding: 15px;
+            background: var(--light-gray);
+        }
+        
+        .section {
+            margin-bottom: 20px;
+            padding: 12px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+        
+        .section h3 {
+            font-size: 13px;
+            color: var(--navy);
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        /* Right Panel - Results */
+        .right-panel {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--navy);
+            margin-bottom: 15px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: var(--light-gray);
+            border: 1px solid var(--border);
+            border-bottom: none;
+            cursor: pointer;
+            margin-right: 3px;
+            font-size: 12px;
+        }
+        
+        .tab.active {
+            background: var(--navy);
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 10px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 3px;
+        }
+        
+        input[type="text"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: inherit;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        button {
+            padding: 8px 16px;
+            border: 1px solid #aaa;
+            border-radius: 3px;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        
+        button:hover {
+            background: #e5e5e5;
+        }
+        
+        button.primary {
+            background: var(--navy);
+            color: white;
+            border-color: var(--navy);
+        }
+        
+        button.primary:hover {
+            background: #001a4d;
+        }
+        
+        button.success {
+            background: var(--green);
+            color: white;
+            border-color: var(--green);
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        
+        th, td {
+            border: 1px solid var(--border);
+            padding: 6px 8px;
+            text-align: left;
+        }
+        
+        th {
+            background: var(--navy);
+            color: white;
+        }
+        
+        tr:nth-child(even) {
+            background: var(--light-gray);
+        }
+        
+        /* Status */
+        .status-bar {
+            padding: 8px 15px;
+            background: var(--light-gray);
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: #666;
+        }
+        
+        .status-bar.success {
+            color: var(--green);
+        }
+        
+        .status-bar.error {
+            color: red;
+        }
+        
+        /* Info Box */
+        .info-box {
+            padding: 10px;
+            background: #e8f0fe;
+            border: 1px solid var(--blue);
+            border-radius: 3px;
+            font-size: 11px;
+            margin-bottom: 10px;
+        }
+        
+        /* Template Display */
+        .template-info {
+            padding: 8px;
+            background: #fef3cd;
+            border: 1px solid #ffc107;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        
+        /* Grid for prompts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        /* Screenshots Gallery */
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .gallery-item {
+            border: 1px solid var(--border);
+            padding: 10px;
+            background: white;
+        }
+        
+        .gallery-item img {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+        
+        .gallery-item .caption {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
+        }
+        
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--navy);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>OLM OCR Agentic GUI</h1>
+            <span class="subtitle">Agentic Document Extraction using olmOCR-2-7B-1025-FP8</span>
+        </div>
+        <div>
+            <button onclick="loadAngsiDemo()">Load Angsi Demo</button>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <div class="section">
+                <h3>📁 File Selection</h3>
+                <div class="form-group">
+                    <label>Upload PDF:</label>
+                    <input type="file" id="pdfFile" accept=".pdf">
+                </div>
+                <button class="primary" onclick="uploadPDF()">Upload</button>
+                <div id="fileInfo" style="margin-top:10px; font-size:11px; color:#666;"></div>
+            </div>
+            
+            <div class="section">
+                <h3>⚙️ Extraction Settings</h3>
+                <div class="form-group">
+                    <label>Mode:</label>
+                    <select id="extractMode">
+                        <option value="single">Single Document</option>
+                        <option value="batch">Batch</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Prompt:</label>
+                    <select id="promptChoice" onchange="changePrompt()">
+                        <option value="0">Default (olmOCR v4)</option>
+                        <option value="1">Table Extraction</option>
+                        <option value="2">Custom</option>
+                    </select>
+                </div>
+                <textarea id="promptText" rows="4" placeholder="Custom prompt...">You are an OCR assistant. Extract all text from the document. Return as markdown with YAML front matter.</textarea>
+                <button class="primary" onclick="runExtraction()">▶ Run Extraction</button>
+            </div>
+            
+            <div class="section">
+                <h3>🔧 Prompt Optimizer</h3>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Doc Type:</label>
+                        <input type="text" id="optDoctype" placeholder="e.g., SCAL Report">
+                    </div>
+                    <div class="form-group">
+                        <label>Goal:</label>
+                        <input type="text" id="optGoal" placeholder="e.g., Extract porosity values">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>LLM:</label>
+                    <select id="optProvider">
+                        <option value="local">Local</option>
+                        <option value="groq">Groq</option>
+                        <option value="openai">OpenAI</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>API Key:</label>
+                    <input type="password" id="optApiKey" placeholder="Enter API key">
+                </div>
+                <button onclick="optimizePrompt()">↩ Optimize</button>
+                <button onclick="resetPrompt()">↩ Reset</button>
+            </div>
+            
+            <div class="section">
+                <h3>📊 Post-Process</h3>
+                <div class="form-group">
+                    <label>Template (CSV/Excel):</label>
+                    <input type="file" id="templateFile" accept=".csv,.xlsx">
+                </div>
+                <button onclick="uploadTemplate()">📂 Upload</button>
+                <button onclick="clearTemplate()">✕ Clear</button>
+                <div id="templateInfo" class="template-info hidden"></div>
+                
+                <div class="form-group" style="margin-top:10px;">
+                    <label>LLM:</label>
+                    <select id="ppProvider">
+                        <option value="local">Local</option>
+                        <option value="groq">Groq</option>
+                        <option value="openai">OpenAI</option>
+                    </select>
+                </div>
+                <button class="success" onclick="runPostprocess()">▶ Run Post-Process</button>
+            </div>
+            
+            <div class="section">
+                <h3>💾 Export</h3>
+                <button onclick="exportData('xlsx')">📊 Excel</button>
+                <button onclick="exportData('csv')">📄 CSV</button>
+                <button onclick="exportData('json')">📋 JSON</button>
+            </div>
+        </div>
+        
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="tabs">
+                <div class="tab active" data-tab="raw">Raw Response</div>
+                <div class="tab" data-tab="prompt">Prompt Used</div>
+                <div class="tab" data-tab="timing">Page Timings</div>
+                <div class="tab" data-tab="postprocess">Post-Process</div>
+                <div class="tab" data-tab="screenshots">Screenshots</div>
+            </div>
+            
+            <!-- Raw Response Tab -->
+            <div id="tab-raw" class="tab-content active">
+                <div style="margin-bottom:10px;">
+                    <button onclick="prevPage()">◀ Prev</button>
+                    <span id="pageIndicator">Page 1 / 1</span>
+                    <button onclick="nextPage()">Next ▶</button>
+                </div>
+                <textarea id="rawText" style="width:100%; height:400px; font-family:monospace; font-size:11px;" readonly></textarea>
+                <div style="margin-top:5px;">
+                    <button onclick="saveAllPagesTxt()">💾 Save All (TXT)</button>
+                    <button onclick="saveAllPagesJson()">💾 Save All (JSON)</button>
+                    <button onclick="renderTables()">🔍 Render Tables</button>
+                </div>
+            </div>
+            
+            <!-- Prompt Used Tab -->
+            <div id="tab-prompt" class="tab-content">
+                <textarea id="usedPrompt" style="width:100%; height:400px; font-family:monospace; font-size:11px;" readonly></textarea>
+            </div>
+            
+            <!-- Page Timings Tab -->
+            <div id="tab-timing" class="tab-content">
+                <table id="timingTable">
+                    <thead>
+                        <tr>
+                            <th>Page</th>
+                            <th>Duration (s)</th>
+                            <th>Duration (min)</th>
+                            <th>Tokens</th>
+                        </tr>
+                    </thead>
+                    <tbody id="timingBody">
+                        <tr><td colspan="4">No extraction data</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Post-Process Tab -->
+            <div id="tab-postprocess" class="tab-content">
+                <div class="info-box">
+                    <strong>Post-processing compiles ALL extracted pages into a structured dataset.</strong><br>
+                    Run extraction first, then optionally upload a column template.
+                </div>
+                <div id="ppStats" style="margin-bottom:10px; padding:8px; background:#e8f0fe; border:1px solid #4472C4; border-radius:3px;">
+                    No extraction data loaded.
+                </div>
+                <div id="ppOutput">
+                    <textarea id="ppText" style="width:100%; height:300px; font-family:monospace; font-size:11px;" readonly placeholder="Post-process output will appear here..."></textarea>
+                </div>
+            </div>
+            
+            <!-- Screenshots Tab -->
+            <div id="tab-screenshots" class="tab-content">
+                <div class="info-box">
+                    <strong>Screenshots Gallery</strong><br>
+                    Extracted PNG pages from the document.
+                </div>
+                <button onclick="loadScreenshots()">🔄 Refresh</button>
+                <div id="gallery" class="gallery">
+                    <p style="color:#666; font-size:11px;">Click "Load Angsi Demo" or "Refresh" to view screenshots.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="status-bar" id="statusBar">
+        Ready. Upload a PDF or click "Load Angsi Demo" to see example data.
+    </div>
+
+    <script>
+        // State
+        let currentPage = 0;
+        let extractedData = [];
+        let templateColumns = [];
+        
+        // Tab handling
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+        
+        // Status update
+        function setStatus(msg, type = '') {
+            const sb = document.getElementById('statusBar');
+            sb.textContent = msg;
+            sb.className = 'status-bar ' + type;
+        }
+        
+        // Load Angsi Demo
+        function loadAngsiDemo() {
+            setStatus('Loading Angsi demo data...', 'loading');
+            fetch('/load_angsi')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        extractedData = [];
+                        // Fetch all pages
+                        const promises = [];
+                        for (let i = 1; i <= data.pages; i++) {
+                            promises.push(fetch('/page/' + i).then(r => r.json()));
+                        }
+                        Promise.all(promises).then(pages => {
+                            extractedData = pages;
+                            currentPage = 0;
+                            updateUI();
+                            setStatus('Loaded ' + data.pages + ' pages from Angsi demo', 'success');
+                            loadScreenshots();
+                        });
+                    } else {
+                        setStatus('Error: ' + data.message, 'error');
+                    }
+                });
+        }
+        
+        // Update UI with data
+        function updateUI() {
+            // Update page indicator
+            document.getElementById('pageIndicator').textContent = 
+                `Page ${currentPage + 1} / ${extractedData.length}`;
+            
+            // Update raw text
+            if (extractedData[currentPage]) {
+                document.getElementById('rawText').value = extractedData[currentPage].raw_response || '';
+            }
+            
+            // Update timing table
+            const tbody = document.getElementById('timingBody');
+            tbody.innerHTML = extractedData.map(p => `
+                <tr>
+                    <td>${p.page_number}</td>
+                    <td>${p.duration_s}</td>
+                    <td>${(p.duration_s / 60).toFixed(2)}</td>
+                    <td>${p.total_tokens}</td>
+                </tr>
+            `).join('');
+            
+            // Update stats
+            const totalTokens = extractedData.reduce((a, p) => a + p.total_tokens, 0);
+            const totalDuration = extractedData.reduce((a, p) => a + p.duration_s, 0);
+            document.getElementById('ppStats').innerHTML = `
+                <strong>Ready:</strong> ${extractedData.length} page(s) | 
+                ~${totalDuration.toFixed(0)}s (${(totalDuration/60).toFixed(1)} min) | 
+                ${totalTokens.toLocaleString()} tokens
+            `;
+        }
+        
+        // Navigation
+        function prevPage() {
+            if (currentPage > 0) {
+                currentPage--;
+                updateUI();
+            }
+        }
+        
+        function nextPage() {
+            if (currentPage < extractedData.length - 1) {
+                currentPage++;
+                updateUI();
+            }
+        }
+        
+        // Upload PDF
+        function uploadPDF() {
+            const file = document.getElementById('pdfFile').files[0];
+            if (!file) {
+                setStatus('Please select a PDF file', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('pdf', file);
+            
+            setStatus('Uploading...', 'loading');
+            fetch('/upload', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById('fileInfo').textContent = '✓ ' + data.filename;
+                        setStatus('File uploaded: ' + data.filename, 'success');
+                    } else {
+                        setStatus('Error: ' + data.message, 'error');
+                    }
+                });
+        }
+        
+        // Run Extraction
+        function runExtraction() {
+            setStatus('Extracting...', 'loading');
+            fetch('/extract', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        // Reload page data
+                        const promises = [];
+                        for (let i = 1; i <= data.pages; i++) {
+                            promises.push(fetch('/page/' + i).then(r => r.json()));
+                        }
+                        Promise.all(promises).then(pages => {
+                            extractedData = pages;
+                            currentPage = 0;
+                            updateUI();
+                            setStatus(`Extraction complete: ${data.pages} pages, ${data.total_tokens} tokens`, 'success');
+                        });
+                    } else {
+                        setStatus('Error: ' + data.message, 'error');
+                    }
+                });
+        }
+        
+        // Upload Template
+        function uploadTemplate() {
+            const file = document.getElementById('templateFile').files[0];
+            if (!file) {
+                setStatus('Please select a template file', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('template', file);
+            
+            fetch('/upload_template', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        templateColumns = data.columns;
+                        document.getElementById('templateInfo').innerHTML = 
+                            `✓ Template loaded: ${data.columns.length} columns<br>${data.columns.join(', ')}`;
+                        document.getElementById('templateInfo').classList.remove('hidden');
+                        setStatus('Template loaded: ' + data.columns.length + ' columns', 'success');
+                    } else {
+                        setStatus('Error: ' + data.message, 'error');
+                    }
+                });
+        }
+        
+        // Clear Template
+        function clearTemplate() {
+            fetch('/clear_template', { method: 'POST' })
+                .then(r => r.json())
+                .then(() => {
+                    templateColumns = [];
+                    document.getElementById('templateInfo').classList.add('hidden');
+                    setStatus('Template cleared', 'success');
+                });
+        }
+        
+        // Run Post-Process
+        function runPostprocess() {
+            if (extractedData.length === 0) {
+                setStatus('No extracted data. Run extraction first.', 'error');
+                return;
+            }
+            
+            setStatus('Running post-process...', 'loading');
+            fetch('/run_postprocess', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById('ppText').value = JSON.stringify(data, null, 2);
+                        setStatus(`Post-process complete: ${data.records} records`, 'success');
+                    } else {
+                        setStatus('Error: ' + data.message, 'error');
+                    }
+                });
+        }
+        
+        // Export
+        function exportData(format) {
+            window.location.href = '/export?format=' + format;
+        }
+        
+        // Load Screenshots
+        function loadScreenshots() {
+            fetch('/screenshots')
+                .then(r => r.json())
+                .then(pngs => {
+                    const gallery = document.getElementById('gallery');
+                    if (pngs.length === 0) {
+                        gallery.innerHTML = '<p style="color:#666;">No screenshots available</p>';
+                        return;
+                    }
+                    
+                    // Filter to Angsi-related PNGs (temp_p0 to temp_p16)
+                    const angsiPngs = pngs.filter(p => p.startsWith('temp_p'));
+                    
+                    gallery.innerHTML = angsiPngs.map(p => `
+                        <div class="gallery-item">
+                            <img src="/img/${p}" alt="${p}">
+                            <div class="caption">${p.replace('temp_p', 'Page ')}</div>
+                        </div>
+                    `).join('');
+                });
+        }
+        
+        // Placeholder functions
+        function changePrompt() {
+            // Would update prompt text
+        }
+        
+        function optimizePrompt() {
+            setStatus('Prompt optimization requires LLM backend (not implemented in demo)', 'error');
+        }
+        
+        function resetPrompt() {
+            document.getElementById('promptText').value = 'You are an OCR assistant. Extract all text from the document. Return as markdown with YAML front matter.';
+        }
+        
+        function saveAllPagesTxt() {
+            setStatus('Save all pages TXT (not implemented in demo)', 'error');
+        }
+        
+        function saveAllPagesJson() {
+            setStatus('Save all pages JSON (not implemented in demo)', 'error');
+        }
+        
+        function renderTables() {
+            setStatus('Render tables (not implemented in demo)', 'error');
+        }
+    </script>
+</body>
+</html>
