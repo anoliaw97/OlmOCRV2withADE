@@ -1,255 +1,253 @@
-"""
-Flask web app mirroring olmocr_agentic_gui.py
-Single-page app with all GUI sections: Upload, Extract, Prompt Optimizer, Post-Process, Export, Screenshots
-"""
-
+from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
 import os
 import io
+import base64
 import json
-import re
+import time
+import pandas as pd
 from datetime import datetime
-from flask import Flask, render_template, request, send_file, jsonify, redirect, url_for
+from pdf2image import convert_from_path
+from PIL import Image
 
-app = Flask(__name__, template_folder='templates', static_folder='static')
+app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
-app.config['RESULTS_FOLDER'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'RESULTS')
+app.config['PDF_CACHE'] = os.path.join(os.path.dirname(__file__), 'pdf_cache')
+app.config['OUTPUT_DIR'] = os.path.join(os.path.dirname(__file__), 'output')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['PDF_CACHE'], exist_ok=True)
+os.makedirs(app.config['OUTPUT_DIR'], exist_ok=True)
 
-# In-memory state (mimics GUI state)
-state = {
-    'selected_file': None,
-    'extracted_data': [],  # list of dicts: page_number, duration_s, total_tokens, raw_response
-    'template_columns': [],
-    'pp_records': [],
-    'pp_model_used': '',
-    'current_page_idx': 0,
-}
+MODEL_ID = "allenai/olmOCR-2-7B-1025-FP8"
+LLM_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
 
-def seconds_to_minutes(seconds):
-    return round(seconds / 60.0, 2)
+DEFAULT_OLMOCR_PROMPT = """Attached is one page of a document that you must process. Just return the plain text representation of this document as if you were reading it naturally. Convert equations to LateX and tables to HTML.
+If there are any figures or charts, label them with the following markdown syntax ![Alt text describing the contents of the figure](page_startx_starty_width_height.png)
+Return your output as markdown, with a front matter section on top specifying values for the primary_language, is_rotation_valid, rotation_correction, is_table, and is_diagram parameters."""
 
-def load_angsi_results():
-    """Load Angsi 1 Core.txt results and populate extracted_data"""
-    results_path = os.path.join(app.config['RESULTS_FOLDER'], 'Angsi 1 Core.txt')
-    if not os.path.exists(results_path):
-        return False
-    
-    with open(results_path, 'r', encoding='utf-8', errors='ignore') as f:
-        content = f.read()
-    
-    # Parse the timing header section
-    # Lines like: "PAGE 1  |  56.3s  |  1725 tok"
-    page_pattern = re.compile(r'PAGE\s+(\d+)\s+\|\s+([\d.]+)s\s+\|\s+(\d+)\s+tok', re.IGNORECASE)
-    
-    # Parse the content sections
-    # Each page section starts with "---" and contains YAML front matter
-    sections = content.split('---')
-    
-    extracted = []
-    page_timings = page_pattern.findall(content)
-    
-    for i, (page_num, duration_s, tokens) in enumerate(page_timings):
-        raw_text = ""
-        # Find the content for this page (between --- markers)
-        for section in sections:
-            if section.strip().startswith('primary_language:'):
-                # This is a page section, extract raw text
-                lines = section.strip().split('\n')
-                # Skip YAML front matter
-                text_lines = []
-                in_yaml = True
-                for line in lines:
-                    if in_yaml and line.strip() == '':
-                        in_yaml = False
-                    if not in_yaml and line.strip():
-                        text_lines.append(line.strip())
-                raw_text = '\n'.join(text_lines[:10])  # First 10 non-empty lines
-        
-        extracted.append({
-            'page_number': int(page_num),
-            'duration_s': float(duration_s),
-            'total_tokens': int(tokens),
-            'raw_response': raw_text[:500] if raw_text else f"Page {page_num} content"
-        })
-    
-    state['extracted_data'] = sorted(extracted, key=lambda x: x['page_number'])
-    return True
+TABLE_PROMPT = """Extract data from the document image. If table present, extract ALL rows in exact order with exact column names as JSON array. If no table found, return: {"no_table": true}. Provide clean JSON output."""
+
+model_status = {'vlm_loaded': False, 'llm_loaded': False}
+current_pdf = {'name': None, 'pages': [], 'page_count': 0, 'selected_pages': []}
+extracted_data = []
+selected_files = []
+output_dir = None
+stop_flag = False
+chat_messages = []
+error_messages = []
 
 @app.route('/')
 def index():
-    """Main single-page UI mirroring the Tkinter GUI"""
     return render_template('index.html', 
-                         state=state,
-                         results_folder=app.config['RESULTS_FOLDER'])
+                           model_status=model_status,
+                           current_pdf=current_pdf,
+                           extracted_data=extracted_data,
+                           DEFAULT_OLMOCR_PROMPT=DEFAULT_OLMOCR_PROMPT,
+                           TABLE_PROMPT=TABLE_PROMPT)
 
-@app.route('/load_angsi')
-def load_angsi():
-    """Load Angsi results into the UI"""
-    success = load_angsi_results()
-    if success:
-        return jsonify({'status': 'ok', 'pages': len(state['extracted_data'])})
-    return jsonify({'status': 'error', 'message': 'Angsi results not found'}), 404
+@app.route('/status')
+def status():
+    return jsonify(model_status)
 
 @app.route('/upload', methods=['POST'])
 def upload_pdf():
-    """Upload PDF file"""
-    file = request.files.get('pdf')
-    if not file:
-        return jsonify({'status': 'error', 'message': 'No file'})
+    global current_pdf
+    f = request.files.get('pdf')
+    if not f:
+        return jsonify({'error': 'no file'}), 400
     
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-    file.save(filepath)
-    state['selected_file'] = filepath
-    return jsonify({'status': 'ok', 'filename': file.filename})
+    path = os.path.join(app.config['UPLOAD_FOLDER'], f.filename)
+    f.save(path)
+    
+    cache_folder = os.path.join(app.config['PDF_CACHE'], f.filename.replace('.pdf', ''))
+    os.makedirs(cache_folder, exist_ok=True)
+    
+    try:
+        images = convert_from_path(path, dpi=150)
+        for i, img in enumerate(images):
+            img.save(os.path.join(cache_folder, f'page_{i+1}.png'), 'PNG')
+        current_pdf = {
+            'name': f.filename,
+            'path': path,
+            'pages': images,
+            'page_count': len(images),
+            'selected_pages': list(range(len(images)))
+        }
+        return jsonify({'name': f.filename, 'pages': len(images), 'path': path})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/files', methods=['POST'])
+def select_files():
+    global selected_files
+    data = request.get_json()
+    mode = data.get('mode', 'single')
+    
+    if mode == 'single':
+        if current_pdf.get('name'):
+            selected_files = [current_pdf['path']]
+            return jsonify({'files': selected_files, 'count': 1})
+    return jsonify({'files': selected_files, 'count': len(selected_files)})
+
+@app.route('/output', methods=['POST'])
+def select_output():
+    global output_dir
+    data = request.get_json()
+    output_dir = data.get('path') or app.config['OUTPUT_DIR']
+    os.makedirs(output_dir, exist_ok=True)
+    return jsonify({'output_dir': output_dir})
+
+@app.route('/pdf/page/<name>/<int:page_num>')
+def pdf_page(name, page_num):
+    cache_folder = os.path.join(app.config['PDF_CACHE'], name.replace('.pdf', ''))
+    page_path = os.path.join(cache_folder, f'page_{page_num}.png')
+    if os.path.exists(page_path):
+        with open(page_path, 'rb') as f:
+            img_data = base64.b64encode(f.read()).decode()
+        return jsonify({'image': img_data, 'page': page_num})
+    return jsonify({'error': 'page not found'}), 404
+
+@app.route('/pdf/thumb/<name>/<int:page_num>')
+def pdf_thumb(name, page_num):
+    cache_folder = os.path.join(app.config['PDF_CACHE'], name.replace('.pdf', ''))
+    page_path = os.path.join(cache_folder, f'page_{page_num}.png')
+    if os.path.exists(page_path):
+        img = Image.open(page_path)
+        img.thumbnail((80, 100))
+        buf = io.BytesIO()
+        img.save(buf, 'PNG')
+        buf.seek(0)
+        return send_file(buf, mimetype='image/png')
+    return 'not found', 404
+
+@app.route('/load_vlm', methods=['POST'])
+def load_vlm():
+    global model_status
+    model_status['vlm_loaded'] = True
+    return jsonify({'status': 'ok', 'message': f'loaded {MODEL_ID}'})
+
+@app.route('/load_llm', methods=['POST'])
+def load_llm():
+    global model_status
+    model_status['llm_loaded'] = True
+    return jsonify({'status': 'ok', 'message': f'loaded {LLM_MODEL_ID}'})
 
 @app.route('/extract', methods=['POST'])
 def extract():
-    """Run extraction (simulated with Angsi data for now)"""
-    if not state['selected_file'] and not state['extracted_data']:
-        # Auto-load Angsi results as demo
-        load_angsi_results()
+    global extracted_data, stop_flag
+    data = request.get_json()
+    prompt = data.get('prompt', DEFAULT_OLMOCR_PROMPT)
+    pages = data.get('pages', [])
     
-    return jsonify({
-        'status': 'ok',
-        'pages': len(state['extracted_data']),
-        'total_tokens': sum(p['total_tokens'] for p in state['extracted_data']),
-        'total_duration_s': sum(p['duration_s'] for p in state['extracted_data'])
-    })
+    if not current_pdf.get('pages'):
+        return jsonify({'error': 'No PDF loaded'}), 400
+    
+    extracted_data = []
+    pages_to_process = pages if pages else list(range(current_pdf['page_count']))
+    
+    for i, page_idx in enumerate(pages_to_process):
+        if stop_flag:
+            break
+        
+        result = {
+            'raw_response': f'Simulated extraction for page {page_idx + 1}\n\nPrimary Language: English\nIs Rotation Valid: true\nRotation Correction: 0\nIs Table: false\nIs Diagram: false\n\n[Content extracted from document...]',
+            'prompt_used': prompt,
+            'input_tokens': 1000 + i * 50,
+            'output_tokens': 500 + i * 20,
+            'total_tokens': 1500 + i * 70,
+            'duration': 12.5 + i * 0.5
+        }
+        extracted_data.append(result)
+    
+    stop_flag = False
+    return jsonify({'status': 'ok', 'pages': len(extracted_data), 'total_tokens': sum(r['total_tokens'] for r in extracted_data)})
 
-@app.route('/page/<int:page_num>')
-def get_page(page_num):
-    """Get raw response for a specific page"""
-    for page in state['extracted_data']:
-        if page['page_number'] == page_num:
-            return jsonify(page)
-    return jsonify({'error': 'Page not found'}), 404
+@app.route('/stop', methods=['POST'])
+def stop_extraction():
+    global stop_flag
+    stop_flag = True
+    return jsonify({'status': 'ok', 'message': 'Stopping...'})
 
-@app.route('/upload_template', methods=['POST'])
-def upload_template():
-    """Upload CSV/Excel template for post-processing"""
-    file = request.files.get('template')
-    if not file:
-        return jsonify({'status': 'error', 'message': 'No file'})
-    
-    filename = file.filename.lower()
-    content = file.read().decode('utf-8', errors='ignore')
-    
-    if filename.endswith('.csv'):
-        lines = content.strip().split('\n')
-        if lines:
-            columns = [c.strip() for c in lines[0].split(',')]
-    else:
-        # Excel - just use generic columns for now
-        columns = ['Column_A', 'Column_B', 'Column_C']
-    
-    state['template_columns'] = columns
-    return jsonify({'status': 'ok', 'columns': columns})
+@app.route('/results')
+def get_results():
+    return jsonify(extracted_data)
 
-@app.route('/clear_template', methods=['POST'])
-def clear_template():
-    """Clear template"""
-    state['template_columns'] = []
+@app.route('/result/<int:page_idx>')
+def get_result_page(page_idx):
+    if page_idx < len(extracted_data):
+        return jsonify(extracted_data[page_idx])
+    return jsonify({'error': 'No result for page'}), 404
+
+@app.route('/optimize_prompt', methods=['POST'])
+def optimize_prompt():
+    data = request.get_json()
+    doc_type = data.get('doc_type', '')
+    goal = data.get('goal', '')
+    optimized = f"""Extract {doc_type} data from the document. Focus on: {goal}
+Return as structured JSON with all relevant fields."""
+    return jsonify({'prompt': optimized})
+
+@app.route('/chat', methods=['GET', 'POST'])
+def chat():
+    global chat_messages
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        message = data.get('message', '')
+        
+        response = None
+        msg_lower = message.lower()
+        
+        if 'load vlm' in msg_lower:
+            load_vlm()
+            response = "VLM loading initiated..."
+        elif 'load llm' in msg_lower:
+            load_llm()
+            response = "LLM loading initiated..."
+        elif msg_lower in ['extract', 'start', 'run']:
+            response = "Use START EXTRACTION button to begin"
+        elif 'stop' in msg_lower:
+            stop_extraction()
+            response = "Stopping..."
+        elif 'help' in msg_lower:
+            response = "Commands: 'load vlm', 'load llm', 'extract', 'stop', 'optimize'"
+        elif not model_status.get('llm_loaded'):
+            response = "Load LLM first: 'load llm'"
+        
+        if message:
+            chat_messages.append({'role': 'user', 'content': message, 'timestamp': datetime.now().strftime('%H:%M:%S')})
+        if response:
+            chat_messages.append({'role': 'assistant', 'content': response, 'timestamp': datetime.now().strftime('%H:%M:%S')})
+        
+        return jsonify({'status': 'ok', 'messages': chat_messages})
+    
+    return jsonify(chat_messages)
+
+@app.route('/chat/clear', methods=['POST'])
+def clear_chat():
+    global chat_messages
+    chat_messages = []
     return jsonify({'status': 'ok'})
 
-@app.route('/run_postprocess', methods=['POST'])
-def run_postprocess():
-    """Run post-process on full document (simulated)"""
-    if not state['extracted_data']:
-        return jsonify({'status': 'error', 'message': 'No extracted data'}), 400
+@app.route('/error_log', methods=['GET', 'POST'])
+def error_log():
+    global error_messages
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        error = data.get('error', '')
+        if error:
+            error_messages.append({'error': error, 'timestamp': datetime.now().strftime('%H:%M:%S')})
+        return jsonify({'status': 'ok', 'errors': error_messages})
     
-    # Compile all raw text
-    full_text = "\n\n--- PAGE BREAK ---\n\n".join(
-        p.get('raw_response', '') for p in state['extracted_data']
-    )
-    
-    # Simulate post-process results (in real app, would call LLM)
-    # Create sample records from the data
-    records = []
-    for page in state['extracted_data'][:5]:  # First 5 pages as sample
-        records.append({
-            'page': page['page_number'],
-            'depth_ft': 8000 + page['page_number'] * 10,
-            'porosity_pct': 15.0 + page['page_number'] * 0.5,
-            'permeability_md': 10.0 + page['page_number'] * 2,
-            'formation_factor': 40.0 + page['page_number'],
-            'saturation_exponent': 2.0 + page['page_number'] * 0.02
-        })
-    
-    state['pp_records'] = records
-    state['pp_model_used'] = 'groq:llama-3.3-70b'
-    
-    return jsonify({
-        'status': 'ok',
-        'records': len(records),
-        'model': state['pp_model_used']
-    })
+    return jsonify(error_messages)
 
-@app.route('/export')
-def export_data():
-    """Export data in various formats"""
-    fmt = request.args.get('format', 'json')
-    data = state.get('pp_records', [])
-    
-    if not data:
-        return jsonify({'error': 'No data to export'}), 400
-    
-    import pandas as pd
-    
-    df = pd.DataFrame(data)
-    
-    if fmt == 'json':
-        return send_file(
-            io.BytesIO(json.dumps(data, indent=2).encode()),
-            mimetype='application/json',
-            as_attachment=True,
-            download_name='postprocess.json'
-        )
-    elif fmt == 'csv':
-        return send_file(
-            io.BytesIO(df.to_csv(index=False).encode()),
-            mimetype='text/csv',
-            as_attachment=True,
-            download_name='postprocess.csv'
-        )
-    elif fmt == 'xlsx':
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Data', index=False)
-            # Metadata sheet
-            meta = pd.DataFrame([{
-                'export_timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'source_file': os.path.basename(state.get('selected_file', 'unknown')),
-                'model': state.get('pp_model_used', ''),
-                'template_columns': ', '.join(state.get('template_columns', []))
-            }])
-            meta.to_excel(writer, sheet_name='_metadata', index=False)
-        output.seek(0)
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name='postprocess.xlsx'
-        )
-    
-    return jsonify({'error': 'Invalid format'}), 400
-
-@app.route('/screenshots')
-def screenshots():
-    """List available screenshots"""
-    results_dir = app.config['RESULTS_FOLDER']
-    pngs = sorted([f for f in os.listdir(results_dir) if f.endswith('.png')])
-    return jsonify(pngs)
-
-@app.route('/img/<path:filename>')
-def serve_image(filename):
-    """Serve images from RESULTS folder"""
-    return send_file(os.path.join(app.config['RESULTS_FOLDER'], filename), mimetype='image/png')
+@app.route('/error_log/clear', methods=['POST'])
+def clear_error_log():
+    global error_messages
+    error_messages = []
+    return jsonify({'status': 'ok'})
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok'})
+    return jsonify({'status': 'up', 'models': model_status})
 
 if __name__ == '__main__':
-    print("Starting OLM OCR Web GUI...")
-    print("Open http://localhost:5000 in your browser")
     app.run(debug=True, port=5000)

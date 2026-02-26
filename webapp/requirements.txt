@@ -1,4 +1,5 @@
-# Flask web app requirements
-flask>=2.0
-pandas>=1.5
-openpyxl>=3.0
+flask
+pandas
+openpyxl
+pdf2image
+Pillow
