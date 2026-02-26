@@ -519,42 +519,37 @@ class OlmoCRAgenticGUI:
         ttk.Button(process_btn_frame, text="📊 Export Excel", command=self.export_to_excel, width=15).pack(side=tk.LEFT, padx=2)
         ttk.Button(process_btn_frame, text="📋 Export JSON", command=self.export_to_json, width=15).pack(side=tk.LEFT, padx=2)
         
-        # Output
+        # Output — full width, no "Current Page" panel
         output_frame = ttk.LabelFrame(parent, text="📊 Extraction Results", padding="10")
         output_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        output_paned = ttk.PanedWindow(output_frame, orient=tk.HORIZONTAL)
-        output_paned.pack(fill=tk.BOTH, expand=True)
-        
-        page_frame = ttk.Frame(output_paned)
-        output_paned.add(page_frame, weight=1)
-        
-        ttk.Label(page_frame, text="Current Page", font=('Arial', 10, 'bold')).pack()
-        self.page_preview_canvas = tk.Canvas(page_frame, bg='#1e1e1e')
-        self.page_preview_canvas.pack(fill=tk.BOTH, expand=True)
-        
-        self.page_token_var = tk.StringVar(value="Tokens: -")
-        ttk.Label(page_frame, textvariable=self.page_token_var, font=('Arial', 9)).pack(pady=5)
-        
-        response_frame = ttk.Frame(output_paned)
-        output_paned.add(response_frame, weight=2)
-        
-        ttk.Label(response_frame, text="Raw Response", font=('Arial', 10, 'bold')).pack()
-        
-        self.response_notebook = ttk.Notebook(response_frame)
+
+        self.response_notebook = ttk.Notebook(output_frame)
         self.response_notebook.pack(fill=tk.BOTH, expand=True)
-        
+
+        # Tab 1: Raw Response
         raw_frame = ttk.Frame(self.response_notebook)
         self.response_notebook.add(raw_frame, text="Raw Response")
-        
+
         self.raw_text = scrolledtext.ScrolledText(raw_frame, font=('Consolas', 9), bg='#1e1e1e', fg='#d4d4d4')
         self.raw_text.pack(fill=tk.BOTH, expand=True)
-        
+
+        # Tab 2: Prompt Used
         prompt_tab_frame = ttk.Frame(self.response_notebook)
         self.response_notebook.add(prompt_tab_frame, text="Prompt Used")
-        
+
         self.used_prompt_text = scrolledtext.ScrolledText(prompt_tab_frame, font=('Consolas', 9), bg='#1e1e1e', fg='#d4d4d4')
         self.used_prompt_text.pack(fill=tk.BOTH, expand=True)
+
+        # Tab 3: Page Timings
+        timing_frame = ttk.Frame(self.response_notebook)
+        self.response_notebook.add(timing_frame, text="Page Timings")
+
+        self.timing_text = scrolledtext.ScrolledText(timing_frame, font=('Consolas', 9), bg='#1e1e1e', fg='#cdd6f4')
+        self.timing_text.pack(fill=tk.BOTH, expand=True)
+
+        # Token / timing summary bar
+        self.page_token_var = tk.StringVar(value="Tokens: -  |  Duration: -")
+        ttk.Label(output_frame, textvariable=self.page_token_var, font=('Consolas', 9)).pack(anchor=tk.W, pady=(4, 0))
         
         # Chat & Logs — horizontal layout: tabs on left, status log on right
         bottom_frame = ttk.LabelFrame(parent, text="💬 Chat & Logs", padding="5")
@@ -997,20 +992,30 @@ class OlmoCRAgenticGUI:
             
             prompt = self.prompt_text.get("1.0", tk.END).strip()
             self.extracted_data = []
-            start_time = time.time()
-            
+            total_start = time.time()
+            page_timings = []  # list of {page, duration_s, tokens}
+
+            # Clear timing tab
+            self.root.after(0, lambda: (
+                self.timing_text.delete("1.0", tk.END),
+                self.timing_text.insert(tk.END, f"{'Page':<8}{'Duration':>12}{'Tokens':>10}\n"),
+                self.timing_text.insert(tk.END, "-" * 32 + "\n"),
+            ))
+
             self.root.after(0, lambda: self.log("Extracting..."))
-            
+
             if self.mode.get() == "single":
                 self.current_page_idx = 0
                 pages_to_process = self.selected_pages if self.selected_pages else list(range(len(self.pdf_pages)))
-                
+
                 for i, page_idx in enumerate(pages_to_process):
                     if self.stop_flag:
                         break
-                    
+
                     self.root.after(0, lambda p=i+1, t=len(pages_to_process): self.log(f"Processing page {p}/{t}..."))
-                    
+
+                    page_start = time.time()
+
                     if OLMCOCR_AVAILABLE and self.selected_files:
                         try:
                             image_base64 = render_pdf_to_base64png(self.selected_files[0], page_idx + 1, target_longest_image_dim=1288)
@@ -1032,33 +1037,70 @@ class OlmoCRAgenticGUI:
                         self.pdf_pages[page_idx].save(temp_path)
                         result = self.vlm.extract(image_path=str(temp_path), prompt=prompt)
                         temp_path.unlink()
-                    
+
                     if result is None:
                         self.root.after(0, lambda: self.log_error(f"VLM extraction returned None for page {page_idx + 1}"))
                         continue
-                    
+
+                    page_dur = time.time() - page_start
+                    page_tokens = result.get("total_tokens", 0)
+                    result["page_number"] = page_idx + 1
+                    result["duration_s"] = round(page_dur, 2)
+                    page_timings.append({
+                        "page": page_idx + 1,
+                        "duration_s": round(page_dur, 2),
+                        "tokens": page_tokens,
+                    })
+
+                    # Update timing tab and status log
+                    timing_line = f"Page {page_idx+1:<4}  {page_dur:>8.1f}s  {page_tokens:>8} tok\n"
+                    self.root.after(0, lambda ln=timing_line: (
+                        self.timing_text.insert(tk.END, ln),
+                        self.timing_text.see(tk.END),
+                    ))
+                    self.root.after(0, lambda p=page_idx+1, d=page_dur, tk_=page_tokens:
+                        self.log(f"Page {p} done — {d:.1f}s, {tk_} tokens"))
+
                     self.extracted_data.append(result)
                     self.root.after(0, lambda idx=page_idx: self.view_page(idx))
-            
-            duration = time.time() - start_time
+
+            total_dur = time.time() - total_start
             total_tokens = sum(r.get("total_tokens", 0) for r in self.extracted_data)
-            
+
+            # Final row in timing tab
+            summary_line = (
+                f"{'-'*32}\n"
+                f"{'TOTAL':<8}  {total_dur:>8.1f}s  {total_tokens:>8} tok\n"
+            )
+            self.root.after(0, lambda ln=summary_line: (
+                self.timing_text.insert(tk.END, ln),
+                self.timing_text.see(tk.END),
+            ))
+
+            # Update summary bar
+            self.root.after(0, lambda: self.page_token_var.set(
+                f"Total tokens: {total_tokens}  |  Total duration: {total_dur:.1f}s  |  Pages: {len(self.extracted_data)}"
+            ))
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_file = Path(self.output_dir or ".") / f"extraction_{timestamp}.json"
-            
+
             output_data = {
+                "extraction_timestamp": timestamp,
                 "prompt": prompt,
-                "pages": len(self.extracted_data),
+                "pages_processed": len(self.extracted_data),
                 "total_tokens": total_tokens,
-                "duration": round(duration, 2),
-                "results": [{k: v for k, v in r.items()} for r in self.extracted_data]
+                "total_duration_s": round(total_dur, 2),
+                "avg_duration_per_page_s": round(total_dur / max(len(self.extracted_data), 1), 2),
+                "page_timings": page_timings,
+                "results": [{k: v for k, v in r.items()} for r in self.extracted_data],
             }
-            
+
             with open(output_file, 'w') as f:
                 json.dump(output_data, f, indent=2)
-            
+
             self.root.after(0, lambda: self.log(
-                f"✓ Done! {len(self.extracted_data)} pages, {total_tokens} tokens, {duration:.1f}s → {output_file.name}"))
+                f"✓ Done! {len(self.extracted_data)} pages | {total_tokens} tokens | {total_dur:.1f}s total → {output_file.name}"))
         
         except Exception as e:
             self.root.after(0, lambda err=str(e): self.log_error(f"Extraction error: {err}"))
