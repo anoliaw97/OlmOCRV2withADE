@@ -685,9 +685,10 @@ class OlmoCRAgenticGUI:
         self.stop_btn = ttk.Button(btn_frame, text="⏹ STOP", command=self.stop_extraction, state=tk.DISABLED)
         self.stop_btn.pack(side=tk.LEFT)
         
-        # Output — smaller height to fit screen
+        # Output — limited height so bottom sections visible
         output_frame = ttk.LabelFrame(parent, text="📊 Extraction Results", padding="10")
-        output_frame.pack(fill=tk.BOTH, expand=False, padx=5, pady=5)
+        output_frame.pack(fill=tk.X, padx=5, pady=5)
+        output_frame.configure(height=350)
 
         self.response_notebook = ttk.Notebook(output_frame)
         self.response_notebook.pack(fill=tk.BOTH, expand=True)
@@ -735,7 +736,8 @@ class OlmoCRAgenticGUI:
         
         # Chat & Logs — horizontal layout: tabs on left, status log on right
         bottom_frame = ttk.LabelFrame(parent, text="💬 Chat & Logs", padding="5")
-        bottom_frame.pack(fill=tk.BOTH, expand=False, padx=5, pady=5)
+        bottom_frame.pack(fill=tk.BOTH, padx=5, pady=5)
+        bottom_frame.configure(height=200)
 
         bottom_paned = ttk.PanedWindow(bottom_frame, orient=tk.HORIZONTAL)
         bottom_paned.pack(fill=tk.BOTH, expand=True)
