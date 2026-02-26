@@ -556,40 +556,60 @@ class OlmoCRAgenticGUI:
         self.used_prompt_text = scrolledtext.ScrolledText(prompt_tab_frame, font=('Consolas', 9), bg='#1e1e1e', fg='#d4d4d4')
         self.used_prompt_text.pack(fill=tk.BOTH, expand=True)
         
-        # Chat
-        chat_frame = ttk.LabelFrame(parent, text="💬 Chat & Logs", padding="5")
-        chat_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        chat_notebook = ttk.Notebook(chat_frame)
-        chat_notebook.pack(fill=tk.X)
-        
+        # Chat & Logs — horizontal layout: tabs on left, status log on right
+        bottom_frame = ttk.LabelFrame(parent, text="💬 Chat & Logs", padding="5")
+        bottom_frame.pack(fill=tk.BOTH, expand=False, padx=5, pady=5)
+
+        bottom_paned = ttk.PanedWindow(bottom_frame, orient=tk.HORIZONTAL)
+        bottom_paned.pack(fill=tk.BOTH, expand=True)
+
+        # Left: chat tabs + input
+        chat_side = ttk.Frame(bottom_paned)
+        bottom_paned.add(chat_side, weight=1)
+
+        chat_notebook = ttk.Notebook(chat_side)
+        chat_notebook.pack(fill=tk.BOTH, expand=True)
+
         chat_tab = ttk.Frame(chat_notebook)
         chat_notebook.add(chat_tab, text="Chat")
-        
-        self.chat_text = scrolledtext.ScrolledText(chat_tab, height=5, font=('Consolas', 8), bg='#1e1e2e', fg='#cdd6f4')
+
+        self.chat_text = scrolledtext.ScrolledText(chat_tab, height=8, font=('Consolas', 8), bg='#1e1e2e', fg='#cdd6f4')
         self.chat_text.pack(fill=tk.BOTH, expand=True)
         self.chat_text.tag_config("user", foreground="#89b4fa")
         self.chat_text.tag_config("assistant", foreground="#a6e3a1")
         self.chat_text.tag_config("system", foreground="#9399b2")
-        
+
         error_tab = ttk.Frame(chat_notebook)
-        chat_notebook.add(error_tab, text="Error Log (Copyable)")
-        
-        self.error_text = scrolledtext.ScrolledText(error_tab, height=5, font=('Consolas', 8), bg='#2d1f1f', fg='#f0a0a0')
+        chat_notebook.add(error_tab, text="Error Log")
+
+        self.error_text = scrolledtext.ScrolledText(error_tab, height=8, font=('Consolas', 8), bg='#2d1f1f', fg='#f0a0a0')
         self.error_text.pack(fill=tk.BOTH, expand=True)
         self.error_text.tag_config("error", foreground="#ff6666")
-        
-        chat_input_frame = ttk.Frame(chat_frame)
-        chat_input_frame.pack(fill=tk.X, pady=5)
-        
+
+        chat_input_frame = ttk.Frame(chat_side)
+        chat_input_frame.pack(fill=tk.X, pady=3)
+
         ttk.Label(chat_input_frame, text="You:").pack(side=tk.LEFT, padx=5)
         self.chat_input = ttk.Entry(chat_input_frame)
         self.chat_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         self.chat_input.bind('<Return>', lambda e: self.send_chat())
         ttk.Button(chat_input_frame, text="Send", command=self.send_chat).pack(side=tk.LEFT, padx=5)
 
+        # Right: status log (scrollable)
+        log_side = ttk.LabelFrame(bottom_paned, text="📋 Status Log")
+        bottom_paned.add(log_side, weight=1)
+
+        self.log_text = scrolledtext.ScrolledText(log_side, height=8, font=('Consolas', 8), bg='#1e2d1e', fg='#a6e3a1')
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+        self.log_text.tag_config("info", foreground="#a6e3a1")
+        self.log_text.tag_config("status", foreground="#cdd6f4")
+
     def log(self, msg):
-        self.status_label.config(text=msg)
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.status_label.config(text=msg, foreground="black")
+        entry = f"[{timestamp}] {msg}\n"
+        self.log_text.insert(tk.END, entry, "info")
+        self.log_text.see(tk.END)
         self.root.update_idletasks()
 
     def log_error(self, msg, exc_info=None):
@@ -600,7 +620,10 @@ class OlmoCRAgenticGUI:
             error_msg += f"{traceback.format_exc()}\n"
         self.error_text.insert(tk.END, error_msg, "error")
         self.error_text.see(tk.END)
-        self.status_label.config(text=f"Error: {msg}", foreground="red")
+        # Also echo to status log in red
+        self.log_text.insert(tk.END, f"[{timestamp}] ERROR: {msg}\n", "status")
+        self.log_text.see(tk.END)
+        self.status_label.config(text=f"Error: {msg[:80]}", foreground="red")
 
     def log_chat(self, msg, tag="system"):
         self.chat_text.insert(tk.END, msg + "\n", tag)
