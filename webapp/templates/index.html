@@ -682,8 +682,8 @@
   function onPromptChange() {
     const idx = parseInt(document.getElementById('promptChoice').value);
     const prompts = [
-      {{ DEFAULT_OLMOCR_PROMPT | json | safe }},
-      {{ TABLE_PROMPT | json | safe }},
+      {{ DEFAULT_OLMOCR_PROMPT | tojson | safe }},
+      {{ TABLE_PROMPT | tojson | safe }},
       document.getElementById('promptText').value
     ];
     document.getElementById('promptText').value = prompts[idx];
