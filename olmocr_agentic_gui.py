@@ -67,6 +67,61 @@ Extract:
 
 Return ONLY valid JSON, no explanation."""
 
+# ===== PROMPT OPTIMIZER SYSTEM PROMPT =====
+OPTIMIZER_SYSTEM = """You are an expert at writing extraction prompts for olmOCR, \
+a vision-language model fine-tuned for document OCR.
+
+The model's capabilities (stay strictly within these):
+- Extracts natural text, preserving reading order
+- Converts equations to LaTeX (inline: \\( \\), block: \\[ \\])
+- Converts tables to HTML (<table>, <th>, <tr>, <td>)
+- Labels figures/charts with markdown: ![description](page_x_y_w_h.png)
+- Returns YAML front matter: primary_language, is_rotation_valid, rotation_correction, is_table, is_diagram
+- Can describe visible chart content and list visible axis labels, tick values, legend text, and series names
+
+The model CANNOT:
+- Digitize graph data points with pixel-level precision
+- Perform computations, unit conversions, or transformations
+- Output formats other than markdown with YAML front matter
+- Guarantee extraction of values not visually present on the page
+
+IMMUTABLE BASE TEMPLATE (must appear word-for-word in the output):
+---
+Attached is one page of a document that you must process.
+Just return the plain text representation of this document as if you were reading it naturally. Convert equations to LaTeX and tables to HTML.
+If there are any figures or charts, label them with the following markdown syntax ![Alt text describing the contents of the figure](page_startx_starty_width_height.png)
+Return your output as markdown, with a front matter section on top specifying values for the primary_language, is_rotation_valid, rotation_correction, is_table, and is_diagram parameters.
+---
+
+TASK: Given the user's document type and extraction goal, produce a single optimized prompt that:
+1. Contains the FULL base template above, word-for-word, as the opening
+2. Appends the user's specific extraction instruction AFTER the last line of the template
+3. Frames the instruction in terms of what the model can actually do
+4. If the goal involves chart/graph data: instructs the model to describe all visible axis labels, tick values, legend entries, and data series in an HTML table
+5. Does NOT promise outputs beyond model capability — only report what is visually present
+6. Returns ONLY the final prompt text, nothing else"""
+
+
+# ===== POST-PROCESS PROMPT BUILDER =====
+def build_postprocess_prompt(columns: list, raw_text: str) -> str:
+    cols_str = ", ".join(columns)
+    return f"""You are a data extraction specialist.
+
+Extract all records from the following OCR-extracted document text.
+Return a JSON array of objects using EXACTLY these column names: [{cols_str}]
+
+Rules:
+- Only extract values that explicitly appear in the text — do NOT infer or hallucinate
+- Use null for any column where the value is not found in the text
+- Numbers must be numeric type, not strings
+- Do not add extra columns beyond those listed
+- If multiple records/rows exist, include all of them as separate objects in the array
+- Return ONLY a valid JSON array — no explanation, no markdown code fences, no preamble
+
+TEXT:
+{raw_text}"""
+
+
 def clear_gpu():
     gc.collect()
     if torch.cuda.is_available():
@@ -335,6 +390,68 @@ Return as CSV format with headers."""
     def clear_history(self):
         self.history = []
 
+
+class PostProcessAgent:
+    """Runs a single LLM call to map raw extracted text to a user-defined column schema.
+    Works with both IntelligentAssistant (local) and APILLM (API) backends.
+    Anti-hallucination: only extracts values explicitly present in the text."""
+
+    def __init__(self, llm):
+        self.llm = llm  # IntelligentAssistant or APILLM instance
+
+    def run(self, raw_text: str, columns: list) -> list:
+        """Returns list[dict] with one dict per extracted record."""
+        prompt = build_postprocess_prompt(columns, raw_text)
+
+        # Use chat() for both backends — both expose it
+        response = self.llm.chat(prompt, system_context=(
+            "You are a precise data extraction assistant. "
+            "Return only what is explicitly present in the text as a JSON array. "
+            "Never fabricate or infer values."
+        ))
+
+        return self._parse(response, columns, raw_text)
+
+    def _parse(self, response: str, columns: list, raw_text: str) -> list:
+        """Parse JSON from response. One retry on failure."""
+        cleaned = self._strip_fences(response)
+        try:
+            data = json.loads(cleaned)
+            if isinstance(data, dict):
+                data = [data]
+            return data
+        except json.JSONDecodeError:
+            pass
+
+        # Retry: ask LLM to fix the JSON
+        try:
+            fix_prompt = (
+                f"The following is not valid JSON. Fix it so it is a valid JSON array "
+                f"using columns [{', '.join(columns)}]. Return ONLY the fixed JSON array.\n\n"
+                f"{response}"
+            )
+            fixed = self.llm.chat(fix_prompt)
+            data = json.loads(self._strip_fences(fixed))
+            if isinstance(data, dict):
+                data = [data]
+            return data
+        except Exception:
+            return [{"_error": "Could not parse LLM response as JSON", "_raw": response[:500]}]
+
+    @staticmethod
+    def _strip_fences(text: str) -> str:
+        """Remove markdown code fences like ```json ... ```"""
+        text = text.strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            # Drop first and last fence lines
+            inner = lines[1:] if lines[0].startswith("```") else lines
+            if inner and inner[-1].strip() == "```":
+                inner = inner[:-1]
+            text = "\n".join(inner).strip()
+        return text
+
+
 class OlmoCRAgenticGUI:
     def __init__(self, root):
         self.root = root
@@ -361,6 +478,11 @@ class OlmoCRAgenticGUI:
         self.api_key = ""
         self.api_llm = None  # API-based LLM
         self.structured_data = None  # Processed output
+
+        # Post-process state
+        self.template_columns = []   # column headers from uploaded template
+        self.pp_records = []         # list[dict] — output of PostProcessAgent
+        self.pp_model_used = ""      # which LLM was used for post-processing
         
         self.setup_ui()
         
@@ -478,40 +600,63 @@ class OlmoCRAgenticGUI:
     def _create_right_panel(self, parent):
         prompt_frame = ttk.LabelFrame(parent, text="📝 Extraction Prompt", padding="10")
         prompt_frame.pack(fill=tk.X, padx=5, pady=5)
-        
+
+        # Row 1: preset selector + save
         prompt_top = ttk.Frame(prompt_frame)
         prompt_top.pack(fill=tk.X)
-        
-        ttk.Label(prompt_top, text="Type:").pack(side=tk.LEFT, padx=5)
-        self.prompt_choice = ttk.Combobox(prompt_top, width=20, state="readonly")
+
+        ttk.Label(prompt_top, text="Preset:").pack(side=tk.LEFT, padx=(0, 4))
+        self.prompt_choice = ttk.Combobox(prompt_top, width=18, state="readonly")
         self.prompt_choice['values'] = ("Default (olmOCR v4)", "Table Extraction", "Custom")
         self.prompt_choice.current(0)
-        self.prompt_choice.pack(side=tk.LEFT, padx=5)
+        self.prompt_choice.pack(side=tk.LEFT, padx=(0, 8))
         self.prompt_choice.bind('<<ComboboxSelected>>', lambda e: self.on_prompt_change())
-        
-        ttk.Button(prompt_top, text="✨ Optimize", command=self.optimize_prompt, width=12).pack(side=tk.LEFT, padx=5)
-        ttk.Button(prompt_top, text="💾 Save", command=self.save_prompt, width=8).pack(side=tk.LEFT, padx=2)
-        
+        ttk.Button(prompt_top, text="💾 Save", command=self.save_prompt, width=8).pack(side=tk.LEFT)
+        ttk.Button(prompt_top, text="↩ Reset", command=self.reset_prompt, width=8).pack(side=tk.LEFT, padx=4)
+
+        # Prompt text box
         self.prompt_text = scrolledtext.ScrolledText(prompt_frame, height=4, font=('Consolas', 9))
-        self.prompt_text.pack(fill=tk.X, pady=5)
+        self.prompt_text.pack(fill=tk.X, pady=(6, 4))
         self.prompt_text.insert("1.0", DEFAULT_OLMOCR_PROMPT)
-        
+
+        # Row 2: Optimizer inputs
+        opt_frame = ttk.LabelFrame(prompt_frame, text="✨ Prompt Optimizer", padding="4")
+        opt_frame.pack(fill=tk.X, pady=(0, 4))
+
+        opt_row1 = ttk.Frame(opt_frame)
+        opt_row1.pack(fill=tk.X)
+        ttk.Label(opt_row1, text="Doc type:").pack(side=tk.LEFT, padx=(0, 4))
+        self.opt_doctype = ttk.Entry(opt_row1, width=18)
+        self.opt_doctype.pack(side=tk.LEFT, padx=(0, 8))
+        self.opt_doctype.insert(0, "e.g. Lab Report")
+        ttk.Label(opt_row1, text="Goal:").pack(side=tk.LEFT, padx=(0, 4))
+        self.opt_goal = ttk.Entry(opt_row1)
+        self.opt_goal.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        self.opt_goal.insert(0, "e.g. extract all depth and porosity values")
+
+        opt_row2 = ttk.Frame(opt_frame)
+        opt_row2.pack(fill=tk.X, pady=(4, 0))
+        ttk.Label(opt_row2, text="LLM:").pack(side=tk.LEFT, padx=(0, 4))
+        self.opt_provider = ttk.Combobox(opt_row2, width=10, state="readonly",
+                                          values=("Local", "Groq", "OpenAI"))
+        self.opt_provider.current(0)
+        self.opt_provider.pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Label(opt_row2, text="API Key:").pack(side=tk.LEFT, padx=(0, 4))
+        self.opt_api_key = ttk.Entry(opt_row2, width=28, show="*")
+        self.opt_api_key.pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Button(opt_row2, text="✨ Optimize Prompt",
+                   command=self.cmd_optimize_prompt).pack(side=tk.LEFT)
+        self.opt_status = ttk.Label(opt_row2, text="", foreground="gray")
+        self.opt_status.pack(side=tk.LEFT, padx=8)
+
+        # Row 3: Extraction controls
         btn_frame = ttk.Frame(prompt_frame)
-        btn_frame.pack(fill=tk.X)
-        
+        btn_frame.pack(fill=tk.X, pady=(4, 0))
+
         self.extract_btn = ttk.Button(btn_frame, text="▶ START EXTRACTION", command=self.start_extraction)
-        self.extract_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
-        
+        self.extract_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
         self.stop_btn = ttk.Button(btn_frame, text="⏹ STOP", command=self.stop_extraction, state=tk.DISABLED)
-        self.stop_btn.pack(side=tk.LEFT, padx=2)
-        
-        # Process Output buttons
-        process_btn_frame = ttk.Frame(prompt_frame)
-        process_btn_frame.pack(fill=tk.X, pady=5)
-        
-        ttk.Button(process_btn_frame, text="🔧 Process Output (LLM)", command=self.process_output, width=20).pack(side=tk.LEFT, padx=2)
-        ttk.Button(process_btn_frame, text="📊 Export Excel", command=self.export_to_excel, width=15).pack(side=tk.LEFT, padx=2)
-        ttk.Button(process_btn_frame, text="📋 Export JSON", command=self.export_to_json, width=15).pack(side=tk.LEFT, padx=2)
+        self.stop_btn.pack(side=tk.LEFT)
         
         # Output — full width, no "Current Page" panel
         output_frame = ttk.LabelFrame(parent, text="📊 Extraction Results", padding="10")
@@ -540,6 +685,9 @@ class OlmoCRAgenticGUI:
 
         self.timing_text = scrolledtext.ScrolledText(timing_frame, font=('Consolas', 9), bg='#1e1e1e', fg='#cdd6f4')
         self.timing_text.pack(fill=tk.BOTH, expand=True)
+
+        # Tab 4: Post-Process
+        self._create_postprocess_tab()
 
         # Token / timing summary bar
         self.page_token_var = tk.StringVar(value="Tokens: -  |  Duration: -")
@@ -839,65 +987,87 @@ class OlmoCRAgenticGUI:
         self.raw_text.insert("1.0", data)
     
     def export_to_excel(self):
-        """Export structured data to Excel"""
-        if not self.structured_data:
-            self.log("Process output first using 'Process Output' button")
-            return
-        
-        try:
-            # Try to parse as JSON
-            data = json.loads(self.structured_data)
-            
-            if isinstance(data, list):
-                df = pd.DataFrame(data)
-            elif isinstance(data, dict):
-                # Check if contains tables
-                tables = []
-                for key, val in data.items():
-                    if isinstance(val, list):
-                        tables.append((key, pd.DataFrame(val)))
-                
-                if tables:
-                    filename = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")])
-                    if filename:
-                        with pd.ExcelWriter(filename) as writer:
-                            for sheet_name, df in tables:
-                                df.to_excel(writer, sheet_name=sheet_name[:31], index=False)
-                        self.log(f"✓ Saved to {filename}")
-                        return
-                df = pd.DataFrame([data])
-            else:
-                df = pd.DataFrame([{"data": str(data)}])
-            
-            filename = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")])
-            if filename:
-                df.to_excel(filename, index=False)
-                self.log(f"✓ Saved to {filename}")
-        except:
-            # Save as text if not JSON
-            filename = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text", "*.txt")])
-            if filename:
-                with open(filename, 'w') as f:
-                    f.write(self.structured_data)
-                self.log(f"✓ Saved to {filename}")
-    
-    def export_to_json(self):
-        """Export structured data to JSON"""
-        if not self.structured_data:
-            self.log("Process output first")
-            return
-        
-        filename = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON", "*.json")])
-        if filename:
+        """Export post-processed records to Excel with Data + _metadata sheets."""
+        records = getattr(self, 'pp_records', [])
+        if not records:
+            # Fall back to raw structured_data if post-process hasn't run
+            if not self.structured_data:
+                self.log("Run Post-Process first, or use Export JSON for raw results")
+                return
             try:
-                data = json.loads(self.structured_data)
-                with open(filename, 'w') as f:
-                    json.dump(data, f, indent=2)
-                self.log(f"✓ Saved to {filename}")
-            except:
-                with open(filename, 'w') as f:
-                    f.write(self.structured_data)
-                self.log(f"✓ Saved to {filename}")
+                records = json.loads(self.structured_data)
+                if not isinstance(records, list):
+                    records = [records]
+            except Exception:
+                self.log_error("Could not parse structured data as JSON for Excel export")
+                return
+
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")])
+        if not filename:
+            return
+
+        try:
+            # Build data sheet — use template column order if available
+            df = pd.DataFrame(records)
+            if self.template_columns:
+                # Reorder to match template, keep extra cols at end
+                ordered = [c for c in self.template_columns if c in df.columns]
+                extras = [c for c in df.columns if c not in self.template_columns]
+                df = df[ordered + extras]
+
+            # Auto-infer numeric columns
+            for col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='ignore')
+
+            # Build metadata sheet
+            source = self.selected_files[0] if self.selected_files else "unknown"
+            total_tokens = sum(r.get("total_tokens", 0) for r in self.extracted_data)
+            meta_df = pd.DataFrame([{
+                "source_file": source,
+                "model": MODEL_ID,
+                "post_process_model": getattr(self, 'pp_model_used', ''),
+                "extraction_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "pages_extracted": len(self.extracted_data),
+                "total_tokens": total_tokens,
+                "template_columns": ", ".join(self.template_columns),
+                "records_extracted": len(records),
+            }])
+
+            with pd.ExcelWriter(filename, engine="openpyxl") as writer:
+                df.to_excel(writer, sheet_name="Data", index=False)
+                meta_df.to_excel(writer, sheet_name="_metadata", index=False)
+
+            self.log(f"✓ Exported {len(records)} record(s) to {Path(filename).name}")
+        except Exception as e:
+            self.log_error(f"Excel export failed: {e}")
+
+    def export_to_json(self):
+        """Export full extraction + post-process results to JSON."""
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".json", filetypes=[("JSON", "*.json")])
+        if not filename:
+            return
+
+        try:
+            source = self.selected_files[0] if self.selected_files else "unknown"
+            total_tokens = sum(r.get("total_tokens", 0) for r in self.extracted_data)
+            output = {
+                "export_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "source_file": source,
+                "model": MODEL_ID,
+                "pages_extracted": len(self.extracted_data),
+                "total_tokens": total_tokens,
+                "post_process_model": getattr(self, 'pp_model_used', ''),
+                "template_columns": self.template_columns,
+                "post_processed_records": getattr(self, 'pp_records', []),
+                "raw_extraction": self.extracted_data,
+            }
+            with open(filename, 'w') as f:
+                json.dump(output, f, indent=2)
+            self.log(f"✓ Exported to {Path(filename).name}")
+        except Exception as e:
+            self.log_error(f"JSON export failed: {e}")
 
     # ===== PROMPT =====
     
@@ -917,42 +1087,213 @@ class OlmoCRAgenticGUI:
                 f.write(self.prompt_text.get("1.0", tk.END))
             self.log("Prompt saved")
 
-    def optimize_prompt(self):
-        if not self.llm or not self.llm.loaded:
-            self.log("Loading LLM...")
-            self.cmd_load_llm()
-            time.sleep(2)
-        
-        if not self.llm or not self.llm.loaded:
-            self.log("LLM not available")
+    def reset_prompt(self):
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", DEFAULT_OLMOCR_PROMPT)
+        self.prompt_choice.current(0)
+
+    def cmd_optimize_prompt(self):
+        """Optimize the prompt using selected LLM backend, inline (no dialog)."""
+        doc_type = self.opt_doctype.get().strip()
+        goal = self.opt_goal.get().strip()
+
+        if not goal:
+            self.opt_status.config(text="Enter a goal first", foreground="red")
             return
-        
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Prompt Optimization")
-        dialog.geometry("400x300")
-        
-        ttk.Label(dialog, text="Document Type:").pack(pady=5)
-        doc_type = ttk.Entry(dialog, width=40)
-        doc_type.pack(pady=5)
-        doc_type.insert(0, "e.g., Invoice, Lab Report")
-        
-        ttk.Label(dialog, text="Extraction Goal:").pack(pady=5)
-        goal = ttk.Entry(dialog, width=40)
-        goal.pack(pady=5)
-        goal.insert(0, "e.g., Extract line items")
-        
-        def run():
+
+        provider = self.opt_provider.get().lower()
+        api_key = self.opt_api_key.get().strip()
+
+        self.opt_status.config(text="Optimizing...", foreground="gray")
+        self.root.update_idletasks()
+
+        def _run():
             try:
-                optimized = self.llm.optimize_prompt(doc_type.get(), goal.get())
-                self.prompt_text.delete("1.0", tk.END)
-                self.prompt_text.insert("1.0", optimized)
-                self.prompt_choice.current(2)
-                self.log("✓ Prompt optimized!")
-                dialog.destroy()
+                if provider == "local":
+                    if not self.llm or not self.llm.loaded:
+                        self.root.after(0, lambda: self.opt_status.config(
+                            text="Loading local LLM...", foreground="gray"))
+                        self.cmd_load_llm()
+                        time.sleep(2)
+                    llm = self.llm
+                else:
+                    llm = APILLM(provider=provider, api_key=api_key or self.api_key)
+                    llm.load_model()
+
+                user_msg = (
+                    f"Document type: {doc_type or 'unknown'}\n"
+                    f"Extraction goal: {goal}\n\n"
+                    f"Write the optimized prompt."
+                )
+                optimized = llm.chat(user_msg, system_context=OPTIMIZER_SYSTEM)
+                optimized = optimized.strip()
+
+                def _apply():
+                    self.prompt_text.delete("1.0", tk.END)
+                    self.prompt_text.insert("1.0", optimized)
+                    self.prompt_choice.current(2)
+                    self.opt_status.config(text="✓ Done", foreground="green")
+                    self.log("✓ Prompt optimized")
+
+                self.root.after(0, _apply)
+
             except Exception as e:
-                self.log_error(f"Optimization failed: {e}")
-        
-        ttk.Button(dialog, text="Optimize", command=run).pack(pady=20)
+                self.root.after(0, lambda err=str(e): (
+                    self.opt_status.config(text=f"Error: {err[:50]}", foreground="red"),
+                    self.log_error(f"Prompt optimizer failed: {err}")
+                ))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    # ===== POST-PROCESS TAB =====
+
+    def _create_postprocess_tab(self):
+        """Build the Post-Process tab inside response_notebook."""
+        pp_frame = ttk.Frame(self.response_notebook)
+        self.response_notebook.add(pp_frame, text="Post-Process")
+
+        # --- Template upload row ---
+        tpl_row = ttk.Frame(pp_frame)
+        tpl_row.pack(fill=tk.X, padx=6, pady=(6, 2))
+
+        ttk.Label(tpl_row, text="Template:").pack(side=tk.LEFT, padx=(0, 4))
+        self.pp_template_label = ttk.Label(tpl_row, text="No template loaded",
+                                           foreground="gray", width=30, anchor="w")
+        self.pp_template_label.pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(tpl_row, text="📂 Upload .xlsx/.csv",
+                   command=self.cmd_upload_template).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(tpl_row, text="✕ Clear",
+                   command=self.cmd_clear_template).pack(side=tk.LEFT)
+
+        # Detected columns label
+        self.pp_cols_label = ttk.Label(pp_frame, text="Columns: (none)",
+                                        foreground="gray", font=('Consolas', 8))
+        self.pp_cols_label.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+        # --- LLM selector + run ---
+        run_row = ttk.Frame(pp_frame)
+        run_row.pack(fill=tk.X, padx=6, pady=(0, 4))
+
+        ttk.Label(run_row, text="LLM:").pack(side=tk.LEFT, padx=(0, 4))
+        self.pp_provider = ttk.Combobox(run_row, width=10, state="readonly",
+                                         values=("Local", "Groq", "OpenAI"))
+        self.pp_provider.current(0)
+        self.pp_provider.pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Label(run_row, text="API Key:").pack(side=tk.LEFT, padx=(0, 4))
+        self.pp_api_key = ttk.Entry(run_row, width=28, show="*")
+        self.pp_api_key.pack(side=tk.LEFT, padx=(0, 8))
+        self.pp_run_btn = ttk.Button(run_row, text="▶ Run Post-Process",
+                                      command=self.cmd_run_postprocess)
+        self.pp_run_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.pp_status = ttk.Label(run_row, text="", foreground="gray")
+        self.pp_status.pack(side=tk.LEFT)
+
+        # --- Output preview ---
+        ttk.Label(pp_frame, text="Output Preview", font=('Arial', 9, 'bold')).pack(
+            anchor=tk.W, padx=8)
+        self.pp_output_text = scrolledtext.ScrolledText(
+            pp_frame, font=('Consolas', 8), bg='#1e1e2e', fg='#cdd6f4', height=10)
+        self.pp_output_text.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 4))
+
+        # --- Export buttons ---
+        exp_row = ttk.Frame(pp_frame)
+        exp_row.pack(fill=tk.X, padx=6, pady=(0, 6))
+        ttk.Button(exp_row, text="📊 Export Excel",
+                   command=self.export_to_excel).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(exp_row, text="📋 Export JSON",
+                   command=self.export_to_json).pack(side=tk.LEFT)
+
+    def cmd_upload_template(self):
+        """Upload .xlsx or .csv, read column headers from row 1."""
+        filetypes = [("Excel", "*.xlsx"), ("CSV", "*.csv"), ("All", "*.*")]
+        path = filedialog.askopenfilename(filetypes=filetypes)
+        if not path:
+            return
+        try:
+            if path.endswith(".csv"):
+                df = pd.read_csv(path, nrows=0)
+            else:
+                df = pd.read_excel(path, nrows=0)
+            self.template_columns = list(df.columns)
+            self.pp_template_label.config(
+                text=Path(path).name, foreground="black")
+            cols_preview = ", ".join(self.template_columns[:8])
+            if len(self.template_columns) > 8:
+                cols_preview += f" ... (+{len(self.template_columns)-8} more)"
+            self.pp_cols_label.config(
+                text=f"Columns ({len(self.template_columns)}): {cols_preview}",
+                foreground="black")
+            self.log(f"✓ Template loaded: {len(self.template_columns)} columns from {Path(path).name}")
+        except Exception as e:
+            self.log_error(f"Template load failed: {e}")
+
+    def cmd_clear_template(self):
+        self.template_columns = []
+        self.pp_template_label.config(text="No template loaded", foreground="gray")
+        self.pp_cols_label.config(text="Columns: (none)", foreground="gray")
+
+    def cmd_run_postprocess(self):
+        """Run the post-process agent against extracted data."""
+        if not self.extracted_data:
+            self.pp_status.config(text="No extracted data yet", foreground="red")
+            return
+        if not self.template_columns:
+            self.pp_status.config(text="Upload a template first", foreground="red")
+            return
+
+        provider = self.pp_provider.get().lower()
+        api_key = self.pp_api_key.get().strip() or self.api_key
+
+        self.pp_status.config(text="Running...", foreground="gray")
+        self.pp_run_btn.config(state=tk.DISABLED)
+        self.pp_output_text.delete("1.0", tk.END)
+
+        def _run():
+            try:
+                # Build LLM backend
+                if provider == "local":
+                    if not self.llm or not self.llm.loaded:
+                        self.root.after(0, lambda: self.pp_status.config(
+                            text="Loading local LLM...", foreground="gray"))
+                        self.cmd_load_llm()
+                        time.sleep(2)
+                    llm = self.llm
+                else:
+                    llm = APILLM(provider=provider, api_key=api_key)
+                    llm.load_model()
+
+                # Concatenate all raw responses
+                raw_text = "\n\n--- PAGE BREAK ---\n\n".join(
+                    r.get("raw_response", "") for r in self.extracted_data
+                )
+
+                agent = PostProcessAgent(llm)
+                records = agent.run(raw_text, self.template_columns)
+
+                self.pp_records = records
+                self.structured_data = json.dumps(records, indent=2)
+                self.pp_model_used = f"{provider}:{getattr(llm, 'model', 'local')}"
+
+                preview = json.dumps(records, indent=2)
+
+                def _update():
+                    self.pp_output_text.delete("1.0", tk.END)
+                    self.pp_output_text.insert(tk.END, preview)
+                    self.pp_status.config(
+                        text=f"✓ {len(records)} record(s) extracted", foreground="green")
+                    self.pp_run_btn.config(state=tk.NORMAL)
+                    self.log(f"✓ Post-process done: {len(records)} record(s)")
+
+                self.root.after(0, _update)
+
+            except Exception as e:
+                def _err(err=str(e)):
+                    self.pp_status.config(text=f"Error: {err[:60]}", foreground="red")
+                    self.pp_run_btn.config(state=tk.NORMAL)
+                    self.log_error(f"Post-process error: {err}")
+                self.root.after(0, _err)
+
+        threading.Thread(target=_run, daemon=True).start()
 
     # ===== EXTRACTION =====
     
