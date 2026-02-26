@@ -650,15 +650,26 @@ class OlmoCRAgenticGUI:
 
     def load_pdf_preview(self, path):
         self.log(f"Loading {Path(path).name}...")
-        
+
         try:
-            from pdf2image import convert_from_path
-            self.pdf_pages = convert_from_path(path, dpi=150)
+            from pypdf import PdfReader
+            reader = PdfReader(path)
+            num_pages = len(reader.pages)
+        except Exception as e:
+            self.log_error(f"Could not read PDF page count: {e}")
+            return
+
+        self.pdf_pages = []
+        try:
+            for page_num in range(1, num_pages + 1):
+                image_base64 = render_pdf_to_base64png(path, page_num, target_longest_image_dim=1288)
+                img = Image.open(io.BytesIO(base64.b64decode(image_base64))).convert("RGB")
+                self.pdf_pages.append(img)
             self.display_preview()
             self.display_thumbnails()
             self.log(f"✓ Loaded {len(self.pdf_pages)} pages")
         except Exception as e:
-            self.log_error(f"PDF loading failed: {e}")
+            self.log_error(f"PDF rendering failed: {e}")
 
     def display_preview(self):
         self.preview_canvas.delete("all")

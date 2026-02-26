@@ -42,33 +42,37 @@ def get_pdf_media_box_width_height(local_pdf_path: str, page_num: int) -> tuple[
 
 
 def render_pdf_to_base64png(local_pdf_path: str, page_num: int, target_longest_image_dim: int = 2048) -> str:
-    from pdf2image import convert_from_path
+    import os
     import tempfile
-    
-    try:
-        images = convert_from_path(
-            local_pdf_path,
-            first_page=page_num,
-            last_page=page_num,
-            dpi=150,
-            fmt='png'
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        prefix = os.path.join(tmpdir, "page")
+
+        result = subprocess.run(
+            [
+                "pdftoppm",
+                "-png",
+                "-singlefile",
+                "-f", str(page_num),
+                "-l", str(page_num),
+                "-scale-to", str(target_longest_image_dim),
+                local_pdf_path,
+                prefix,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=120,
         )
-        if not images:
-            raise ValueError("pdf2image produced no output")
-        
-        img = images[0]
-        longest_dim = max(img.size)
-        scale = target_longest_image_dim / longest_dim if longest_dim > target_longest_image_dim else 1
-        
-        if scale < 1:
-            new_size = (int(img.width * scale), int(img.height * scale))
-            img = img.resize(new_size, Image.LANCZOS)
-        
-        buffer = io.BytesIO()
-        img.save(buffer, format='PNG')
-        return base64.b64encode(buffer.getvalue()).decode("utf-8")
-    except Exception as e:
-        raise ValueError(f"pdf2image failed: {e}")
+
+        if result.returncode != 0:
+            raise ValueError(f"pdftoppm failed (rc={result.returncode}): {result.stderr.decode()[:300]}")
+
+        out_file = prefix + ".png"
+        if not os.path.exists(out_file):
+            raise ValueError(f"pdftoppm produced no output file (expected: {out_file})")
+
+        with open(out_file, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
 
 
 def render_pdf_to_base64webp(local_pdf_path: str, page: int, target_longest_image_dim: int = 1024):
