@@ -669,6 +669,16 @@ class OlmoCRAgenticGUI:
         raw_frame = ttk.Frame(self.response_notebook)
         self.response_notebook.add(raw_frame, text="Raw Response")
 
+        # Save-all toolbar
+        raw_toolbar = ttk.Frame(raw_frame)
+        raw_toolbar.pack(fill=tk.X, pady=(2, 0))
+        ttk.Button(raw_toolbar, text="💾 Save All Pages (TXT)",
+                   command=self.cmd_save_all_pages_txt).pack(side=tk.LEFT, padx=4)
+        ttk.Button(raw_toolbar, text="💾 Save All Pages (JSON)",
+                   command=self.cmd_save_all_pages_json).pack(side=tk.LEFT, padx=4)
+        ttk.Button(raw_toolbar, text="🔍 Render Tables",
+                   command=lambda: self._refresh_table_render(switch_tab=True)).pack(side=tk.LEFT, padx=4)
+
         self.raw_text = scrolledtext.ScrolledText(raw_frame, font=('Consolas', 9), bg='#1e1e1e', fg='#d4d4d4')
         self.raw_text.pack(fill=tk.BOTH, expand=True)
 
@@ -688,6 +698,9 @@ class OlmoCRAgenticGUI:
 
         # Tab 4: Post-Process
         self._create_postprocess_tab()
+
+        # Tab 5: Rendered Tables
+        self._create_table_render_tab()
 
         # Token / timing summary bar
         self.page_token_var = tk.StringVar(value="Tokens: -  |  Duration: -")
@@ -847,6 +860,10 @@ class OlmoCRAgenticGUI:
         out_tok = result.get("output_tokens", 0)
         self.page_token_var.set(f"Tokens: In={in_tok} | Out={out_tok} | Total={tokens}")
 
+        # Auto-refresh table renderer when result is displayed
+        # Use after() so the raw_text widget is fully updated before parsing
+        self.root.after(50, self._refresh_table_render)
+
     def display_thumbnails(self):
         for w in self.thumb_frame_inner.winfo_children():
             w.destroy()
@@ -973,7 +990,14 @@ class OlmoCRAgenticGUI:
         
         def do_structure():
             try:
-                structured = llm.structure_data(all_text, format_type="json")
+                # Both IntelligentAssistant and APILLM expose .chat()
+                # APILLM also has .structure_data() but we use .chat() for portability
+                struct_prompt = (
+                    f"Convert this extracted document text to clean JSON. "
+                    f"Extract tables as arrays, key-value pairs as objects.\n\n"
+                    f"Text:\n{all_text}\n\nReturn ONLY valid JSON, no explanation."
+                )
+                structured = llm.chat(struct_prompt, system_context=STRUCTURE_PROMPT)
                 self.structured_data = structured
                 self.root.after(0, lambda: self.log("✓ Output structured! Click 'Export' to save."))
                 self.root.after(0, lambda: self.display_structured_output(structured))
@@ -983,8 +1007,11 @@ class OlmoCRAgenticGUI:
         threading.Thread(target=do_structure, daemon=True).start()
     
     def display_structured_output(self, data):
-        self.raw_text.delete("1.0", tk.END)
-        self.raw_text.insert("1.0", data)
+        """Show structured output in the post-process preview tab."""
+        self.pp_output_text.delete("1.0", tk.END)
+        self.pp_output_text.insert("1.0", data)
+        # Switch to Post-Process tab so the user sees the result
+        self.response_notebook.select(3)
     
     def export_to_excel(self):
         """Export post-processed records to Excel with Data + _metadata sheets."""
@@ -1202,6 +1229,236 @@ class OlmoCRAgenticGUI:
                    command=self.export_to_excel).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(exp_row, text="📋 Export JSON",
                    command=self.export_to_json).pack(side=tk.LEFT)
+
+    # ===== SAVE ALL PAGES =====
+
+    def cmd_save_all_pages_txt(self):
+        """Concatenate raw responses from all pages into one .txt file."""
+        if not self.extracted_data:
+            self.log("No extracted data yet. Run extraction first.")
+            return
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text", "*.txt"), ("Markdown", "*.md"), ("All", "*.*")],
+            title="Save All Pages as Text",
+        )
+        if not filename:
+            return
+        try:
+            lines = []
+            for r in self.extracted_data:
+                pg = r.get("page_number", "?")
+                lines.append(f"{'='*60}")
+                lines.append(f"PAGE {pg}  |  {r.get('duration_s', 0):.1f}s  |  {r.get('total_tokens', 0)} tokens")
+                lines.append(f"{'='*60}")
+                lines.append(r.get("raw_response", ""))
+                lines.append("")
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+            self.log(f"✓ Saved {len(self.extracted_data)} pages to {Path(filename).name}")
+        except Exception as e:
+            self.log_error(f"Save TXT failed: {e}")
+
+    def cmd_save_all_pages_json(self):
+        """Save all page results (raw extraction) to a single JSON file."""
+        if not self.extracted_data:
+            self.log("No extracted data yet. Run extraction first.")
+            return
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json")],
+            title="Save All Pages as JSON",
+        )
+        if not filename:
+            return
+        try:
+            source = self.selected_files[0] if self.selected_files else "unknown"
+            total_tokens = sum(r.get("total_tokens", 0) for r in self.extracted_data)
+            output = {
+                "export_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "source_file": source,
+                "model": MODEL_ID,
+                "pages_extracted": len(self.extracted_data),
+                "total_tokens": total_tokens,
+                "pages": self.extracted_data,
+            }
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(output, f, indent=2)
+            self.log(f"✓ Saved {len(self.extracted_data)} pages to {Path(filename).name}")
+        except Exception as e:
+            self.log_error(f"Save JSON failed: {e}")
+
+    # ===== TABLE RENDERER =====
+
+    def _create_table_render_tab(self):
+        """Build the Rendered Tables tab — parses <table> HTML from raw responses."""
+        import html.parser
+
+        tab_frame = ttk.Frame(self.response_notebook)
+        self.response_notebook.add(tab_frame, text="Rendered Tables")
+
+        ctrl = ttk.Frame(tab_frame)
+        ctrl.pack(fill=tk.X, padx=6, pady=4)
+
+        ttk.Button(ctrl, text="🔄 Refresh from Current Page",
+                   command=lambda: self._refresh_table_render(switch_tab=True)).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(ctrl, text="🔄 Refresh from All Pages",
+                   command=lambda: self._refresh_table_render(all_pages=True, switch_tab=True)).pack(side=tk.LEFT, padx=(0, 6))
+        self.table_render_status = ttk.Label(ctrl, text="No tables found", foreground="gray")
+        self.table_render_status.pack(side=tk.LEFT, padx=8)
+
+        # Scrollable container for multiple treeviews
+        canvas = tk.Canvas(tab_frame, bg='#1e1e1e')
+        scrollbar = ttk.Scrollbar(tab_frame, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.table_render_inner = ttk.Frame(canvas)
+        self.table_render_window = canvas.create_window((0, 0), window=self.table_render_inner, anchor="nw")
+
+        def _on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        self.table_render_inner.bind("<Configure>", _on_frame_configure)
+
+        def _on_canvas_configure(event):
+            canvas.itemconfig(self.table_render_window, width=event.width)
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        self._table_render_canvas = canvas
+
+    def _parse_html_tables(self, html_text: str) -> list:
+        """Parse all <table> blocks from html_text. Returns list of (headers, rows) tuples."""
+        import html.parser
+        import html as html_module
+
+        tables = []
+
+        class TableParser(html.parser.HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.in_table = False
+                self.in_row = False
+                self.in_cell = False
+                self.cell_is_header = False
+                self.current_row = []
+                self.current_headers = []
+                self.current_rows = []
+                self.current_cell_text = []
+                self.headers_done = False
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "table":
+                    self.in_table = True
+                    self.current_headers = []
+                    self.current_rows = []
+                    self.headers_done = False
+                elif tag == "tr" and self.in_table:
+                    self.in_row = True
+                    self.current_row = []
+                elif tag in ("th", "td") and self.in_row:
+                    self.in_cell = True
+                    self.cell_is_header = (tag == "th")
+                    self.current_cell_text = []
+
+            def handle_endtag(self, tag):
+                if tag in ("th", "td") and self.in_cell:
+                    text = html_module.unescape("".join(self.current_cell_text).strip())
+                    self.current_row.append(text)
+                    self.in_cell = False
+                elif tag == "tr" and self.in_row:
+                    # Decide: header row or data row
+                    if not self.headers_done and self.current_row:
+                        # Use first row as headers (mix of th/td is fine)
+                        self.current_headers = self.current_row[:]
+                        self.headers_done = True
+                    elif self.current_row:
+                        self.current_rows.append(self.current_row[:])
+                    self.in_row = False
+                elif tag == "table" and self.in_table:
+                    tables.append((self.current_headers[:], self.current_rows[:]))
+                    self.in_table = False
+
+            def handle_data(self, data):
+                if self.in_cell:
+                    self.current_cell_text.append(data)
+
+        parser = TableParser()
+        parser.feed(html_text)
+        return tables
+
+    def _refresh_table_render(self, all_pages=False, switch_tab=False):
+        """Parse HTML tables from raw response(s) and display as Treeview grids.
+
+        Args:
+            all_pages: If True, parse all extracted pages instead of the current one.
+            switch_tab: If True, switch to the Rendered Tables tab after rendering.
+        """
+        # Clear previous widgets
+        for w in self.table_render_inner.winfo_children():
+            w.destroy()
+
+        # Gather text to parse
+        if all_pages and self.extracted_data:
+            combined = "\n".join(r.get("raw_response", "") for r in self.extracted_data)
+            source_label = f"All {len(self.extracted_data)} pages"
+        else:
+            # Use currently displayed raw text (includes whatever page is shown)
+            combined = self.raw_text.get("1.0", tk.END)
+            source_label = f"Page {self.current_page_idx + 1}"
+
+        tables = self._parse_html_tables(combined)
+
+        if not tables:
+            self.table_render_status.config(
+                text=f"No <table> elements found in {source_label}", foreground="orange")
+            ttk.Label(self.table_render_inner, text="No tables found in the current text.",
+                      foreground="gray").pack(padx=10, pady=10)
+            if switch_tab:
+                self.response_notebook.select(4)
+            return
+
+        self.table_render_status.config(
+            text=f"Found {len(tables)} table(s) in {source_label}", foreground="green")
+
+        for tbl_idx, (headers, rows) in enumerate(tables, start=1):
+            # Title
+            ttk.Label(self.table_render_inner,
+                      text=f"Table {tbl_idx} — {len(rows)} row(s), {len(headers)} column(s)",
+                      font=('Arial', 9, 'bold')).pack(anchor=tk.W, padx=8, pady=(8, 2))
+
+            if not headers:
+                headers = [f"Col {i+1}" for i in range(max((len(r) for r in rows), default=1))]
+
+            # Pad rows to header length
+            ncols = len(headers)
+            padded_rows = [r + [""] * (ncols - len(r)) for r in rows]
+
+            tv_frame = ttk.Frame(self.table_render_inner)
+            tv_frame.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+            tv = ttk.Treeview(tv_frame, columns=headers, show="headings",
+                               height=min(len(padded_rows) + 1, 20))
+            for col in headers:
+                tv.heading(col, text=col)
+                # Auto-width: max of header len and cell values
+                max_len = max(
+                    len(str(col)),
+                    max((len(str(r[headers.index(col)])) for r in padded_rows), default=0)
+                )
+                tv.column(col, width=min(max(max_len * 8, 60), 300), anchor="w")
+
+            for row in padded_rows:
+                tv.insert("", tk.END, values=row)
+
+            tv_scroll_x = ttk.Scrollbar(tv_frame, orient="horizontal", command=tv.xview)
+            tv.configure(xscrollcommand=tv_scroll_x.set)
+            tv.pack(fill=tk.X)
+            tv_scroll_x.pack(fill=tk.X)
+
+        if switch_tab:
+            self.response_notebook.select(4)
 
     def cmd_upload_template(self):
         """Upload .xlsx or .csv, read column headers from row 1."""
@@ -1548,12 +1805,33 @@ class OlmoCRAgenticGUI:
         else:
             self.model_status.config(text="Models: Not loaded", foreground="gray")
 
+def _check_optional_deps():
+    """Warn about optional but important packages at startup."""
+    missing = []
+    try:
+        import openpyxl  # noqa: F401
+    except ImportError:
+        missing.append("openpyxl  (Excel export)  →  pip install openpyxl")
+    try:
+        import pypdf  # noqa: F401
+    except ImportError:
+        missing.append("pypdf  (PDF page count)  →  pip install pypdf")
+    if missing:
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showwarning(
+            "Optional Dependencies Missing",
+            "Some features may not work:\n\n" + "\n".join(missing),
+        )
+        root.destroy()
+
+
 def main():
     if not TRANSFORMERS_AVAILABLE:
         root = tk.Tk()
         root.withdraw()
         messagebox.showerror("Missing Dependencies", 
-            "pip install torch transformers pillow pdf2image pandas pypdf")
+            "pip install torch transformers pillow pandas pypdf")
         return
     
     if not torch.cuda.is_available():
@@ -1561,6 +1839,8 @@ def main():
         root.withdraw()
         messagebox.showerror("CUDA Required", "olmOCR needs CUDA GPU")
         return
+
+    _check_optional_deps()
     
     root = tk.Tk()
     app = OlmoCRAgenticGUI(root)
