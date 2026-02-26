@@ -103,22 +103,44 @@ TASK: Given the user's document type and extraction goal, produce a single optim
 
 
 # ===== POST-PROCESS PROMPT BUILDER =====
-def build_postprocess_prompt(columns: list, raw_text: str) -> str:
-    cols_str = ", ".join(columns)
-    return f"""You are a data extraction specialist.
+def build_postprocess_prompt(raw_text: str, columns: list = None) -> str:
+    """Build the post-process prompt.
 
-Extract all records from the following OCR-extracted document text.
-Return a JSON array of objects using EXACTLY these column names: [{cols_str}]
+    Args:
+        raw_text: Full compiled OCR text from all pages.
+        columns: List of column names from the user template.
+                 If None or empty, the LLM infers its own schema.
+    """
+    if columns:
+        cols_str = ", ".join(columns)
+        schema_instruction = (
+            f"Return a JSON array of objects using EXACTLY these column names: [{cols_str}]\n"
+            f"- Do not add extra columns beyond those listed\n"
+            f"- Use null for any column where the value is not found in the text"
+        )
+    else:
+        schema_instruction = (
+            "Infer an appropriate schema from the content.\n"
+            "- Use descriptive snake_case column names\n"
+            "- Group related values into the same record where they clearly belong together\n"
+            "- Return a JSON array of objects — each object is one record/row"
+        )
 
-Rules:
+    return f"""You are a data extraction specialist working on multi-page OCR output.
+
+The text below is compiled from all pages of a scanned document.
+Your task: extract ALL structured records (rows of data) from this text.
+
+{schema_instruction}
+
+General rules:
 - Only extract values that explicitly appear in the text — do NOT infer or hallucinate
-- Use null for any column where the value is not found in the text
 - Numbers must be numeric type, not strings
-- Do not add extra columns beyond those listed
-- If multiple records/rows exist, include all of them as separate objects in the array
+- If multiple records/rows exist, include ALL of them as separate objects in the array
+- Ignore page headers, footers, and VLM metadata lines (primary_language, is_rotation_valid, etc.)
 - Return ONLY a valid JSON array — no explanation, no markdown code fences, no preamble
 
-TEXT:
+COMPILED DOCUMENT TEXT:
 {raw_text}"""
 
 
@@ -399,9 +421,14 @@ class PostProcessAgent:
     def __init__(self, llm):
         self.llm = llm  # IntelligentAssistant or APILLM instance
 
-    def run(self, raw_text: str, columns: list) -> list:
-        """Returns list[dict] with one dict per extracted record."""
-        prompt = build_postprocess_prompt(columns, raw_text)
+    def run(self, raw_text: str, columns: list = None) -> list:
+        """Returns list[dict] with one dict per extracted record.
+
+        Args:
+            raw_text: Full compiled OCR text.
+            columns: Optional column schema. If None, LLM infers schema.
+        """
+        prompt = build_postprocess_prompt(raw_text, columns)
 
         # Use chat() for both backends — both expose it
         response = self.llm.chat(prompt, system_context=(
@@ -1069,6 +1096,31 @@ class OlmoCRAgenticGUI:
         except Exception as e:
             self.log_error(f"Excel export failed: {e}")
 
+    def export_to_csv(self):
+        """Export post-processed records to CSV."""
+        records = getattr(self, 'pp_records', [])
+        if not records:
+            self.log("Run Post-Process first, then export CSV")
+            return
+
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".csv", filetypes=[("CSV", "*.csv")])
+        if not filename:
+            return
+
+        try:
+            df = pd.DataFrame(records)
+            if self.template_columns:
+                ordered = [c for c in self.template_columns if c in df.columns]
+                extras = [c for c in df.columns if c not in self.template_columns]
+                df = df[ordered + extras]
+            for col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='ignore')
+            df.to_csv(filename, index=False)
+            self.log(f"✓ Exported {len(records)} record(s) to {Path(filename).name}")
+        except Exception as e:
+            self.log_error(f"CSV export failed: {e}")
+
     def export_to_json(self):
         """Export full extraction + post-process results to JSON."""
         filename = filedialog.asksaveasfilename(
@@ -1175,31 +1227,55 @@ class OlmoCRAgenticGUI:
     # ===== POST-PROCESS TAB =====
 
     def _create_postprocess_tab(self):
-        """Build the Post-Process tab inside response_notebook."""
+        """Build the Post-Process tab inside response_notebook.
+
+        This tab operates on the FULL compiled extraction (all pages of the document),
+        not on individual pages. It uses an LLM to clean, arrange, and structure
+        the OCR output into a tabular dataset ready for export.
+        """
         pp_frame = ttk.Frame(self.response_notebook)
         self.response_notebook.add(pp_frame, text="Post-Process")
 
-        # --- Template upload row ---
-        tpl_row = ttk.Frame(pp_frame)
-        tpl_row.pack(fill=tk.X, padx=6, pady=(6, 2))
+        # --- Info banner ---
+        info = ttk.Label(
+            pp_frame,
+            text="Post-processing compiles ALL extracted pages into a structured dataset. "
+                 "Run extraction first, then optionally upload a column template.",
+            foreground="#888888", font=('Arial', 8, 'italic'), wraplength=800, justify="left",
+        )
+        info.pack(fill=tk.X, padx=8, pady=(4, 2))
+
+        # --- Document stats row (populated after extraction) ---
+        self.pp_doc_stats = ttk.Label(pp_frame, text="No extraction data loaded.",
+                                       foreground="gray", font=('Consolas', 8))
+        self.pp_doc_stats.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+        # --- Template section ---
+        tpl_frame = ttk.LabelFrame(pp_frame, text="Column Schema  (optional — leave blank to auto-infer)", padding=4)
+        tpl_frame.pack(fill=tk.X, padx=6, pady=(0, 4))
+
+        tpl_row = ttk.Frame(tpl_frame)
+        tpl_row.pack(fill=tk.X)
 
         ttk.Label(tpl_row, text="Template:").pack(side=tk.LEFT, padx=(0, 4))
-        self.pp_template_label = ttk.Label(tpl_row, text="No template loaded",
-                                           foreground="gray", width=30, anchor="w")
+        self.pp_template_label = ttk.Label(tpl_row, text="None (auto-infer schema)",
+                                           foreground="gray", width=34, anchor="w")
         self.pp_template_label.pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(tpl_row, text="📂 Upload .xlsx/.csv",
                    command=self.cmd_upload_template).pack(side=tk.LEFT, padx=(0, 4))
         ttk.Button(tpl_row, text="✕ Clear",
                    command=self.cmd_clear_template).pack(side=tk.LEFT)
 
-        # Detected columns label
-        self.pp_cols_label = ttk.Label(pp_frame, text="Columns: (none)",
+        self.pp_cols_label = ttk.Label(tpl_frame, text="Columns: auto-infer",
                                         foreground="gray", font=('Consolas', 8))
-        self.pp_cols_label.pack(fill=tk.X, padx=8, pady=(0, 4))
+        self.pp_cols_label.pack(fill=tk.X, pady=(2, 0))
 
         # --- LLM selector + run ---
-        run_row = ttk.Frame(pp_frame)
-        run_row.pack(fill=tk.X, padx=6, pady=(0, 4))
+        run_frame = ttk.LabelFrame(pp_frame, text="Run", padding=4)
+        run_frame.pack(fill=tk.X, padx=6, pady=(0, 4))
+
+        run_row = ttk.Frame(run_frame)
+        run_row.pack(fill=tk.X)
 
         ttk.Label(run_row, text="LLM:").pack(side=tk.LEFT, padx=(0, 4))
         self.pp_provider = ttk.Combobox(run_row, width=10, state="readonly",
@@ -1209,25 +1285,31 @@ class OlmoCRAgenticGUI:
         ttk.Label(run_row, text="API Key:").pack(side=tk.LEFT, padx=(0, 4))
         self.pp_api_key = ttk.Entry(run_row, width=28, show="*")
         self.pp_api_key.pack(side=tk.LEFT, padx=(0, 8))
-        self.pp_run_btn = ttk.Button(run_row, text="▶ Run Post-Process",
+
+        self.pp_run_btn = ttk.Button(run_frame, text="▶  Run Post-Process on Full Document",
                                       command=self.cmd_run_postprocess)
-        self.pp_run_btn.pack(side=tk.LEFT, padx=(0, 8))
-        self.pp_status = ttk.Label(run_row, text="", foreground="gray")
-        self.pp_status.pack(side=tk.LEFT)
+        self.pp_run_btn.pack(fill=tk.X, pady=(4, 0))
+
+        self.pp_status = ttk.Label(run_frame, text="", foreground="gray")
+        self.pp_status.pack(anchor=tk.W)
 
         # --- Output preview ---
-        ttk.Label(pp_frame, text="Output Preview", font=('Arial', 9, 'bold')).pack(
-            anchor=tk.W, padx=8)
+        out_frame = ttk.LabelFrame(pp_frame, text="Structured Output Preview (JSON)", padding=4)
+        out_frame.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 4))
+
         self.pp_output_text = scrolledtext.ScrolledText(
-            pp_frame, font=('Consolas', 8), bg='#1e1e2e', fg='#cdd6f4', height=10)
-        self.pp_output_text.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 4))
+            out_frame, font=('Consolas', 8), bg='#1e1e2e', fg='#cdd6f4')
+        self.pp_output_text.pack(fill=tk.BOTH, expand=True)
 
         # --- Export buttons ---
         exp_row = ttk.Frame(pp_frame)
         exp_row.pack(fill=tk.X, padx=6, pady=(0, 6))
-        ttk.Button(exp_row, text="📊 Export Excel",
-                   command=self.export_to_excel).pack(side=tk.LEFT, padx=(0, 6))
-        ttk.Button(exp_row, text="📋 Export JSON",
+        ttk.Label(exp_row, text="Export:").pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(exp_row, text="📊 Excel (.xlsx)",
+                   command=self.export_to_excel).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(exp_row, text="📄 CSV (.csv)",
+                   command=self.export_to_csv).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(exp_row, text="📋 JSON (.json)",
                    command=self.export_to_json).pack(side=tk.LEFT)
 
     # ===== SAVE ALL PAGES =====
@@ -1486,24 +1568,63 @@ class OlmoCRAgenticGUI:
 
     def cmd_clear_template(self):
         self.template_columns = []
-        self.pp_template_label.config(text="No template loaded", foreground="gray")
-        self.pp_cols_label.config(text="Columns: (none)", foreground="gray")
+        self.pp_template_label.config(text="None (auto-infer schema)", foreground="gray")
+        self.pp_cols_label.config(text="Columns: auto-infer", foreground="gray")
+
+    def _update_pp_doc_stats(self):
+        """Refresh the doc-stats label in the Post-Process tab."""
+        if not self.extracted_data:
+            self.pp_doc_stats.config(text="No extraction data loaded.", foreground="gray")
+            return
+        pages = len(self.extracted_data)
+        chars = sum(len(r.get("raw_response", "")) for r in self.extracted_data)
+        tokens = sum(r.get("total_tokens", 0) for r in self.extracted_data)
+        source = Path(self.selected_files[0]).name if self.selected_files else "unknown"
+        self.pp_doc_stats.config(
+            text=f"Ready: {pages} page(s)  |  ~{chars:,} chars  |  {tokens:,} tokens  |  {source}",
+            foreground="black",
+        )
 
     def cmd_run_postprocess(self):
-        """Run the post-process agent against extracted data."""
+        """Run the post-process agent on the FULL compiled extraction (all pages)."""
         if not self.extracted_data:
-            self.pp_status.config(text="No extracted data yet", foreground="red")
+            self.pp_status.config(text="No extracted data yet — run extraction first", foreground="red")
             return
-        if not self.template_columns:
-            self.pp_status.config(text="Upload a template first", foreground="red")
-            return
+
+        # Update stats display
+        self._update_pp_doc_stats()
 
         provider = self.pp_provider.get().lower()
         api_key = self.pp_api_key.get().strip() or self.api_key
 
+        # Concatenate all pages
+        raw_text = "\n\n--- PAGE BREAK ---\n\n".join(
+            r.get("raw_response", "") for r in self.extracted_data
+        )
+
+        # Warn if very large (likely to hit LLM context limits)
+        char_count = len(raw_text)
+        WARN_CHARS = 60_000
+        if char_count > WARN_CHARS:
+            proceed = messagebox.askyesno(
+                "Large Document Warning",
+                f"The compiled text is {char_count:,} characters (~{char_count//4:,} tokens).\n\n"
+                f"This may exceed the context window of the selected LLM and produce incomplete results.\n\n"
+                f"Consider using only a page subset (deselect pages before extraction) "
+                f"or use a model with a larger context window (e.g. Groq llama-3.3-70b).\n\n"
+                f"Continue anyway?",
+            )
+            if not proceed:
+                return
+
         self.pp_status.config(text="Running...", foreground="gray")
         self.pp_run_btn.config(state=tk.DISABLED)
         self.pp_output_text.delete("1.0", tk.END)
+
+        # Use template columns if loaded, else None (auto-infer)
+        columns = self.template_columns if self.template_columns else None
+        schema_note = f"{len(columns)} columns from template" if columns else "auto-infer schema"
+        self.log(f"Post-processing {len(self.extracted_data)} page(s) | {char_count:,} chars | {schema_note}")
 
         def _run():
             try:
@@ -1519,13 +1640,8 @@ class OlmoCRAgenticGUI:
                     llm = APILLM(provider=provider, api_key=api_key)
                     llm.load_model()
 
-                # Concatenate all raw responses
-                raw_text = "\n\n--- PAGE BREAK ---\n\n".join(
-                    r.get("raw_response", "") for r in self.extracted_data
-                )
-
                 agent = PostProcessAgent(llm)
-                records = agent.run(raw_text, self.template_columns)
+                records = agent.run(raw_text, columns)
 
                 self.pp_records = records
                 self.structured_data = json.dumps(records, indent=2)
@@ -1537,7 +1653,8 @@ class OlmoCRAgenticGUI:
                     self.pp_output_text.delete("1.0", tk.END)
                     self.pp_output_text.insert(tk.END, preview)
                     self.pp_status.config(
-                        text=f"✓ {len(records)} record(s) extracted", foreground="green")
+                        text=f"✓ {len(records)} record(s) extracted | ready to export",
+                        foreground="green")
                     self.pp_run_btn.config(state=tk.NORMAL)
                     self.log(f"✓ Post-process done: {len(records)} record(s)")
 
@@ -1704,6 +1821,8 @@ class OlmoCRAgenticGUI:
         self.progress_bar.stop()
         self.extract_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
+        # Refresh post-process stats now that extraction is complete
+        self._update_pp_doc_stats()
 
     # ===== CHAT =====
     
