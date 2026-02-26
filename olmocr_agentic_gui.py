@@ -611,40 +611,14 @@ class OlmoCRAgenticGUI:
     def load_pdf_preview(self, path):
         self.log(f"Loading {Path(path).name}...")
         
-        if OLMCOCR_AVAILABLE:
-            try:
-                from pypdf import PdfReader
-                reader = PdfReader(path)
-                self.pdf_pages = []
-                
-                for page_num in range(len(reader.pages)):
-                    image_base64 = render_pdf_to_base64png(path, page_num + 1, target_longest_image_dim=1288)
-                    img_data = base64.b64decode(image_base64)
-                    img = Image.open(io.BytesIO(img_data)).convert('RGB')
-                    self.pdf_pages.append(img)
-                
-                self.display_preview()
-                self.display_thumbnails()
-                self.log(f"✓ Loaded {len(self.pdf_pages)} pages (olmOCR rendering)")
-            except Exception as e:
-                self.log_error(f"olmOCR rendering failed: {e}")
-                try:
-                    from pdf2image import convert_from_path
-                    self.pdf_pages = convert_from_path(path, dpi=150)
-                    self.display_preview()
-                    self.display_thumbnails()
-                    self.log(f"✓ Loaded {len(self.pdf_pages)} pages (fallback)")
-                except Exception as e2:
-                    self.log_error(f"PDF loading failed: {e2}")
-        else:
-            try:
-                from pdf2image import convert_from_path
-                self.pdf_pages = convert_from_path(path, dpi=150)
-                self.display_preview()
-                self.display_thumbnails()
-                self.log(f"✓ Loaded {len(self.pdf_pages)} pages")
-            except Exception as e:
-                self.log_error(f"PDF loading failed: {e}")
+        try:
+            from pdf2image import convert_from_path
+            self.pdf_pages = convert_from_path(path, dpi=150)
+            self.display_preview()
+            self.display_thumbnails()
+            self.log(f"✓ Loaded {len(self.pdf_pages)} pages")
+        except Exception as e:
+            self.log_error(f"PDF loading failed: {e}")
 
     def display_preview(self):
         self.preview_canvas.delete("all")
@@ -1007,6 +981,10 @@ class OlmoCRAgenticGUI:
                         self.pdf_pages[page_idx].save(temp_path)
                         result = self.vlm.extract(image_path=str(temp_path), prompt=prompt)
                         temp_path.unlink()
+                    
+                    if result is None:
+                        self.root.after(0, lambda: self.log_error(f"VLM extraction returned None for page {page_idx + 1}"))
+                        continue
                     
                     self.extracted_data.append(result)
                     self.root.after(0, lambda idx=page_idx: self.view_page(idx))

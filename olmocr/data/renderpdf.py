@@ -42,38 +42,33 @@ def get_pdf_media_box_width_height(local_pdf_path: str, page_num: int) -> tuple[
 
 
 def render_pdf_to_base64png(local_pdf_path: str, page_num: int, target_longest_image_dim: int = 2048) -> str:
+    from pdf2image import convert_from_path
+    import tempfile
+    
     try:
-        media_box = get_pdf_media_box_width_height(local_pdf_path, page_num)
-        longest_dim = max(media_box)
-    except Exception as e:
-        raise ValueError(f"Failed to get PDF dimensions: {e}")
-
-    # Convert PDF page to PNG using pdftoppm (outputs to stdout with -)
-    pdftoppm_result = subprocess.run(
-        [
-            "pdftoppm",
-            "-png",
-            "-f",
-            str(page_num),
-            "-l",
-            str(page_num),
-            "-r",
-            str(int(target_longest_image_dim * 72 / longest_dim)),
+        images = convert_from_path(
             local_pdf_path,
-            "-",
-        ],
-        timeout=120,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    
-    if pdftoppm_result.returncode != 0:
-        raise ValueError(f"pdftoppm failed (rc={pdftoppm_result.returncode}): {pdftoppm_result.stderr[:200]}")
-    
-    if not pdftoppm_result.stdout:
-        raise ValueError("pdftoppm produced no output")
-    
-    return base64.b64encode(pdftoppm_result.stdout).decode("utf-8")
+            first_page=page_num,
+            last_page=page_num,
+            dpi=150,
+            fmt='png'
+        )
+        if not images:
+            raise ValueError("pdf2image produced no output")
+        
+        img = images[0]
+        longest_dim = max(img.size)
+        scale = target_longest_image_dim / longest_dim if longest_dim > target_longest_image_dim else 1
+        
+        if scale < 1:
+            new_size = (int(img.width * scale), int(img.height * scale))
+            img = img.resize(new_size, Image.LANCZOS)
+        
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
+    except Exception as e:
+        raise ValueError(f"pdf2image failed: {e}")
 
 
 def render_pdf_to_base64webp(local_pdf_path: str, page: int, target_longest_image_dim: int = 1024):
