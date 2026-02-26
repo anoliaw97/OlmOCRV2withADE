@@ -36,7 +36,8 @@ except ImportError as e:
     print(f"olmOCR package not found: {e}")
 
 try:
-    from transformers import AutoModelForImageTextToText, AutoProcessor, AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoProcessor, AutoModelForCausalLM, AutoTokenizer
+    from transformers import Qwen2_5_VLForConditionalGeneration
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
@@ -98,12 +99,14 @@ class VLMExtractor:
         
         print(f"Loading model on {gpu_mem:.0f}GB GPU...")
         
-        self.processor = AutoProcessor.from_pretrained(self.model_name, torch_dtype=torch.float16)
+        # Processor comes from the base Qwen model (FP8 model card doesn't ship its own)
+        self.processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct")
         
-        self.model = AutoModelForImageTextToText.from_pretrained(
-            self.model_name, 
-            torch_dtype=torch.float16
-        ).to("cuda").eval()
+        # device_map="auto" + no torch_dtype override → HuggingFace respects FP8 quantization config
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            self.model_name,
+            device_map="auto",
+        ).eval()
         
         torch.cuda.empty_cache()
         gc.collect()
@@ -117,54 +120,59 @@ class VLMExtractor:
         
         clear_gpu()
         
-        if image_base64:
+        # Always work with base64 — convert image_path to base64 if needed
+        if image_path and not image_base64:
+            img = Image.open(image_path).convert('RGB')
+            img = resize_image(img, 1288)
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            image_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        elif image_base64:
             img_data = base64.b64decode(image_base64)
             img = Image.open(io.BytesIO(img_data)).convert('RGB')
-        elif image_path:
-            img = Image.open(image_path).convert('RGB')
+            img = resize_image(img, 1288)
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            image_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
         else:
             raise ValueError("Must provide image_base64 or image_path")
-        
-        img = resize_image(img, 1288)  # Use olmOCR standard 1288px
         
         if prompt is None:
             prompt = DEFAULT_OLMOCR_PROMPT
         
+        # Use image_url format as per official HuggingFace model card
         msgs = [{"role": "user", "content": [
-            {"type": "image", "image": img},
-            {"type": "text", "text": prompt}
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}},
         ]}]
         
         txt = self.processor.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
-        inputs = self.processor(text=[txt], images=[img], padding=True, return_tensors="pt")
+        inputs = self.processor(
+            text=[txt],
+            images=[img],
+            padding=True,
+            return_tensors="pt",
+        )
         
-        device = "cuda"
-        # pixel_values → float16 (vision encoder input)
-        # integer tensors (input_ids, attention_mask, image_grid_thw) → int64
-        # everything else → float16
-        def move(k, v):
-            if k == "pixel_values":
-                return v.to(device, dtype=torch.float16)
-            elif v.dtype in (torch.int32, torch.int64, torch.bool, torch.uint8, torch.long):
-                return v.to(device)
-            else:
-                return v.to(device, dtype=torch.float16)
-        inputs = {k: move(k, v) for k, v in inputs.items()}
+        # Move all inputs to model device without overriding dtypes
+        device = next(self.model.parameters()).device
+        inputs = {k: v.to(device) for k, v in inputs.items()}
         
         input_ids = inputs["input_ids"]
         
         with torch.no_grad():
             out = self.model.generate(
-                **inputs, 
-                temperature=0.0, 
-                max_new_tokens=8000,  # olmOCR spec: 8000
-                do_sample=False
+                **inputs,
+                temperature=0.1,
+                max_new_tokens=8000,
+                do_sample=True,
             )
         
         output_tokens = out.shape[1] - input_ids.shape[1]
         
-        decoded = self.processor.batch_decode(out[:, input_ids.shape[1]:], 
-                                             skip_special_tokens=True)[0]
+        decoded = self.processor.tokenizer.batch_decode(
+            out[:, input_ids.shape[1]:], skip_special_tokens=True
+        )[0]
         
         del inputs, out, img, msgs
         clear_gpu()
