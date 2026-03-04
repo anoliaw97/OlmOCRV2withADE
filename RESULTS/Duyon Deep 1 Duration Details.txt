@@ -1,0 +1,42 @@
+Page        Duration    Tokens
+--------------------------------
+Page 1        293.8s      1753 tok
+Page 2        615.7s      1834 tok
+Page 3       1147.7s      2094 tok
+Page 4       1587.9s      2242 tok
+Page 5       1497.7s      2209 tok
+Page 6       1449.0s      2120 tok
+Page 7       1944.7s      2375 tok
+Page 8       1434.4s      2184 tok
+Page 9        755.8s      1917 tok
+Page 10        98.0s      1681 tok
+Page 11      1552.7s      2179 tok
+Page 12      4630.5s      3092 tok
+Page 13      2341.4s      2581 tok
+Page 14      1286.0s      2085 tok
+Page 15     10454.7s      5778 tok
+Page 16      3547.0s      3071 tok
+Page 17     11389.3s      5775 tok
+Page 18      4001.6s      3201 tok
+Page 19     11992.5s      5774 tok
+Page 20      4509.3s      3197 tok
+Page 21     12060.6s      5767 tok
+Page 22      4809.3s      3331 tok
+Page 23       236.8s      1682 tok
+Page 24       508.9s      1812 tok
+Page 25       673.7s      1827 tok
+Page 26       529.2s      1792 tok
+Page 27       639.2s      1792 tok
+Page 28       424.9s      1794 tok
+Page 29       417.5s      1815 tok
+Page 30       500.7s      1793 tok
+Page 31       465.2s      1794 tok
+Page 32       530.2s      1816 tok
+Page 33       825.7s      1871 tok
+Page 34       515.2s      1794 tok
+Page 35       520.1s      1816 tok
+Page 36       501.2s      1793 tok
+Page 37       553.0s      1793 tok
+Page 38       567.4s      1815 tok
+--------------------------------
+TOTAL      91809.4s     95039 tok

@@ -1,0 +1,734 @@
+Attached is one page of a document that you must process. Just return the plain text representation of this document as if you were reading it naturally. Convert equations to LateX and tables to HTML.
+If there are any figures or charts, label them with the following markdown syntax ![Alt text describing the contents of the figure](page_startx_starty_width_height.png)
+Return your output as markdown, with a front matter section on top specifying values for the primary_language, is_rotation_valid, rotation_correction, is_table, and is_diagram parameters.
+
+Page        Duration    Tokens
+--------------------------------
+Page 1         56.3s      1725 tok
+Page 2         41.6s      1691 tok
+Page 3         56.7s      1804 tok
+Page 4        106.4s      1791 tok
+Page 5         89.2s      1764 tok
+Page 6        797.5s      2726 tok
+Page 7        776.1s      2512 tok
+Page 8        953.0s      2878 tok
+Page 9        115.4s      1797 tok
+Page 10       122.6s      1803 tok
+Page 11       126.2s      1809 tok
+Page 12       110.0s      1798 tok
+Page 13       136.9s      1841 tok
+Page 14       138.6s      1843 tok
+Page 15       242.9s      2011 tok
+Page 16       147.8s      1856 tok
+Page 17        68.8s      1731 tok
+--------------------------------
+TOTAL       4086.5s     33380 tok
+
+
+
+
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+CORE ANALYSIS REPORT
+
+ANGSI-1
+MALAYSIA
+
+R.C. SOMMER, A.C. WOOD
+DECEMBER 1976
+
+ESSO EXPLORATION MALAYSIA INC.
+
+
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+CORE ANALYSIS REPORT: ANGSI
+NO.1
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+CORE ANALYSIS REPORT
+ANGSI WELL NO. 1
+ESSO EXPLORATION MALAYSIA INC.
+
+ESSO PRODUCTION MALAYSIA INC.
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+EXXON PRODUCTION RESEARCH COMPANY
+
+CORE ANALYSIS REPORT
+ANGSI WELL NO. 1
+ESSO EXPLORATION MALAYSIA INC.
+
+R. C. Sommer
+A. C. Wood
+
+Production Engineering Division
+
+December 1974
+
+EPR.114PS.74
+
+FOR ESSO EXPLORATION MALAYSIA INC. USE ONLY
+
+This report contains Esso Exploration Malaysia information; copies should not be given to companies other than Exxon Corporation without Esso Exploration Malaysia's written consent.
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+TABLE OF CONTENTS
+
+Tables
+
+Summary of Porosity and Permeability Data                I
+Summary of Centrifuge Gas-Oil Capillary Pressure Data      II
+Summary of Electrical Property Measurements                III
+
+Figures
+
+Gas-Oil Capillary Pressure Curves                        1 through 4
+Resistivity Ratio Vs. Water Saturation                    5 through 8
+Formation Factor Vs. Porosity                             9
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+TABLE I
+Summary of Porosity and Permeability Data
+Angst Well No. 1 & No. 2
+
+<table>
+  <tr>
+    <th>Depth, Ft.</th>
+    <th>Plug No.</th>
+    <th>Porosity, %</th>
+    <th colspan="2">Gas Permeability, md</th>
+    <th colspan="2">Density, GM/CC</th>
+  </tr>
+  <tr>
+    <th></th>
+    <th></th>
+    <th></th>
+    <th>Bulk</th>
+    <th>Grain</th>
+    <th>Bulk</th>
+    <th>Grain</th>
+  </tr>
+  <tr>
+    <td>8012</td>
+    <td>AN-28</td>
+    <td>16.3</td>
+    <td>4.42</td>
+    <td>2.23</td>
+    <td>2.66</td>
+  </tr>
+  <tr>
+    <td>8013</td>
+    <td>AN-29</td>
+    <td>14.1</td>
+    <td>2.45</td>
+    <td>2.30</td>
+    <td>2.68</td>
+  </tr>
+  <tr>
+    <td>8015</td>
+    <td>AN-30</td>
+    <td>16.2</td>
+    <td>19.4</td>
+    <td>2.23</td>
+    <td>2.66</td>
+  </tr>
+  <tr>
+    <td>8016</td>
+    <td>AN-31</td>
+    <td>15.4</td>
+    <td>7.99</td>
+    <td>2.26</td>
+    <td>2.67</td>
+  </tr>
+  <tr>
+    <td>8029</td>
+    <td>AN-32</td>
+    <td>9.5</td>
+    <td>0.10</td>
+    <td>2.44</td>
+    <td>2.69</td>
+  </tr>
+  <tr>
+    <td>8032</td>
+    <td>AN-33</td>
+    <td>14.2</td>
+    <td>6.00</td>
+    <td>2.30</td>
+    <td>2.69</td>
+  </tr>
+  <tr>
+    <td>8034</td>
+    <td>AN-34</td>
+    <td>17.0</td>
+    <td>50.2</td>
+    <td>2.22</td>
+    <td>2.67</td>
+  </tr>
+  <tr>
+    <td>8036</td>
+    <td>AN-35</td>
+    <td>14.9</td>
+    <td>23.3</td>
+    <td>2.28</td>
+    <td>2.68</td>
+  </tr>
+  <tr>
+    <td>8037</td>
+    <td>AN-36</td>
+    <td>14.4</td>
+    <td>9.17</td>
+    <td>2.30</td>
+    <td>2.68</td>
+  </tr>
+  <tr>
+    <td>8038</td>
+    <td>AN-37</td>
+    <td>15.9</td>
+    <td>51.8</td>
+    <td>2.24</td>
+    <td>2.56</td>
+  </tr>
+  <tr>
+    <td>8039</td>
+    <td>AN-38</td>
+    <td>15.3</td>
+    <td>23.5</td>
+    <td>2.26</td>
+    <td>2.67</td>
+  </tr>
+  <tr>
+    <td>8040</td>
+    <td>AN-39</td>
+    <td>16.4</td>
+    <td>37.1</td>
+    <td>2.24</td>
+    <td>2.68</td>
+  </tr>
+</table>
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+TABLE II
+
+Summary of Centrifuge Gas-Oil Capillary Pressures Data
+
+<table>
+  <tr>
+    <th rowspan="2">Capillary Pressure, PSI</th>
+    <th colspan="2">Avg. Liquid Saturation % PV</th>
+    <th rowspan="2">Capillary Pressure, PSI</th>
+    <th colspan="2">Avg. Liquid Saturation % PV</th>
+  </tr>
+  <tr>
+    <th>Core No. AN-30, 8015 Ft.</th>
+    <th>Core No. AN-36, 8037 Ft.</th>
+    <th>Core No. AN-37, 8038 Ft.</th>
+    <th>Core No. AN-39, 8040 Ft.</th>
+  </tr>
+  <tr>
+    <td>2.4*</td>
+    <td>100</td>
+    <td>3.0*</td>
+    <td>100</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>5.7</td>
+    <td>32.9</td>
+    <td>5.8</td>
+    <td>37.2</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>23.3</td>
+    <td>25.3</td>
+    <td>23.5</td>
+    <td>30.4</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>51.3</td>
+    <td>25.3</td>
+    <td>51.8</td>
+    <td>29.5</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>90.8</td>
+    <td>22.8</td>
+    <td>91.8</td>
+    <td>27.1</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>1.9*</td>
+    <td>100</td>
+    <td>2.1*</td>
+    <td>100</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>5.8</td>
+    <td>22.8</td>
+    <td>5.8</td>
+    <td>28.5</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>23.6</td>
+    <td>18.5</td>
+    <td>23.5</td>
+    <td>23.2</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>51.9</td>
+    <td>18.3</td>
+    <td>51.8</td>
+    <td>22.5</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>91.9</td>
+    <td>17.6</td>
+    <td>91.7</td>
+    <td>19.6</td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+
+*Estimated
+
+Gas-Oil Surface Tension = 28.0 Dynes/CM
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+TABLE III
+Summary of Electrical Property Measurements
+
+<table>
+  <tr>
+    <th rowspan="2"> </th>
+    <th colspan="2">Water Saturation* % PV</th>
+    <th rowspan="2">Resistivity Ratio R/Ro</th>
+  </tr>
+  <tr>
+    <th> </th>
+    <th> </th>
+  </tr>
+  <tr>
+    <td>Core No.</td>
+    <td>AN-28</td>
+    <td>40.25</td>
+    <td>7.99</td>
+  </tr>
+  <tr>
+    <td>Depth, ft.</td>
+    <td>8012</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Porosity, %</td>
+    <td>16.3</td>
+    <td>25.22</td>
+    <td>17.17</td>
+  </tr>
+  <tr>
+    <td>Permeability, md</td>
+    <td>4.42</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Formation Factor</td>
+    <td>42.8</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Saturation Exponent</td>
+    <td>2.11</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Core No.</td>
+    <td>AN-29</td>
+    <td>43.33</td>
+    <td>6.29</td>
+  </tr>
+  <tr>
+    <td>Depth, ft.</td>
+    <td>8013</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Porosity, %</td>
+    <td>14.1</td>
+    <td>28.17</td>
+    <td>12.09</td>
+  </tr>
+  <tr>
+    <td>Permeability, md</td>
+    <td>2.45</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Formation Factor</td>
+    <td>58.03</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Saturation Exponent</td>
+    <td>2.01</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Core No.</td>
+    <td>AN-32</td>
+    <td>49.49</td>
+    <td>4.19</td>
+  </tr>
+  <tr>
+    <td>Depth, ft.</td>
+    <td>8029</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Porosity, %</td>
+    <td>9.5</td>
+    <td>41.01</td>
+    <td>5.67</td>
+  </tr>
+  <tr>
+    <td>Permeability, md</td>
+    <td>0.10</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Formation Factor</td>
+    <td>137.6</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Saturation Exponent</td>
+    <td>1.94</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Core No.</td>
+    <td>AN-38</td>
+    <td>42.54</td>
+    <td>3.74</td>
+  </tr>
+  <tr>
+    <td>Depth, ft.</td>
+    <td>8039</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Porosity, %</td>
+    <td>15.3</td>
+    <td>26.16</td>
+    <td>20.95</td>
+  </tr>
+  <tr>
+    <td>Permeability, md</td>
+    <td>23.5</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Formation Factor</td>
+    <td>43.6</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Saturation Exponent</td>
+    <td>2.45</td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+
+*Laboratory Synthetic Brine (80,000 ppm NaCl + 20,000 ppm KCl)
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 1
+CAPILLARY PRESSURE CURVE
+
+FIELD Angsi
+RESERVOIR
+WELL No. 1
+DEPTH, ft 8015
+
+CORE AN-30
+PERMEABILITY, md 19.4
+POROSITY, % 16.2
+METHOD Centrifuge: Air-Kerosene
+
+![Capillary Pressure Curve graph showing capillary pressure (psi) versus wetting liquid saturation (percent)](page_370_613_1002_1002.png)
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 2
+CAPILLARY PRESSURE CURVE
+
+FIELD    Anasi
+RESERVOIR
+WELL     No. 1
+DEPTH, ft   8037
+
+CORE      AN-36
+PERMEABILITY, md   9.17
+POROSITY,%   14.4
+METHOD    Centrifuge: Air-Kerosene
+
+![Capillary Pressure Curve graph showing capillary pressure (psi) vs wetting liquid saturation (percent)](page_352_563_1047_1047.png)
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 3
+CAPILLARY PRESSURE CURVE
+
+FIELD      Angsi
+RESERVOIR  No. 1
+WELL        No. 1
+DEPTH, ft   8038
+
+CORE      AN-37
+PERMEABILITY, md   51.8
+POROSITY,%    15.9
+METHOD     Centrifuge: Air-Kerosene
+
+![Capillary Pressure Curve graph showing capillary pressure (psi) vs. wetting liquid saturation (percent)](page_420_624_1002_1002.png)
+
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 4
+CAPILLARY PRESSURE CURVE
+
+FIELD Angsi
+RESERVOIR
+WELL No. 1
+DEPTH, ft 8040
+CORE AN-39
+PERMEABILITY, md 37.1
+POROSITY, % 16.4
+METHOD Centrifuge: Air-Kerosene
+
+![Capillary Pressure Curve graph showing capillary pressure (psi) vs. wetting liquid saturation (percent)](page_256_573_1024_1024.png)
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 5
+RESISTIVITY RATIO VS WATER SATURATION
+
+FIELD Malaysia
+RESERVOIR Angsi #1
+WELL AN-28
+DEPTH, ft 8012
+WATER TYPE Lab Synthetic Brine
+
+CORE AN-28
+DESATURATION EXPONENT 2.11
+FORMATION FACTOR 42.8
+POROSITY 16.3
+PERMEABILITY 4.42
+
+NOTE: R/R = RATIO OF RESISTIVITY OF SAND SATURATED AT LEVEL UNDER CONSIDERATION TO RESISTIVITY OF SAND SATURATED 100%.
+
+![Resistivity ratio vs water saturation graph](page_370_670_1002_1002.png)
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 6
+
+RESISTIVITY RATIO VS WATER SATURATION
+
+FIELD Malaysia
+RESERVOIR Angsi #1
+WELL Angsi #1
+DEPTH, ft 8013
+WATER TYPE Lab Synthetic Brine
+
+CORE AN-29
+DESATURATION EXPONENT 2.01
+FORMATION FACTOR 58.01
+POROSITY 14.1
+PERMEABILITY 2.45
+
+NOTE: R/R = RAT.O OF RESISTIVITY OF SAND SATURATED AT LEVEL UNDER CONSIDERATION TO RESISTIVITY OF SAND SATURATED 100%.
+
+![Resistivity Ratio vs Water Saturation graph](page_370_613_1002_1002.png)
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 7
+
+RESISTIVITY RATIO VS WATER SATURATION
+
+<table>
+  <tr>
+    <th>FIELD</th>
+    <td>Malaysia</td>
+    <th>CORE</th>
+    <td>AN-32</td>
+  </tr>
+  <tr>
+    <th>RESERVOIR</th>
+    <td></td>
+    <th>DESATURATION EXPONENT</th>
+    <td>1.94</td>
+  </tr>
+  <tr>
+    <th>WELL</th>
+    <td>Angsi #1</td>
+    <th>FORMATION FACTOR</th>
+    <td>137.6</td>
+  </tr>
+  <tr>
+    <th>DEPTH, ft</th>
+    <td>8029</td>
+    <th>POROSITY</th>
+    <td>9.5</td>
+  </tr>
+  <tr>
+    <th>WATER TYPE</th>
+    <td>Lab Synthetic Brine</td>
+    <th>PERMEABILITY</th>
+    <td>0.10</td>
+  </tr>
+</table>
+
+NOTE: \( R/R_o \) = RATIO OF RESISTIVITY OF SAND SATURATED AT LEVEL UNDER CONSIDERATION TO RESISTIVITY OF SAND SATURATED 100%.
+
+![Graph showing resistivity ratio vs water saturation](page_320_624_1042_1042.png)
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 8
+RESISTIVITY RATIO VS WATER SATURATION
+
+FIELD: Malaysia
+CORE: AN-32
+RESERVOIR:
+WELL: Angsi #1
+DEPTH, ft: 8039
+WATER TYPE: Lab Synthetic Brine
+
+DESATURATION EXPONENT: 2.45
+FORMATION FACTOR: 43.6
+POROSITY: 15.3
+PERMEABILITY: 37.1
+
+NOTE: \( \frac{R}{R_o} \) = RATIO OF RESISTIVITY OF SAND SATURATED AT LEVEL UNDER CONSIDERATION TO RESISTIVITY OF SAND SATURATED 100%.
+
+![Resistivity Ratio vs Water Saturation graph](page_320_613_1047_1047.png)
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 9
+FORMATION FACTOR VS POROSITY
+
+![Graph showing Formation Factor vs Porosity, with Cementation Factor 2.06 indicated](page_347_563_755_1012.png)
+
+
