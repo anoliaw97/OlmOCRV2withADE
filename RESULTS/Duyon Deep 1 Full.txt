@@ -1,0 +1,2109 @@
+============================================================
+PAGE 1  |  293.8s  |  1753 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+SPECIAL CORE ANALYSIS OF ROTARY SIDEWALL CORES
+DEPTH: 3184.0, 3528.0, 3576.0, 3598.5 M
+
+DUYONG DEEP-1
+MALAYSIA
+
+PETRONAS CARIGALI SDN. BHD.
+
+============================================================
+PAGE 2  |  615.7s  |  1834 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+PETRONAS
+
+SPECIAL CORE ANALYSIS
+
+of
+
+ROTARY SIDEWALL CORES
+
+from
+
+WELL DUYONG DEEP-1
+Depths: 3184.0, 3528.0, 3576.0, 3598.5 m.
+
+for
+
+PETRONAS CARIGALI Sdn. Bhd.
+Block PM12
+Offshore Peninsular Malaysia
+
+by
+
+UZMA ENGINEERING Sdn. Bhd.
+Report No.: LB-00-32-SCAL
+
+in association with
+PT. GEOSERVICES
+Geological & Laboratory Services Division
+Report No.: 2014/0826/LAB
+
+============================================================
+PAGE 3  |  1147.7s  |  2094 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+CONTENTS
+
+1. INTRODUCTION .................................................................................................................. 1
+   a. Summary ............................................................................................................................. 1
+   b. Objectives ........................................................................................................................... 1
+   c. Samples & Analyses ........................................................................................................ 1
+   d. Analysts ............................................................................................................................ 2
+
+II. SPECIAL CORE ANALYSIS ............................................................................................... 3
+   a. Introduction ....................................................................................................................... 3
+   b. Results ............................................................................................................................... 3
+   c. Laboratory Procedures ..................................................................................................... 4
+
+Figures:
+   1. Summary of Analyses ...................................................................................................... 1
+   2. Samples & Analyses ....................................................................................................... 2
+   3. Summary of Pore Size Distribution ............................................................................... 4
+
+Tables:
+   1. Formation Resistivity Factor at NOB Conditions ......................................................... 7
+   2. Formation Resistivity Factor & Resistivity Index at NOB Conditions ......................... 8
+   3. Air-Brine Capillary Pressure by Centrifuge Conditions ................................. 9
+   4. Cation Exchange Capacity ............................................................................................. 10
+   5a-d. Mercury Injection Capillary Pressure & Pore Size Distribution [0-2,000 psi] Conditions ................................................................. 11-18
+
+Graphs:
+   1. Formation Resistivity Factor at NOB Conditions ......................................................... 19
+   2. Formation Resistivity Factor at NOB Conditions ......................................................... 20
+   3. Air-Brine Capillary Pressure by Centrifuge at NOB Conditions .. 21
+   4a-d. Mercury Injection Capillary Pressure vs. Wetting Phase Saturation [Linear] .................................................................................. 22-31
+   5a-d. Mercury Injection Capillary Pressure vs. Wetting Phase Saturation [Semilog] ............................................................................. 23-32
+   6a-d. Pore Size Distribution ............................................................................................. 24-33
+
+============================================================
+PAGE 4  |  1587.9s  |  2242 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+I. INTRODUCTION
+
+a. Summary
+
+This report provides the results of special core analysis for rotary [MSCT] sidewall cores from Well Duyong Deep-1, from the interval 3184.0-3598.5 m.
+
+The well was drilled by PETRONAS CARIGALI Sdn. Bhd [PCSB] in Block PM12, offshore Peninsular Malaysia.
+
+The analyses were undertaken and report prepared by UZMA ENGINEERING Sdn. Bhd. [Uzma] in partnership with PT. GEOSERVICES, Geological & Laboratory Services Division [PTG].
+
+b. Objectives
+
+The object of the study was to carry out the following analyses:
+
+• Formation resistivity factor at net overburden [NOB] conditions
+• Formation resistivity index by continuous injection at NOB conditions
+• Cation exchange capacity
+• Air-brine capillary pressure by centrifuge at NOB conditions
+• Mercury injection capillary pressure to maximum of 2,000 psi
+
+c. Samples & Analyses
+
+Six [6] rotary sidewall cores were received for routine core analysis and rock description [petrography, XRD and SEM] and the results are presented in separate reports. Four [4] of the samples were then selected, by PCSB, for special core analysis, as listed in Figures 1-2.
+
+<table>
+  <tr>
+    <th>Analyses</th>
+    <th>Method</th>
+    <th>Sample meters</th>
+    <th>No.</th>
+  </tr>
+  <tr>
+    <td rowspan="5">SPECIAL CORE ANALYSIS</td>
+    <td>Formation factor at NOB conditions</td>
+    <td></td>
+    <td rowspan="5">4</td>
+  </tr>
+  <tr>
+    <td>Resistivity index by injection method at NOB conditions</td>
+    <td>3184.0</td>
+  </tr>
+  <tr>
+    <td>Air-brine drainage capillary pressure by centrifuge at NOB conditions</td>
+    <td>3528.0</td>
+  </tr>
+  <tr>
+    <td>Cation exchange capacity</td>
+    <td>3576.0</td>
+  </tr>
+  <tr>
+    <td>Mercury injection capillary pressure to max. of 2,000psi</td>
+    <td>3598.5</td>
+  </tr>
+</table>
+
+FIGURE 1: WELL DUYONG DEEP-1 SUMMARY OF ANALYSES
+
+============================================================
+PAGE 5  |  1497.7s  |  2209 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+<table>
+  <tr>
+    <th rowspan="2">Sample ID</th>
+    <th colspan="6"></th>
+  </tr>
+  <tr>
+    <th>Sample No.</th>
+    <th>Depth meters</th>
+    <th>Formation factor at NOB conditions [4]</th>
+    <th>Resistivity index through continuous injection at NOB conditions [4]</th>
+    <th>Cation exchange capacity [4]</th>
+    <th>Air-brine drainage capillary pressure by centrifuge at NOB conditions [4]</th>
+    <th>Mercury injection capillary pressure to max of 2,000 psi [4]</th>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>3184.0</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>3528.0</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>3576.0</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td>3598.5</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+    <td>√</td>
+  </tr>
+</table>
+
+FIGURE 2: WELL DUYONG DEEP-1 SAMPLES & ANALYSES
+
+d. Analysts
+
+Special core analysis : Soenardi, Trimudi Hartono
+Co-ordination : Bob Meyrick, Soenardi
+Logistic & technical support by UZMA : Robert Hulsbos, Gerard Raj
+
+============================================================
+PAGE 6  |  1449.0s  |  2120 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+II. SPECIAL CORE ANALYSIS
+
+a. Introduction
+
+Results are provided for the following on the four [4] samples selected for analysis:
+
+• Formation factor at NOB conditions.
+• Resistivity index by continuous injection at NOB conditions.
+• Cation exchange capacity.
+• Air-brine drainage capillary pressure by centrifuge at NOB conditions.
+• Mercury injection drainage capillary pressure.
+
+b. Results
+
+• Formation Resistivity Factor & Resistivity Index at Net Overburden Conditions:
+    Tables 1, 2, Graphs 1, 2.
+The individual cementation exponent “m” ranged from 1.83 to 1.85 with an average value of 1.84 for the four [4] samples.
+
+The individual saturation exponent “n” ranged from 1.87 to 1.90 with an average value of 1.88 for the four [4] samples.
+
+• Cation Exchange Capacity:
+    Table 4.
+The cation exchange capacity ranged from 1.0800 to 1.1600, with an average of 1.1150 meq / 100 gr, for the four [4] samples analyzed.
+
+• Air-Brine Drainage Capillary Pressure by Centrifuge Method at NOB Conditions:
+    Table 3, Graph 3.
+An irreducible water saturation of 83.7% of pore volume was measured at the end of drainage testing for the sample at 3184 m.
+
+Water saturation measurements could not be made on three [3] of the samples which were very tight.
+
+• Mercury Injection Capillary Pressure and Pore Size Distribution to Maximum of 2,000 psi :
+    Figure 3, Tables 5a-d, Graphs 4a-d, 5a-d, 6a-d.
+The pore size distributions for the samples were calculated by dividing the range of pore throat sizes [r] into three [3] primary groups, with an average of macro 15.8%, meso 1.0% and micro 83.2%.
+
+============================================================
+PAGE 7  |  1944.7s  |  2375 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th rowspan="2">Sample ID</th>
+    <th rowspan="2">Depth meters</th>
+    <th rowspan="2">Porosity %</th>
+    <th colspan="3">Pore Size Distribution</th>
+  </tr>
+  <tr>
+    <th>Micro R<0.5</th>
+    <th>Meso 0.5<r<1.5</th>
+    <th>Macro r>1.5</th>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>3184.0</td>
+    <td>11.3</td>
+    <td>88.9</td>
+    <td>1.4</td>
+    <td>9.7</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>3528.0</td>
+    <td>9.3</td>
+    <td>86.2</td>
+    <td>0.8</td>
+    <td>13.0</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>3576.0</td>
+    <td>11.2</td>
+    <td>77.6</td>
+    <td>1.7</td>
+    <td>20.7</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td>3598.5</td>
+    <td>10.0</td>
+    <td>80.4</td>
+    <td>0.0</td>
+    <td>19.6</td>
+  </tr>
+</table>
+
+FIGURE 3: WELL DUYONG DEEP-1 SUMMARY OF PORE SIZE DISTRIBUTION
+
+c. Laboratory Procedures
+
+The following are generalized procedures involved in the measurements provided.
+
+Routine core analysis measurements used in this report are those described in earlier report by UZMA/PTG.
+
+• Samples
+
+Four [4] rotary sidewall core samples were selected for the SCAL measurements requested by PCSB.
+
+• Fluid Preparation
+
+Synthetic formation brine [3,500 ppm] was prepared, as requested by PCSB, using regent grade chemicals and de-ionized water. The fluid was evacuated of air and pre filtered through a 0.45 micron millipore™ prior to use.
+
+• Sample Saturation
+
+The samples were initially loaded into a saturation cell and evacuated for a minimum of 24 hours. The cell was filled with simple formation brine 3,500 NaCl ppm. The pressure was increased to 2,000 psig and maintained for a minimum of two [2] hours. The saturated samples were removed from the cell and weighed, and the gravimetric saturated pore volume was calculated and compared to the gas expansion pore volume to verify complete saturation.
+
+• Formation Resistivity Factor at Net Overburden Conditions
+
+The saturated samples were placed in individual hydrostatic core holders with a net overburden pressure of 560 psi. The downstream and upstream face of each sample was in
+
+============================================================
+PAGE 8  |  1434.4s  |  2184 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+contact with a silver membrane and silver end-stem. The formation resistivity factor \( F_R \) at each pressure was calculated from each sample from resistance measurements of the brine and the brine saturated plugs. The Archie porosity [cementation] exponent “m” was calculated from the slope of the composite formation resistivity factor-porosity relationship, with values based on a Y-intercept value “a” of 1.00.
+
+\[
+F = \frac{a}{\phi^m}
+\]
+
+Where:
+\[
+\begin{align*}
+F & = \text{Formation factor} \\
+a & = \text{Intercept} \\
+m & = \text{Porosity exponent} \\
+\phi & = \text{Porosity}
+\end{align*}
+\]
+
+• *Resistivity Index by Continuous Injection Method at NOB Conditions*
+
+The formation resistivity index, \( I_R \), was measured by the continuous injection method, in which light oil is injected at very low rates. Effluent water was monitored and saturation was calculated. The Archie saturation exponent “n” was calculated from the resistivity index-saturation relationships.
+
+\[
+RI = \frac{a}{Sw^n}
+\]
+
+Where:
+\[
+\begin{align*}
+RI & = \text{Resistivity index} \\
+a & = \text{Intercept} \\
+Sw & = \text{Water saturation} \\
+n & = \text{Saturation exponent}
+\end{align*}
+\]
+
+• *Cation Exchange Capacity*
+
+The end trim samples were cleaned using toluene and subsequently dried then crushed and ground to a size of less than the 60-mesh sieve. The powder was then measure cation exchange capacity on each sample by standard titration method.
+
+The value of Qv was calculated using the following equation:
+
+\[
+Qv = \frac{\text{CEC (1-}\phi\text{) GD}}{\phi*100}
+\]
+
+Where:
+\[
+\begin{align*}
+Qv & = \text{Quantity of clay exchangeable cation present} \\
+\text{CEC} & = \text{Cation exchange capacity as meq/100 grams} \\
+\phi & = \text{Porosity, fraction} \\
+\text{GD} & = \text{Grain density, gr/cc}
+\end{align*}
+\]
+
+============================================================
+PAGE 9  |  755.8s  |  1917 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+• Air-Brine Capillary Pressure by Centrifuge at NOB Conditions
+
+The saturated samples were loaded to centrifuge buckets at ambient temperature. They were spun at increasing incremental speeds equivalent to pressures of 1.0, 2.0, 4.0, 8.0, 15.0, 25.0, 50.0, 100.0 and 200psi.
+
+Effluent brine volumes were monitored at each incremental pressure until stable. Average brine saturations were determined volumetrically then adjusted to end-face saturations using the Forbes calculations.
+
+• Mercury Injection Capillary
+
+One quarter [1/4] inch end trims were taken from four [4] plugs for mercury injection capillary pressure measurements.
+
+The samples were placed in a Micromeretics Autopore IV porosimeter, under a 50 micron vacuum and injected with mercury at about 33 increasing capillary pressure steps until 2,000 psi mercury injection pressures was obtained.
+
+Results are summarized in the summary of mercury injection capillary pressure and pore size distribution data are shown in Figure 3.
+
+============================================================
+PAGE 10  |  98.0s  |  1681 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+TABLES
+
+============================================================
+PAGE 11  |  1552.7s  |  2179 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+Saturant 3,500 ppm
+Resistivity of saturant 1,500 ohm-m @ 77\(^\circ\) F
+Net overburden pressure 560 psi
+
+<table>
+  <tr>
+    <th rowspan="2">Sample ID</th>
+    <th rowspan="2">Depth <i>meters</i></th>
+    <th colspan="2">Horizontal</th>
+    <th rowspan="2">Formation Resistivity Factor \(F\)</th>
+    <th rowspan="2">Porosity Exponent \(m\)</th>
+  </tr>
+  <tr>
+    <th>Permeability to Air at NOB \(md\)</th>
+    <th>Porosity at NOB Fraction</th>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>3184.0</td>
+    <td>0.134</td>
+    <td>0.116</td>
+    <td>54.72</td>
+    <td>1.85</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>3528.0</td>
+    <td>0.011</td>
+    <td>0.091</td>
+    <td>81.05</td>
+    <td>1.83</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>3576.0</td>
+    <td>0.051</td>
+    <td>0.116</td>
+    <td>53.95</td>
+    <td>1.85</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td>3598.5</td>
+    <td>0.037</td>
+    <td>0.101</td>
+    <td>68.07</td>
+    <td>1.84</td>
+  </tr>
+</table>
+
+TABLE 1: WELL DUYONG DEEP-1 FORMATION RESISTIVITY FACTOR AT NOB CONDITIONS
+
+============================================================
+PAGE 12  |  4630.5s  |  3092 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+Saturant 3,500 ppm
+Resistivity of saturant 1.500 ohm-m @ 77° F
+Net overburden 560 psi
+
+<table>
+  <tr>
+    <th rowspan="2">Sample ID</th>
+    <th rowspan="2">Depth meters</th>
+    <th colspan="2">Horizontal</th>
+    <th rowspan="2">Formation Resistivity Factor \( F \)</th>
+    <th rowspan="2">Porosity Exponent \( m \)</th>
+    <th rowspan="2">Brine Saturation Fraction \( V_p \)</th>
+    <th rowspan="2">Formation Resistivity Index \( I \)</th>
+    <th rowspan="2">Saturation Exponent \( n \)</th>
+  </tr>
+  <tr>
+    <th>Permeability to Air at NOB \( md \)</th>
+    <th>Porosity at NOB Fraction</th>
+  </tr>
+  <tr>
+    <td rowspan="5">2</td>
+    <td rowspan="5">3184.0</td>
+    <td rowspan="5">0.134</td>
+    <td rowspan="5">0.116</td>
+    <td rowspan="5">54.72</td>
+    <td rowspan="5">1.85</td>
+    <td>1.000</td>
+    <td>-</td>
+    <td>-</td>
+  </tr>
+  <tr>
+    <td>0.933</td>
+    <td>1.139</td>
+    <td>1.89</td>
+  </tr>
+  <tr>
+    <td>0.907</td>
+    <td>1.205</td>
+    <td>1.90</td>
+  </tr>
+  <tr>
+    <td>0.884</td>
+    <td>1.263</td>
+    <td>1.90</td>
+  </tr>
+  <tr>
+    <td>0.867</td>
+    <td>1.310</td>
+    <td>1.89</td>
+  </tr>
+  <tr>
+    <td rowspan="5">3</td>
+    <td rowspan="5">3528.0</td>
+    <td rowspan="5">0.011</td>
+    <td rowspan="5">0.091</td>
+    <td rowspan="5">81.05</td>
+    <td rowspan="5">1.83</td>
+    <td>1.000</td>
+    <td>-</td>
+    <td>-</td>
+  </tr>
+  <tr>
+    <td>0.939</td>
+    <td>1.126</td>
+    <td>1.88</td>
+  </tr>
+  <tr>
+    <td>0.920</td>
+    <td>1.169</td>
+    <td>1.88</td>
+  </tr>
+  <tr>
+    <td>0.908</td>
+    <td>1.197</td>
+    <td>1.87</td>
+  </tr>
+  <tr>
+    <td>0.896</td>
+    <td>1.228</td>
+    <td>1.87</td>
+  </tr>
+  <tr>
+    <td rowspan="5">4</td>
+    <td rowspan="5">3576.0</td>
+    <td rowspan="5">0.051</td>
+    <td rowspan="5">0.116</td>
+    <td rowspan="5">53.95</td>
+    <td rowspan="5">1.85</td>
+    <td>1.000</td>
+    <td>-</td>
+    <td>-</td>
+  </tr>
+  <tr>
+    <td>0.933</td>
+    <td>1.139</td>
+    <td>1.87</td>
+  </tr>
+  <tr>
+    <td>0.910</td>
+    <td>1.194</td>
+    <td>1.88</td>
+  </tr>
+  <tr>
+    <td>0.892</td>
+    <td>1.241</td>
+    <td>1.89</td>
+  </tr>
+  <tr>
+    <td>0.874</td>
+    <td>1.289</td>
+    <td>1.89</td>
+  </tr>
+  <tr>
+    <td rowspan="5">6</td>
+    <td rowspan="5">3598.5</td>
+    <td rowspan="5">0.037</td>
+    <td rowspan="5">0.101</td>
+    <td rowspan="5">68.07</td>
+    <td rowspan="5">1.84</td>
+    <td>1.000</td>
+    <td>-</td>
+    <td>-</td>
+  </tr>
+  <tr>
+    <td>0.939</td>
+    <td>1.126</td>
+    <td>1.88</td>
+  </tr>
+  <tr>
+    <td>0.925</td>
+    <td>1.159</td>
+    <td>1.89</td>
+  </tr>
+  <tr>
+    <td>0.912</td>
+    <td>1.190</td>
+    <td>1.88</td>
+  </tr>
+  <tr>
+    <td>0.885</td>
+    <td>1.260</td>
+    <td>1.89</td>
+  </tr>
+</table>
+
+TABLE 2: WELL DUYONG DEEP-1
+FORMATION RESISTIVITY FACTOR & RESISTIVITY INDEX AT NOB CONDITIONS
+
+============================================================
+PAGE 13  |  2341.4s  |  2581 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+<table>
+  <tr>
+    <th rowspan="2">Sample d</th>
+    <th rowspan="2">Depth meters</th>
+    <th rowspan="2">NOB psi</th>
+    <th colspan="2">Horizontal</th>
+    <th colspan="10">Brine Saturation, percent pore space</th>
+  </tr>
+  <tr>
+    <th>Permeability to Air md</th>
+    <th>Helium Porosity %</th>
+    <th>0</th>
+    <th>1</th>
+    <th>2</th>
+    <th>4</th>
+    <th>8</th>
+    <th>15</th>
+    <th>25</th>
+    <th>50</th>
+    <th>100</th>
+    <th>200</th>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>3184.0</td>
+    <td>560</td>
+    <td>0.134</td>
+    <td>11.6</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>97.2</td>
+    <td>92.1</td>
+    <td>83.7</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>3528.0</td>
+    <td>560</td>
+    <td>0.011</td>
+    <td>9.1</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>3576.0</td>
+    <td>560</td>
+    <td>0.051</td>
+    <td>11.6</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td>3598.5</td>
+    <td>560</td>
+    <td>0.037</td>
+    <td>10.1</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>100.0</td>
+  </tr>
+</table>
+
+TABLE 3: WELL DUYONG DEEP-1 AIR-BRINE CAPILLARY PRESSURE BY CENTRIFUGE
+
+============================================================
+PAGE 14  |  1286.0s  |  2085 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Sample ID</th>
+    <th>Depth meters</th>
+    <th>Porosity %</th>
+    <th>Grain Density gr/cc</th>
+    <th>CEC Meq/100gr</th>
+    <th>Qv Meq/ml</th>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>3184.0</td>
+    <td>11.6</td>
+    <td>2.66</td>
+    <td>1.1000</td>
+    <td>0.2230</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>3528.0</td>
+    <td>9.1</td>
+    <td>2.69</td>
+    <td>1.1600</td>
+    <td>0.3117</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>3576.0</td>
+    <td>11.6</td>
+    <td>2.67</td>
+    <td>1.0800</td>
+    <td>0.2198</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td>3598.5</td>
+    <td>10.1</td>
+    <td>2.69</td>
+    <td>1.1200</td>
+    <td>0.2682</td>
+  </tr>
+</table>
+
+TABLE 4: WELL DUYONG DEEP-1 CATION EXCHANGE CAPACITY
+
+============================================================
+PAGE 15  |  10454.7s  |  5778 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+Sample ID 2
+Depth 3184.0 meter
+Permeability to air 0.108 md
+Porosity 0.113 fraction Vp
+
+<table>
+  <tr>
+    <th rowspan="2">Injection Pressure psia</th>
+    <th colspan="2">Mercury Saturation</th>
+    <th colspan="2">Pore Throat Radius microns</th>
+    <th colspan="3">Equivalent Injection Pressure psia</th>
+    <th rowspan="2">Wetting Phase Saturation fraction Vp</th>
+    <th rowspan="2">J Function</th>
+  </tr>
+  <tr>
+    <th>fraction Vp</th>
+    <th>fraction Vb</th>
+    <th>A/B [Lab]</th>
+    <th>O/B [Lab]</th>
+    <th>O/B [Res]</th>
+  </tr>
+  <tr><td>0.5</td><td>0.0000</td><td>0.0000</td><td>211.2451</td><td>0.0988</td><td>0.0577</td><td>0.0357</td><td>1.0000</td><td>0.0003</td></tr>
+  <tr><td>1.0</td><td>0.0000</td><td>0.0000</td><td>109.9337</td><td>0.1899</td><td>0.1108</td><td>0.0686</td><td>1.0000</td><td>0.0006</td></tr>
+  <tr><td>1.5</td><td>0.0000</td><td>0.0000</td><td>72.7939</td><td>0.2868</td><td>0.1673</td><td>0.1036</td><td>1.0000</td><td>0.0008</td></tr>
+  <tr><td>2.1</td><td>0.0000</td><td>0.0000</td><td>51.3024</td><td>0.4070</td><td>0.2374</td><td>0.1470</td><td>1.0000</td><td>0.0012</td></tr>
+  <tr><td>3.1</td><td>0.0000</td><td>0.0000</td><td>34.9789</td><td>0.5969</td><td>0.3482</td><td>0.2156</td><td>1.0000</td><td>0.0018</td></tr>
+  <tr><td>4.1</td><td>0.0000</td><td>0.0000</td><td>26.5357</td><td>0.7869</td><td>0.4590</td><td>0.2841</td><td>1.0000</td><td>0.0023</td></tr>
+  <tr><td>5.6</td><td>0.0000</td><td>0.0000</td><td>19.3768</td><td>1.0776</td><td>0.6286</td><td>0.3891</td><td>1.0000</td><td>0.0032</td></tr>
+  <tr><td>7.0</td><td>0.0000</td><td>0.0000</td><td>15.3250</td><td>1.3625</td><td>0.7948</td><td>0.4920</td><td>1.0000</td><td>0.0040</td></tr>
+  <tr><td>8.5</td><td>0.0000</td><td>0.0000</td><td>12.6301</td><td>1.6532</td><td>0.9644</td><td>0.5970</td><td>1.0000</td><td>0.0049</td></tr>
+  <tr><td>10.5</td><td>0.0000</td><td>0.0000</td><td>10.2410</td><td>2.0389</td><td>1.1893</td><td>0.7363</td><td>1.0000</td><td>0.0060</td></tr>
+  <tr><td>13.0</td><td>0.0000</td><td>0.0000</td><td>8.3001</td><td>2.5156</td><td>1.4675</td><td>0.9084</td><td>1.0000</td><td>0.0074</td></tr>
+  <tr><td>16.0</td><td>0.0000</td><td>0.0000</td><td>6.7334</td><td>3.1009</td><td>1.8089</td><td>1.1198</td><td>1.0000</td><td>0.0091</td></tr>
+  <tr><td>20.0</td><td>0.0000</td><td>0.0000</td><td>5.3975</td><td>3.8684</td><td>2.2566</td><td>1.3969</td><td>1.0000</td><td>0.0114</td></tr>
+  <tr><td>23.0</td><td>0.0000</td><td>0.0000</td><td>4.6923</td><td>4.4499</td><td>2.5957</td><td>1.6069</td><td>1.0000</td><td>0.0131</td></tr>
+  <tr><td>25.0</td><td>0.0000</td><td>0.0000</td><td>4.3129</td><td>4.8413</td><td>2.8241</td><td>1.7483</td><td>1.0000</td><td>0.0143</td></tr>
+  <tr><td>29.9</td><td>0.0000</td><td>0.0000</td><td>3.6008</td><td>5.7988</td><td>3.3826</td><td>2.0940</td><td>1.0000</td><td>0.0171</td></tr>
+  <tr><td>43.0</td><td>0.0000</td><td>0.0000</td><td>2.5072</td><td>8.3280</td><td>4.8580</td><td>3.0073</td><td>1.0000</td><td>0.0245</td></tr>
+  <tr><td>43.0</td><td>0.0000</td><td>0.0000</td><td>2.5066</td><td>8.3299</td><td>4.8591</td><td>3.0080</td><td>1.0000</td><td>0.0245</td></tr>
+  <tr><td>56.4</td><td>0.0000</td><td>0.0000</td><td>1.9088</td><td>10.9386</td><td>6.3808</td><td>3.9500</td><td>1.0000</td><td>0.0322</td></tr>
+  <tr><td>77.6</td><td>0.0000</td><td>0.0000</td><td>1.3876</td><td>15.0473</td><td>8.7776</td><td>5.4338</td><td>1.0000</td><td>0.0443</td></tr>
+  <tr><td>91.9</td><td>0.0000</td><td>0.0000</td><td>1.1728</td><td>17.8033</td><td>10.3852</td><td>6.4290</td><td>1.0000</td><td>0.0524</td></tr>
+  <tr><td>124.9</td><td>0.0000</td><td>0.0000</td><td>0.8626</td><td>24.2067</td><td>14.1206</td><td>8.7413</td><td>1.0000</td><td>0.0713</td></tr>
+  <tr><td>145.0</td><td>0.0000</td><td>0.0000</td><td>0.7428</td><td>28.1081</td><td>16.3964</td><td>10.1501</td><td>1.0000</td><td>0.0828</td></tr>
+  <tr><td>174.8</td><td>0.0000</td><td>0.0000</td><td>0.6163</td><td>33.8778</td><td>19.7620</td><td>12.2336</td><td>1.0000</td><td>0.0997</td></tr>
+  <tr><td>221.1</td><td>0.0000</td><td>0.0000</td><td>0.4873</td><td>42.8511</td><td>24.9965</td><td>15.4740</td><td>1.0000</td><td>0.1262</td></tr>
+  <tr><td>271.0</td><td>0.0000</td><td>0.0000</td><td>0.3975</td><td>52.5222</td><td>30.6380</td><td>18.9664</td><td>1.0000</td><td>0.1546</td></tr>
+  <tr><td>333.7</td><td>0.0706</td><td>0.0080</td><td>0.3229</td><td>64.6643</td><td>37.7209</td><td>23.3510</td><td>0.9294</td><td>0.1904</td></tr>
+  <tr><td>427.2</td><td>0.2079</td><td>0.0234</td><td>0.2522</td><td>82.7952</td><td>48.2972</td><td>29.8983</td><td>0.7921</td><td>0.2438</td></tr>
+  <tr><td>503.1</td><td>0.2765</td><td>0.0312</td><td>0.2141</td><td>97.5111</td><td>56.8815</td><td>35.2123</td><td>0.7235</td><td>0.2871</td></tr>
+  <tr><td>623.2</td><td>0.3667</td><td>0.0413</td><td>0.1729</td><td>120.7739</td><td>70.4515</td><td>43.6128</td><td>0.6333</td><td>0.3556</td></tr>
+  <tr><td>709.9</td><td>0.4216</td><td>0.0475</td><td>0.1518</td><td>137.5927</td><td>80.2624</td><td>49.6862</td><td>0.5784</td><td>0.4051</td></tr>
+  <tr><td>804.8</td><td>0.4667</td><td>0.0526</td><td>0.1339</td><td>155.9755</td><td>90.9857</td><td>56.3245</td><td>0.5333</td><td>0.4592</td></tr>
+  <tr><td>904.9</td><td>0.4922</td><td>0.0555</td><td>0.1191</td><td>175.3815</td><td>102.3059</td><td>63.3322</td><td>0.5078</td><td>0.5164</td></tr>
+  <tr><td>1004.0</td><td>0.5158</td><td>0.0582</td><td>0.1073</td><td>194.5822</td><td>113.5063</td><td>70.2658</td><td>0.4842</td><td>0.5729</td></tr>
+  <tr><td>1119.6</td><td>0.5373</td><td>0.0606</td><td>0.0962</td><td>216.9923</td><td>126.5788</td><td>78.3583</td><td>0.4627</td><td>0.6389</td></tr>
+  <tr><td>1230.5</td><td>0.5589</td><td>0.0630</td><td>0.0876</td><td>238.4818</td><td>139.1144</td><td>86.1184</td><td>0.4411</td><td>0.7021</td></tr>
+  <tr><td>1325.1</td><td>0.5746</td><td>0.0648</td><td>0.0813</td><td>256.8065</td><td>149.8038</td><td>92.7357</td><td>0.4254</td><td>0.7561</td></tr>
+</table>
+
+============================================================
+PAGE 16  |  3547.0s  |  3071 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th rowspan="2">Injection Pressure psia</th>
+    <th colspan="2">Mercury Saturation</th>
+    <th rowspan="2">Pore Throat Radius microns</th>
+    <th colspan="3">Equivalent Injection Pressure psia</th>
+    <th rowspan="2">Wetting Phase Saturation fraction \( V_p \)</th>
+    <th rowspan="2">J Function</th>
+  </tr>
+  <tr>
+    <th>fraction \( V_p \)</th>
+    <th>fraction \( V_b \)</th>
+    <th>A/B [Lab]</th>
+    <th>O/B [Lab]</th>
+    <th>O/B [Res]</th>
+  </tr>
+  <tr>
+    <td>1421.7</td>
+    <td>0.5883</td>
+    <td>0.0663</td>
+    <td>0.0758</td>
+    <td>275.5303</td>
+    <td>160.7260</td>
+    <td>99.4971</td>
+    <td>0.4117</td>
+    <td>0.8112</td>
+  </tr>
+  <tr>
+    <td>1517.8</td>
+    <td>0.6020</td>
+    <td>0.0679</td>
+    <td>0.0710</td>
+    <td>294.1670</td>
+    <td>171.5974</td>
+    <td>106.2270</td>
+    <td>0.3980</td>
+    <td>0.8661</td>
+  </tr>
+  <tr>
+    <td>1611.8</td>
+    <td>0.6138</td>
+    <td>0.0692</td>
+    <td>0.0668</td>
+    <td>312.3734</td>
+    <td>182.2178</td>
+    <td>112.8015</td>
+    <td>0.3862</td>
+    <td>0.9197</td>
+  </tr>
+  <tr>
+    <td>1713.7</td>
+    <td>0.6256</td>
+    <td>0.0705</td>
+    <td>0.0629</td>
+    <td>332.1283</td>
+    <td>193.7415</td>
+    <td>119.9352</td>
+    <td>0.3744</td>
+    <td>0.9779</td>
+  </tr>
+  <tr>
+    <td>1912.1</td>
+    <td>0.6471</td>
+    <td>0.0730</td>
+    <td>0.0563</td>
+    <td>370.5762</td>
+    <td>216.1694</td>
+    <td>133.8192</td>
+    <td>0.3529</td>
+    <td>1.0911</td>
+  </tr>
+  <tr>
+    <td>2079.4</td>
+    <td>0.6628</td>
+    <td>0.0747</td>
+    <td>0.0518</td>
+    <td>403.0043</td>
+    <td>235.0858</td>
+    <td>145.5293</td>
+    <td>0.3372</td>
+    <td>1.1865</td>
+  </tr>
+</table>
+
+Pore Diameter Distribution
+
+<table>
+  <tr>
+    <th>Range Pore Diameter</th>
+    <th>Incremental % pv</th>
+    <th>Frequency fraction</th>
+  </tr>
+  <tr>
+    <td>200 - 30</td>
+    <td>0.2218</td>
+    <td>0.0842</td>
+  </tr>
+  <tr>
+    <td>30 - 10</td>
+    <td>0.0277</td>
+    <td>0.0105</td>
+  </tr>
+  <tr>
+    <td>10 - 5</td>
+    <td>0.0000</td>
+    <td>0.0000</td>
+  </tr>
+  <tr>
+    <td>5 - 1</td>
+    <td>0.0069</td>
+    <td>0.0026</td>
+  </tr>
+  <tr>
+    <td>1 - 0.5</td>
+    <td>0.0347</td>
+    <td>0.0132</td>
+  </tr>
+  <tr>
+    <td>0.5 - 0.1</td>
+    <td>1.9751</td>
+    <td>0.7500</td>
+  </tr>
+  <tr>
+    <td>0.1 - 0.05</td>
+    <td>0.3673</td>
+    <td>0.1395</td>
+  </tr>
+</table>
+
+TABLE 5A: WELL DUYONG DEEP-1
+SAMPLE NO: 2   DEPTH: 3184.0 M
+MERCURY INJECTION CAPILLARY PRESSURE & PORE SIZE DISTRIBUTION [0-2,000 psia]
+
+============================================================
+PAGE 17  |  11389.3s  |  5775 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+Sample ID 3
+Depth 3528.0 meter
+Permeability to air 0.005 md
+Porosity 0.093 fraction Vp
+
+<table>
+  <tr>
+    <th rowspan="2">Injection Pressure psia</th>
+    <th colspan="2">Mercury Saturation</th>
+    <th colspan="2">Pore Throat Radius microns.</th>
+    <th colspan="3">Equivalent Injection Pressure psia</th>
+    <th rowspan="2">Wetting Phase Saturation fraction Vp</th>
+    <th rowspan="2">J Function</th>
+  </tr>
+  <tr>
+    <th>fraction Vp</th>
+    <th>fraction Vb</th>
+    <th>A/B [Lab]</th>
+    <th>O/B [Lab]</th>
+    <th>O/B [Res]</th>
+  </tr>
+  <tr><td>0.5</td><td>0.0000</td><td>0.0000</td><td>211.2451</td><td>0.0988</td><td>0.0577</td><td>0.0357</td><td>1.0000</td><td>0.0001</td></tr>
+  <tr><td>1.0</td><td>0.0000</td><td>0.0000</td><td>109.9337</td><td>0.1899</td><td>0.1108</td><td>0.0686</td><td>1.0000</td><td>0.0001</td></tr>
+  <tr><td>1.5</td><td>0.0000</td><td>0.0000</td><td>72.7939</td><td>0.2868</td><td>0.1673</td><td>0.1036</td><td>1.0000</td><td>0.0002</td></tr>
+  <tr><td>2.1</td><td>0.0000</td><td>0.0000</td><td>51.3024</td><td>0.4070</td><td>0.2374</td><td>0.1470</td><td>1.0000</td><td>0.0003</td></tr>
+  <tr><td>3.1</td><td>0.0000</td><td>0.0000</td><td>34.9789</td><td>0.5969</td><td>0.3482</td><td>0.2156</td><td>1.0000</td><td>0.0004</td></tr>
+  <tr><td>4.1</td><td>0.0000</td><td>0.0000</td><td>26.5357</td><td>0.7869</td><td>0.4590</td><td>0.2841</td><td>1.0000</td><td>0.0006</td></tr>
+  <tr><td>5.6</td><td>0.0000</td><td>0.0000</td><td>19.3768</td><td>1.0776</td><td>0.6286</td><td>0.3891</td><td>1.0000</td><td>0.0008</td></tr>
+  <tr><td>7.0</td><td>0.0000</td><td>0.0000</td><td>15.3250</td><td>1.3625</td><td>0.7948</td><td>0.4920</td><td>1.0000</td><td>0.0010</td></tr>
+  <tr><td>8.5</td><td>0.0000</td><td>0.0000</td><td>12.6301</td><td>1.6532</td><td>0.9644</td><td>0.5970</td><td>1.0000</td><td>0.0012</td></tr>
+  <tr><td>10.5</td><td>0.0000</td><td>0.0000</td><td>10.2507</td><td>2.0369</td><td>1.1882</td><td>0.7356</td><td>1.0000</td><td>0.0014</td></tr>
+  <tr><td>13.0</td><td>0.0000</td><td>0.0000</td><td>8.3001</td><td>2.5156</td><td>1.4675</td><td>0.9084</td><td>1.0000</td><td>0.0018</td></tr>
+  <tr><td>16.0</td><td>0.0000</td><td>0.0000</td><td>6.7292</td><td>3.1029</td><td>1.8100</td><td>1.1205</td><td>1.0000</td><td>0.0022</td></tr>
+  <tr><td>20.0</td><td>0.0000</td><td>0.0000</td><td>5.4003</td><td>3.8665</td><td>2.2555</td><td>1.3962</td><td>1.0000</td><td>0.0027</td></tr>
+  <tr><td>23.0</td><td>0.0000</td><td>0.0000</td><td>4.6882</td><td>4.4537</td><td>2.5980</td><td>1.6083</td><td>1.0000</td><td>0.0031</td></tr>
+  <tr><td>25.0</td><td>0.0000</td><td>0.0000</td><td>4.3129</td><td>4.8413</td><td>2.8241</td><td>1.7483</td><td>1.0000</td><td>0.0034</td></tr>
+  <tr><td>29.9</td><td>0.0000</td><td>0.0000</td><td>3.6008</td><td>5.7988</td><td>3.3826</td><td>2.0940</td><td>1.0000</td><td>0.0041</td></tr>
+  <tr><td>41.2</td><td>0.0000</td><td>0.0000</td><td>2.6175</td><td>7.9772</td><td>4.6534</td><td>2.8806</td><td>1.0000</td><td>0.0056</td></tr>
+  <tr><td>67.2</td><td>0.0000</td><td>0.0000</td><td>1.6027</td><td>13.0278</td><td>7.5996</td><td>4.7045</td><td>1.0000</td><td>0.0091</td></tr>
+  <tr><td>70.3</td><td>0.0000</td><td>0.0000</td><td>1.5327</td><td>13.6228</td><td>7.9466</td><td>4.9194</td><td>1.0000</td><td>0.0095</td></tr>
+  <tr><td>80.8</td><td>0.0000</td><td>0.0000</td><td>1.3335</td><td>15.6578</td><td>9.1337</td><td>5.6542</td><td>1.0000</td><td>0.0109</td></tr>
+  <tr><td>87.6</td><td>0.0000</td><td>0.0000</td><td>1.2293</td><td>16.9854</td><td>9.9082</td><td>6.1336</td><td>1.0000</td><td>0.0119</td></tr>
+  <tr><td>109.6</td><td>0.0000</td><td>0.0000</td><td>0.9833</td><td>21.2337</td><td>12.3863</td><td>7.6677</td><td>1.0000</td><td>0.0148</td></tr>
+  <tr><td>123.8</td><td>0.0000</td><td>0.0000</td><td>0.8704</td><td>23.9877</td><td>13.9928</td><td>8.6622</td><td>1.0000</td><td>0.0168</td></tr>
+  <tr><td>144.7</td><td>0.0000</td><td>0.0000</td><td>0.7445</td><td>28.0461</td><td>16.3602</td><td>10.1278</td><td>1.0000</td><td>0.0196</td></tr>
+  <tr><td>200.8</td><td>0.0000</td><td>0.0000</td><td>0.5366</td><td>38.9149</td><td>22.7003</td><td>14.0526</td><td>1.0000</td><td>0.0272</td></tr>
+  <tr><td>222.9</td><td>0.0000</td><td>0.0000</td><td>0.4833</td><td>43.2019</td><td>25.2011</td><td>15.6007</td><td>1.0000</td><td>0.0302</td></tr>
+  <tr><td>278.6</td><td>0.0000</td><td>0.0000</td><td>0.3867</td><td>53.9913</td><td>31.4949</td><td>19.4969</td><td>1.0000</td><td>0.0378</td></tr>
+  <tr><td>337.5</td><td>0.0000</td><td>0.0000</td><td>0.3193</td><td>65.4027</td><td>38.1516</td><td>23.6177</td><td>1.0000</td><td>0.0457</td></tr>
+  <tr><td>426.7</td><td>0.0000</td><td>0.0000</td><td>0.2525</td><td>82.6924</td><td>48.2373</td><td>29.8612</td><td>1.0000</td><td>0.0578</td></tr>
+  <tr><td>528.6</td><td>0.0000</td><td>0.0000</td><td>0.2038</td><td>102.4532</td><td>59.7644</td><td>36.9970</td><td>1.0000</td><td>0.0716</td></tr>
+  <tr><td>620.0</td><td>0.0000</td><td>0.0000</td><td>0.1738</td><td>120.1615</td><td>70.0942</td><td>43.3917</td><td>1.0000</td><td>0.0840</td></tr>
+  <tr><td>718.4</td><td>0.0000</td><td>0.0000</td><td>0.1500</td><td>139.2226</td><td>81.2132</td><td>50.2748</td><td>1.0000</td><td>0.0974</td></tr>
+  <tr><td>802.4</td><td>0.0000</td><td>0.0000</td><td>0.1343</td><td>155.5045</td><td>90.7110</td><td>56.1544</td><td>1.0000</td><td>0.1087</td></tr>
+  <tr><td>904.8</td><td>0.0000</td><td>0.0000</td><td>0.1191</td><td>175.3660</td><td>102.2969</td><td>63.3266</td><td>1.0000</td><td>0.1226</td></tr>
+  <tr><td>1003.8</td><td>0.0000</td><td>0.0000</td><td>0.1073</td><td>194.5473</td><td>113.4859</td><td>70.2532</td><td>1.0000</td><td>0.1361</td></tr>
+  <tr><td>1115.1</td><td>0.0000</td><td>0.0000</td><td>0.0966</td><td>216.1182</td><td>126.0690</td><td>78.0427</td><td>1.0000</td><td>0.1511</td></tr>
+  <tr><td>1231.2</td><td>0.0124</td><td>0.0011</td><td>0.0875</td><td>238.6078</td><td>139.1879</td><td>86.1639</td><td>0.9876</td><td>0.1669</td></tr>
+</table>
+
+============================================================
+PAGE 18  |  4001.7s  |  3201 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th rowspan="2">Injection Pressure psia</th>
+    <th colspan="2">Mercury Saturation</th>
+    <th rowspan="2">Pore Throat Radius microns</th>
+    <th colspan="3">Equivalent Injection Pressure psia</th>
+    <th rowspan="2">Wetting Phase Saturation fraction \( V_p \)</th>
+    <th rowspan="2">J Function</th>
+  </tr>
+  <tr>
+    <th>fraction \( V_p \)</th>
+    <th>fraction \( V_b \)</th>
+    <th>A/B [Lab]</th>
+    <th>O/B [Lab]</th>
+    <th>O/B [Res]</th>
+  </tr>
+  <tr>
+    <td>1323.5</td>
+    <td>0.0371</td>
+    <td>0.0034</td>
+    <td>0.0814</td>
+    <td>256.5119</td>
+    <td>149.6319</td>
+    <td>92.6293</td>
+    <td>0.9629</td>
+    <td>0.1794</td>
+  </tr>
+  <tr>
+    <td>1419.8</td>
+    <td>0.0544</td>
+    <td>0.0050</td>
+    <td>0.0759</td>
+    <td>275.1737</td>
+    <td>160.5180</td>
+    <td>99.3683</td>
+    <td>0.9456</td>
+    <td>0.1924</td>
+  </tr>
+  <tr>
+    <td>1518.0</td>
+    <td>0.0840</td>
+    <td>0.0078</td>
+    <td>0.0710</td>
+    <td>294.1941</td>
+    <td>171.6132</td>
+    <td>106.2368</td>
+    <td>0.9160</td>
+    <td>0.2057</td>
+  </tr>
+  <tr>
+    <td>1609.6</td>
+    <td>0.1137</td>
+    <td>0.0105</td>
+    <td>0.0669</td>
+    <td>311.9606</td>
+    <td>181.9770</td>
+    <td>112.6524</td>
+    <td>0.8863</td>
+    <td>0.2182</td>
+  </tr>
+  <tr>
+    <td>1711.9</td>
+    <td>0.1433</td>
+    <td>0.0133</td>
+    <td>0.0629</td>
+    <td>331.7872</td>
+    <td>193.5426</td>
+    <td>119.8121</td>
+    <td>0.8567</td>
+    <td>0.2320</td>
+  </tr>
+  <tr>
+    <td>1921.7</td>
+    <td>0.1828</td>
+    <td>0.0169</td>
+    <td>0.0561</td>
+    <td>372.4328</td>
+    <td>217.2525</td>
+    <td>134.4896</td>
+    <td>0.8172</td>
+    <td>0.2605</td>
+  </tr>
+  <tr>
+    <td>2071.7</td>
+    <td>0.2199</td>
+    <td>0.0203</td>
+    <td>0.0520</td>
+    <td>401.5061</td>
+    <td>234.2119</td>
+    <td>144.9883</td>
+    <td>0.7801</td>
+    <td>0.2808</td>
+  </tr>
+</table>
+
+Pore Diameter Distribution
+
+<table>
+  <tr>
+    <th>Range Pore Diameter</th>
+    <th>Incremental % pv</th>
+    <th>Frequency fraction</th>
+  </tr>
+  <tr>
+    <td>200 - 30</td>
+    <td>0.0680</td>
+    <td>0.0916</td>
+  </tr>
+  <tr>
+    <td>30 - 10</td>
+    <td>0.0227</td>
+    <td>0.0305</td>
+  </tr>
+  <tr>
+    <td>10 - 5</td>
+    <td>0.0000</td>
+    <td>0.0000</td>
+  </tr>
+  <tr>
+    <td>5 - 1</td>
+    <td>0.0057</td>
+    <td>0.0076</td>
+  </tr>
+  <tr>
+    <td>1 - 0.5</td>
+    <td>0.0057</td>
+    <td>0.0076</td>
+  </tr>
+  <tr>
+    <td>0.5 - 0.1</td>
+    <td>0.0737</td>
+    <td>0.0992</td>
+  </tr>
+  <tr>
+    <td>0.1 - 0.05</td>
+    <td>0.5670</td>
+    <td>0.7634</td>
+  </tr>
+</table>
+
+TABLE 5B: WELL DUYONG DEEP-1
+SAMPLE NO: 3   DEPTH: 3528.0 M
+MERCURY INJECTION CAPILLARY PRESSURE & PORE SIZE DISTRIBUTION [0-2,000 psia]
+
+============================================================
+PAGE 19  |  11992.5s  |  5774 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+Sample ID        4
+Depth            3576.0 meter
+Permeability to air    0.038 md
+Porosity         0.112 fraction Vp
+
+<table>
+  <tr>
+    <th rowspan="2">Injection Pressure psia</th>
+    <th colspan="2">Mercury Saturation</th>
+    <th>Pore Throat Radius microns</th>
+    <th colspan="3">Equivalent Injection Pressure psia</th>
+    <th rowspan="2">Wetting Phase Saturation fraction Vp</th>
+    <th rowspan="2">J Function</th>
+  </tr>
+  <tr>
+    <th>fraction Vp</th>
+    <th>fraction Vb</th>
+    <th>A/B [Lab]</th>
+    <th>O/B [Lab]</th>
+    <th>O/B [Res]</th>
+  </tr>
+  <tr><td>0.5</td><td>0.0000</td><td>0.0000</td><td>211.2451</td><td>0.0988</td><td>0.0577</td><td>0.0357</td><td>1.0000</td><td>0.0002</td></tr>
+  <tr><td>1.0</td><td>0.0000</td><td>0.0000</td><td>109.9337</td><td>0.1899</td><td>0.1108</td><td>0.0686</td><td>1.0000</td><td>0.0003</td></tr>
+  <tr><td>1.5</td><td>0.0000</td><td>0.0000</td><td>72.7939</td><td>0.2868</td><td>0.1673</td><td>0.1036</td><td>1.0000</td><td>0.0005</td></tr>
+  <tr><td>2.1</td><td>0.0000</td><td>0.0000</td><td>51.3024</td><td>0.4070</td><td>0.2374</td><td>0.1470</td><td>1.0000</td><td>0.0007</td></tr>
+  <tr><td>3.1</td><td>0.0000</td><td>0.0000</td><td>34.9789</td><td>0.5969</td><td>0.3482</td><td>0.2156</td><td>1.0000</td><td>0.0010</td></tr>
+  <tr><td>4.1</td><td>0.0000</td><td>0.0000</td><td>26.5357</td><td>0.7869</td><td>0.4590</td><td>0.2841</td><td>1.0000</td><td>0.0014</td></tr>
+  <tr><td>5.6</td><td>0.0000</td><td>0.0000</td><td>19.3768</td><td>1.0776</td><td>0.6286</td><td>0.3891</td><td>1.0000</td><td>0.0019</td></tr>
+  <tr><td>7.0</td><td>0.0000</td><td>0.0000</td><td>15.3250</td><td>1.3625</td><td>0.7948</td><td>0.4920</td><td>1.0000</td><td>0.0024</td></tr>
+  <tr><td>8.5</td><td>0.0000</td><td>0.0000</td><td>12.6301</td><td>1.6532</td><td>0.9644</td><td>0.5970</td><td>1.0000</td><td>0.0029</td></tr>
+  <tr><td>10.5</td><td>0.0000</td><td>0.0000</td><td>10.2507</td><td>2.0369</td><td>1.1882</td><td>0.7356</td><td>1.0000</td><td>0.0036</td></tr>
+  <tr><td>13.0</td><td>0.0000</td><td>0.0000</td><td>8.3001</td><td>2.5156</td><td>1.4675</td><td>0.9084</td><td>1.0000</td><td>0.0044</td></tr>
+  <tr><td>16.0</td><td>0.0000</td><td>0.0000</td><td>6.7334</td><td>3.1009</td><td>1.8089</td><td>1.1198</td><td>1.0000</td><td>0.0054</td></tr>
+  <tr><td>20.0</td><td>0.0000</td><td>0.0000</td><td>5.4003</td><td>3.8665</td><td>2.2555</td><td>1.3962</td><td>1.0000</td><td>0.0068</td></tr>
+  <tr><td>23.0</td><td>0.0000</td><td>0.0000</td><td>4.6882</td><td>4.4537</td><td>2.5980</td><td>1.6083</td><td>1.0000</td><td>0.0078</td></tr>
+  <tr><td>25.0</td><td>0.0000</td><td>0.0000</td><td>4.3129</td><td>4.8413</td><td>2.8241</td><td>1.7483</td><td>1.0000</td><td>0.0085</td></tr>
+  <tr><td>29.9</td><td>0.0000</td><td>0.0000</td><td>3.6008</td><td>5.7988</td><td>3.3826</td><td>2.0940</td><td>1.0000</td><td>0.0101</td></tr>
+  <tr><td>41.3</td><td>0.0000</td><td>0.0000</td><td>2.6111</td><td>7.9966</td><td>4.6647</td><td>2.8876</td><td>1.0000</td><td>0.0140</td></tr>
+  <tr><td>55.2</td><td>0.0000</td><td>0.0000</td><td>1.9521</td><td>10.6963</td><td>6.2395</td><td>3.8626</td><td>1.0000</td><td>0.0187</td></tr>
+  <tr><td>62.3</td><td>0.0000</td><td>0.0000</td><td>1.7290</td><td>12.0762</td><td>7.0445</td><td>4.3609</td><td>1.0000</td><td>0.0211</td></tr>
+  <tr><td>72.9</td><td>0.0000</td><td>0.0000</td><td>1.4787</td><td>14.1209</td><td>8.2372</td><td>5.0992</td><td>1.0000</td><td>0.0247</td></tr>
+  <tr><td>88.4</td><td>0.0000</td><td>0.0000</td><td>1.2190</td><td>17.1288</td><td>9.9918</td><td>6.1854</td><td>1.0000</td><td>0.0300</td></tr>
+  <tr><td>93.2</td><td>0.0000</td><td>0.0000</td><td>1.1556</td><td>18.0688</td><td>10.5401</td><td>6.5248</td><td>1.0000</td><td>0.0316</td></tr>
+  <tr><td>117.1</td><td>0.0000</td><td>0.0000</td><td>0.9201</td><td>22.6931</td><td>13.2376</td><td>8.1947</td><td>1.0000</td><td>0.0397</td></tr>
+  <tr><td>155.5</td><td>0.0000</td><td>0.0000</td><td>0.6928</td><td>30.1392</td><td>17.5812</td><td>10.8836</td><td>1.0000</td><td>0.0527</td></tr>
+  <tr><td>178.8</td><td>0.0000</td><td>0.0000</td><td>0.6024</td><td>34.6608</td><td>20.2188</td><td>12.5164</td><td>1.0000</td><td>0.0607</td></tr>
+  <tr><td>223.1</td><td>0.0000</td><td>0.0000</td><td>0.4830</td><td>43.2329</td><td>25.2192</td><td>15.6119</td><td>1.0000</td><td>0.0757</td></tr>
+  <tr><td>268.9</td><td>0.0000</td><td>0.0000</td><td>0.4007</td><td>52.1055</td><td>30.3949</td><td>18.8159</td><td>1.0000</td><td>0.0912</td></tr>
+  <tr><td>325.9</td><td>0.0000</td><td>0.0000</td><td>0.3305</td><td>63.1681</td><td>36.8481</td><td>22.8107</td><td>1.0000</td><td>0.1105</td></tr>
+  <tr><td>410.7</td><td>0.0000</td><td>0.0000</td><td>0.2623</td><td>79.5915</td><td>46.4284</td><td>28.7414</td><td>1.0000</td><td>0.1393</td></tr>
+  <tr><td>518.5</td><td>0.0000</td><td>0.0000</td><td>0.2078</td><td>100.4822</td><td>58.6146</td><td>36.2852</td><td>1.0000</td><td>0.1758</td></tr>
+  <tr><td>628.8</td><td>0.0773</td><td>0.0087</td><td>0.1713</td><td>121.8631</td><td>71.0868</td><td>44.0061</td><td>0.9227</td><td>0.2133</td></tr>
+  <tr><td>717.4</td><td>0.1587</td><td>0.0178</td><td>0.1502</td><td>139.0443</td><td>81.1092</td><td>50.2104</td><td>0.8413</td><td>0.2433</td></tr>
+  <tr><td>797.5</td><td>0.2162</td><td>0.0243</td><td>0.1351</td><td>154.5665</td><td>90.1638</td><td>55.8157</td><td>0.7838</td><td>0.2705</td></tr>
+  <tr><td>903.4</td><td>0.2677</td><td>0.0301</td><td>0.1192</td><td>175.0947</td><td>102.1386</td><td>63.2286</td><td>0.7323</td><td>0.3064</td></tr>
+  <tr><td>1004.4</td><td>0.3054</td><td>0.0343</td><td>0.1073</td><td>194.6597</td><td>113.5515</td><td>70.2938</td><td>0.6946</td><td>0.3406</td></tr>
+  <tr><td>1118.8</td><td>0.3411</td><td>0.0383</td><td>0.0963</td><td>216.8411</td><td>126.4907</td><td>78.3037</td><td>0.6589</td><td>0.3795</td></tr>
+  <tr><td>1225.7</td><td>0.3649</td><td>0.0410</td><td>0.0879</td><td>237.5496</td><td>138.5706</td><td>85.7818</td><td>0.6351</td><td>0.4157</td></tr>
+</table>
+
+============================================================
+PAGE 20  |  4509.4s  |  3197 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th rowspan="2">Injection Pressure psia</th>
+    <th colspan="2">Mercury Saturation</th>
+    <th rowspan="2">Pore Throat Radius microns</th>
+    <th colspan="3">Equivalent Injection Pressure psia</th>
+    <th rowspan="2">Wetting Phase Saturation fraction</th>
+    <th rowspan="2">J Function</th>
+  </tr>
+  <tr>
+    <th>fraction \( V_p \)</th>
+    <th>fraction \( V_b \)</th>
+    <th>A/B [Lab]</th>
+    <th>O/B [Lab]</th>
+    <th>O/B [Res]</th>
+  </tr>
+  <tr>
+    <td>1316.9</td>
+    <td>0.3768</td>
+    <td>0.0423</td>
+    <td>0.0818</td>
+    <td>255.2269</td>
+    <td>148.8824</td>
+    <td>92.1653</td>
+    <td>0.6232</td>
+    <td>0.4466</td>
+  </tr>
+  <tr>
+    <td>1413.4</td>
+    <td>0.3867</td>
+    <td>0.0434</td>
+    <td>0.0762</td>
+    <td>273.9275</td>
+    <td>159.7911</td>
+    <td>98.9183</td>
+    <td>0.6133</td>
+    <td>0.4794</td>
+  </tr>
+  <tr>
+    <td>1519.3</td>
+    <td>0.3966</td>
+    <td>0.0445</td>
+    <td>0.0709</td>
+    <td>294.4461</td>
+    <td>171.7602</td>
+    <td>106.3278</td>
+    <td>0.6034</td>
+    <td>0.5153</td>
+  </tr>
+  <tr>
+    <td>1615.4</td>
+    <td>0.4065</td>
+    <td>0.0457</td>
+    <td>0.0667</td>
+    <td>313.0692</td>
+    <td>182.6237</td>
+    <td>113.0528</td>
+    <td>0.5935</td>
+    <td>0.5479</td>
+  </tr>
+  <tr>
+    <td>1710.1</td>
+    <td>0.4165</td>
+    <td>0.0468</td>
+    <td>0.0630</td>
+    <td>331.4384</td>
+    <td>193.3391</td>
+    <td>119.6861</td>
+    <td>0.5835</td>
+    <td>0.5800</td>
+  </tr>
+  <tr>
+    <td>1910.1</td>
+    <td>0.4343</td>
+    <td>0.0488</td>
+    <td>0.0564</td>
+    <td>370.2002</td>
+    <td>215.9501</td>
+    <td>133.6834</td>
+    <td>0.5657</td>
+    <td>0.6478</td>
+  </tr>
+  <tr>
+    <td>2074.3</td>
+    <td>0.4482</td>
+    <td>0.0503</td>
+    <td>0.0519</td>
+    <td>402.0236</td>
+    <td>234.5138</td>
+    <td>145.1752</td>
+    <td>0.5518</td>
+    <td>0.7035</td>
+  </tr>
+</table>
+
+Pore Diameter Distribution
+
+<table>
+  <tr>
+    <th>Range Pore Diameter</th>
+    <th>Incremental % pv</th>
+    <th>Frequency fraction</th>
+  </tr>
+  <tr>
+    <td>200 - 30</td>
+    <td>0.3280</td>
+    <td>0.1326</td>
+  </tr>
+  <tr>
+    <td>30 - 10</td>
+    <td>0.0428</td>
+    <td>0.0173</td>
+  </tr>
+  <tr>
+    <td>10 - 5</td>
+    <td>0.0357</td>
+    <td>0.0144</td>
+  </tr>
+  <tr>
+    <td>5 - 1</td>
+    <td>0.1070</td>
+    <td>0.0432</td>
+  </tr>
+  <tr>
+    <td>1 - 0.5</td>
+    <td>0.0428</td>
+    <td>0.0173</td>
+  </tr>
+  <tr>
+    <td>0.5 - 0.1</td>
+    <td>1.4046</td>
+    <td>0.5677</td>
+  </tr>
+  <tr>
+    <td>0.1 - 0.05</td>
+    <td>0.5134</td>
+    <td>0.2075</td>
+  </tr>
+</table>
+
+TABLE 5C: WELL DUYONG DEEP-1
+SAMPLE NO: 4   DEPTH: 3576.0 M
+MERCURY INJECTION CAPILLARY PRESSURE & PORE SIZE DISTRIBUTION [0-2,000 psia]
+
+============================================================
+PAGE 21  |  12060.6s  |  5767 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+Sample ID 6
+Depth 3598.5 meter
+Permeability to air 0.010 md
+Porosity 0.100 fraction Vp
+
+<table>
+  <tr>
+    <th rowspan="2">Injection Pressure psia</th>
+    <th colspan="2">Mercury Saturation</th>
+    <th colspan="2">Pore Throat Radius microns</th>
+    <th colspan="3">Equivalent Injection Pressure psia</th>
+    <th rowspan="2">Wetting Phase Saturation fraction Vp</th>
+    <th rowspan="2">J Function</th>
+  </tr>
+  <tr>
+    <th>fraction Vp</th>
+    <th>fraction Vb</th>
+    <th>A/B [Lab]</th>
+    <th>O/B [Lab]</th>
+    <th>O/B [Res]</th>
+  </tr>
+  <tr><td>0.5</td><td>0.0000</td><td>0.0000</td><td>211.2451</td><td>0.0988</td><td>0.0577</td><td>0.0357</td><td>1.0000</td><td>0.0001</td></tr>
+  <tr><td>1.0</td><td>0.0000</td><td>0.0000</td><td>109.9337</td><td>0.1899</td><td>0.1108</td><td>0.0686</td><td>1.0000</td><td>0.0002</td></tr>
+  <tr><td>1.5</td><td>0.0000</td><td>0.0000</td><td>72.7939</td><td>0.2868</td><td>0.1673</td><td>0.1036</td><td>1.0000</td><td>0.0003</td></tr>
+  <tr><td>2.1</td><td>0.0000</td><td>0.0000</td><td>51.3024</td><td>0.4070</td><td>0.2374</td><td>0.1470</td><td>1.0000</td><td>0.0004</td></tr>
+  <tr><td>3.1</td><td>0.0000</td><td>0.0000</td><td>34.9789</td><td>0.5969</td><td>0.3482</td><td>0.2156</td><td>1.0000</td><td>0.0006</td></tr>
+  <tr><td>4.1</td><td>0.0000</td><td>0.0000</td><td>26.5357</td><td>0.7869</td><td>0.4590</td><td>0.2841</td><td>1.0000</td><td>0.0007</td></tr>
+  <tr><td>5.6</td><td>0.0000</td><td>0.0000</td><td>19.3768</td><td>1.0776</td><td>0.6286</td><td>0.3891</td><td>1.0000</td><td>0.0010</td></tr>
+  <tr><td>7.0</td><td>0.0000</td><td>0.0000</td><td>15.3033</td><td>1.3644</td><td>0.7959</td><td>0.4927</td><td>1.0000</td><td>0.0013</td></tr>
+  <tr><td>8.5</td><td>0.0000</td><td>0.0000</td><td>12.6301</td><td>1.6532</td><td>0.9644</td><td>0.5970</td><td>1.0000</td><td>0.0016</td></tr>
+  <tr><td>10.5</td><td>0.0000</td><td>0.0000</td><td>10.2410</td><td>2.0389</td><td>1.1893</td><td>0.7363</td><td>1.0000</td><td>0.0019</td></tr>
+  <tr><td>13.0</td><td>0.0000</td><td>0.0000</td><td>8.3001</td><td>2.5156</td><td>1.4675</td><td>0.9084</td><td>1.0000</td><td>0.0024</td></tr>
+  <tr><td>16.0</td><td>0.0000</td><td>0.0000</td><td>6.7334</td><td>3.1009</td><td>1.8089</td><td>1.1198</td><td>1.0000</td><td>0.0030</td></tr>
+  <tr><td>20.0</td><td>0.0000</td><td>0.0000</td><td>5.4003</td><td>3.8665</td><td>2.2555</td><td>1.3962</td><td>1.0000</td><td>0.0037</td></tr>
+  <tr><td>23.0</td><td>0.0000</td><td>0.0000</td><td>4.6882</td><td>4.4537</td><td>2.5980</td><td>1.6083</td><td>1.0000</td><td>0.0042</td></tr>
+  <tr><td>25.0</td><td>0.0000</td><td>0.0000</td><td>4.3129</td><td>4.8413</td><td>2.8241</td><td>1.7483</td><td>1.0000</td><td>0.0046</td></tr>
+  <tr><td>29.9</td><td>0.0000</td><td>0.0000</td><td>3.6008</td><td>5.7988</td><td>3.3826</td><td>2.0940</td><td>1.0000</td><td>0.0055</td></tr>
+  <tr><td>38.1</td><td>0.0000</td><td>0.0000</td><td>2.8307</td><td>7.3764</td><td>4.3029</td><td>2.6637</td><td>1.0000</td><td>0.0070</td></tr>
+  <tr><td>46.7</td><td>0.0000</td><td>0.0000</td><td>2.3075</td><td>9.0489</td><td>5.2785</td><td>3.2677</td><td>1.0000</td><td>0.0086</td></tr>
+  <tr><td>63.5</td><td>0.0000</td><td>0.0000</td><td>1.6966</td><td>12.3069</td><td>7.1790</td><td>4.4441</td><td>1.0000</td><td>0.0117</td></tr>
+  <tr><td>74.3</td><td>0.0000</td><td>0.0000</td><td>1.4496</td><td>14.4039</td><td>8.4023</td><td>5.2014</td><td>1.0000</td><td>0.0137</td></tr>
+  <tr><td>77.3</td><td>0.0000</td><td>0.0000</td><td>1.3934</td><td>14.9853</td><td>8.7414</td><td>5.4114</td><td>1.0000</td><td>0.0143</td></tr>
+  <tr><td>87.1</td><td>0.0000</td><td>0.0000</td><td>1.2376</td><td>16.8711</td><td>9.8415</td><td>6.0923</td><td>1.0000</td><td>0.0161</td></tr>
+  <tr><td>95.3</td><td>0.0000</td><td>0.0000</td><td>1.1311</td><td>18.4603</td><td>10.7685</td><td>6.6662</td><td>1.0000</td><td>0.0176</td></tr>
+  <tr><td>116.6</td><td>0.0000</td><td>0.0000</td><td>0.9241</td><td>22.5962</td><td>13.1811</td><td>8.1597</td><td>1.0000</td><td>0.0215</td></tr>
+  <tr><td>146.9</td><td>0.0000</td><td>0.0000</td><td>0.7332</td><td>28.4783</td><td>16.6123</td><td>10.2838</td><td>1.0000</td><td>0.0271</td></tr>
+  <tr><td>178.9</td><td>0.0000</td><td>0.0000</td><td>0.6023</td><td>34.6647</td><td>20.2210</td><td>12.5178</td><td>1.0000</td><td>0.0330</td></tr>
+  <tr><td>221.8</td><td>0.0000</td><td>0.0000</td><td>0.4858</td><td>42.9791</td><td>25.0711</td><td>15.5202</td><td>1.0000</td><td>0.0409</td></tr>
+  <tr><td>272.9</td><td>0.0000</td><td>0.0000</td><td>0.3949</td><td>52.8808</td><td>30.8471</td><td>19.0958</td><td>1.0000</td><td>0.0504</td></tr>
+  <tr><td>331.7</td><td>0.0000</td><td>0.0000</td><td>0.3248</td><td>64.2825</td><td>37.4981</td><td>23.2131</td><td>1.0000</td><td>0.0612</td></tr>
+  <tr><td>424.4</td><td>0.0000</td><td>0.0000</td><td>0.2539</td><td>82.2428</td><td>47.9750</td><td>29.6988</td><td>1.0000</td><td>0.0783</td></tr>
+  <tr><td>523.0</td><td>0.0000</td><td>0.0000</td><td>0.2060</td><td>101.3524</td><td>59.1222</td><td>36.5995</td><td>1.0000</td><td>0.0965</td></tr>
+  <tr><td>624.5</td><td>0.0000</td><td>0.0000</td><td>0.1725</td><td>121.0395</td><td>70.6064</td><td>43.7087</td><td>1.0000</td><td>0.1153</td></tr>
+  <tr><td>701.1</td><td>0.0000</td><td>0.0000</td><td>0.1537</td><td>135.8872</td><td>79.2675</td><td>49.0704</td><td>1.0000</td><td>0.1294</td></tr>
+  <tr><td>798.4</td><td>0.0000</td><td>0.0000</td><td>0.1349</td><td>154.7390</td><td>90.2644</td><td>55.8780</td><td>1.0000</td><td>0.1474</td></tr>
+  <tr><td>902.5</td><td>0.0753</td><td>0.0075</td><td>0.1194</td><td>174.9164</td><td>102.0346</td><td>63.1643</td><td>0.9247</td><td>0.1666</td></tr>
+  <tr><td>1003.1</td><td>0.2030</td><td>0.0203</td><td>0.1074</td><td>194.4000</td><td>113.4000</td><td>70.2000</td><td>0.7970</td><td>0.1851</td></tr>
+  <tr><td>1117.9</td><td>0.3033</td><td>0.0303</td><td>0.0964</td><td>216.6493</td><td>126.3787</td><td>78.2345</td><td>0.6967</td><td>0.2063</td></tr>
+</table>
+
+============================================================
+PAGE 22  |  4809.3s  |  3331 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th rowspan="2">Injection Pressure psia</th>
+    <th colspan="2">Mercury Saturation</th>
+    <th rowspan="2">Pore Throat Radius microns</th>
+    <th colspan="3">Equivalent Injection Pressure psia</th>
+    <th rowspan="2">Wetting Phase Saturation fraction \( V_p \)</th>
+    <th rowspan="2">J Function</th>
+  </tr>
+  <tr>
+    <th>fraction \( V_p \)</th>
+    <th>fraction \( V_b \)</th>
+    <th>A/B [Lab]</th>
+    <th>O/B [Lab]</th>
+    <th>O/B [Res]</th>
+  </tr>
+  <tr>
+    <td>1229.2</td>
+    <td>0.3763</td>
+    <td>0.0375</td>
+    <td>0.0876</td>
+    <td>238.2260</td>
+    <td>138.9652</td>
+    <td>86.0261</td>
+    <td>0.6237</td>
+    <td>0.2269</td>
+  </tr>
+  <tr>
+    <td>1315.8</td>
+    <td>0.4265</td>
+    <td>0.0426</td>
+    <td>0.0819</td>
+    <td>255.0060</td>
+    <td>148.7535</td>
+    <td>92.0855</td>
+    <td>0.5735</td>
+    <td>0.2429</td>
+  </tr>
+  <tr>
+    <td>1413.2</td>
+    <td>0.4538</td>
+    <td>0.0453</td>
+    <td>0.0762</td>
+    <td>273.8849</td>
+    <td>159.7662</td>
+    <td>98.9029</td>
+    <td>0.5462</td>
+    <td>0.2608</td>
+  </tr>
+  <tr>
+    <td>1519.5</td>
+    <td>0.4880</td>
+    <td>0.0487</td>
+    <td>0.0709</td>
+    <td>294.5003</td>
+    <td>171.7919</td>
+    <td>106.3473</td>
+    <td>0.5120</td>
+    <td>0.2805</td>
+  </tr>
+  <tr>
+    <td>1608.2</td>
+    <td>0.5086</td>
+    <td>0.0507</td>
+    <td>0.0670</td>
+    <td>311.6796</td>
+    <td>181.8131</td>
+    <td>112.5510</td>
+    <td>0.4914</td>
+    <td>0.2968</td>
+  </tr>
+  <tr>
+    <td>1706.7</td>
+    <td>0.5177</td>
+    <td>0.0517</td>
+    <td>0.0631</td>
+    <td>330.7678</td>
+    <td>192.9479</td>
+    <td>119.4439</td>
+    <td>0.4823</td>
+    <td>0.3150</td>
+  </tr>
+  <tr>
+    <td>1913.9</td>
+    <td>0.5359</td>
+    <td>0.0535</td>
+    <td>0.0563</td>
+    <td>370.9289</td>
+    <td>216.3752</td>
+    <td>133.9465</td>
+    <td>0.4641</td>
+    <td>0.3533</td>
+  </tr>
+  <tr>
+    <td>2074.3</td>
+    <td>0.5496</td>
+    <td>0.0548</td>
+    <td>0.0519</td>
+    <td>402.0216</td>
+    <td>234.5126</td>
+    <td>145.1745</td>
+    <td>0.4504</td>
+    <td>0.3829</td>
+  </tr>
+</table>
+
+Pore Diameter Distribution
+
+<table>
+  <tr>
+    <th>Range Pore Diameter</th>
+    <th>Incremental % pv</th>
+    <th>Frequency fraction</th>
+  </tr>
+  <tr>
+    <td>200 - 30</td>
+    <td>0.3218</td>
+    <td>0.1614</td>
+  </tr>
+  <tr>
+    <td>30 - 10</td>
+    <td>0.0316</td>
+    <td>0.0158</td>
+  </tr>
+  <tr>
+    <td>10 - 5</td>
+    <td>0.0000</td>
+    <td>0.0000</td>
+  </tr>
+  <tr>
+    <td>5 - 1</td>
+    <td>0.0379</td>
+    <td>0.0190</td>
+  </tr>
+  <tr>
+    <td>1 - 0.5</td>
+    <td>0.0000</td>
+    <td>0.0000</td>
+  </tr>
+  <tr>
+    <td>0.5 - 0.1</td>
+    <td>0.6436</td>
+    <td>0.3228</td>
+  </tr>
+  <tr>
+    <td>0.1 - 0.05</td>
+    <td>0.9591</td>
+    <td>0.4810</td>
+  </tr>
+</table>
+
+TABLE 5D: WELL DUYONG DEEP-1
+SAMPLE NO: 6   DEPTH: 3598.5 M
+MERCURY INJECTION CAPILLARY PRESSURE & PORE SIZE DISTRIBUTION [0-2,000 psia]
+
+============================================================
+PAGE 23  |  236.8s  |  1682 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+GRAPHS
+
+============================================================
+PAGE 24  |  508.9s  |  1812 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Saturant                3,500 ppm
+Resistivity of saturant  1.500 ohm-m @ 77° F
+Porosity Exponent [m] Composite  1.84
+Y-Intercept [a] Composite    1.00
+Net Overburden Pressure     560 psi
+
+![Graph showing Porosity vs Formation Resistivity Factor](page_246_393_1012_1012.png)
+
+GRAPH 1:    WELL DUYONG DEEP-1
+FORMATION RESISTIVITY FACTOR AT NOB CONDITIONS
+
+============================================================
+PAGE 25  |  673.7s  |  1827 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Saturant                3,500 ppm
+Resistivity of saturant  1,500 ohm-m @ 77° F
+Porosity Exponent [m] Composite  1.84
+Y-Intercept [a] Composite      1.00
+Saturant Exponent [n] Composite  1.88
+Net Overburden Pressure        560 psi
+
+![Brine Saturation vs Formation Resistivity Index graph](page_246_393_1012_670.png)
+
+GRAPH 2:    WELL DUYONG DEEP-1
+FORMATION RESISTIVITY INDEX AT NOB CONDITIONS
+
+============================================================
+PAGE 26  |  529.2s  |  1792 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Brine Saturation vs Pressure
+Air-Brine System
+
+Sample : 2
+Depth, mtr : 3184.00
+Perm, md : 0.134
+Porosity, % : 11.6
+
+Pressure, psi
+Brine Saturation, percent pore space
+
+GRAPH 3:    WELL DUYONG DEEP-1
+SAMPLE NO: 2    DEPTH: 3184.0 M
+AIR-BRINE CAPILLARY PRESSURE BY CENTRIFUGE
+
+============================================================
+PAGE 27  |  639.2s  |  1792 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+High Pressure Method
+
+Sample      : 2
+Depth, mtr   : 3184.0
+Porosity, fraction : 0.113
+Permeability to Air, md: 0.108
+
+GRAPH 4A:    WELL DUYONG DEEP-1
+SAMPLE NO: 2    DEPTH: 3184.0 M
+MERCURY INJECTION CAPILLARY PRESSURE VS. WETTING PHASE SATURATION [LINEAR]
+
+============================================================
+PAGE 28  |  424.9s  |  1794 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+High Pressure Method
+
+Sample        : 2
+Depth, mtr    : 3184.0
+Porosity, fraction   : 0.113
+Permeability to Air, md: 0.108
+
+GRAPH 5A:      WELL DUYONG DEEP-1
+SAMPLE NO: 2    DEPTH: 3184.0 M
+MERCURY INJECTION CAPILLARY PRESSURE VS. WETTING PHASE SATURATION [SEMILOG]
+
+============================================================
+PAGE 29  |  417.5s  |  1815 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+Pore Size Distribution
+
+Sample      : 2
+Depth, mtr   : 3184.0
+Porosity, fraction : 0.113
+Permeability to Air, md: 0.108
+
+Cumulative Mercury Saturation, fraction
+Incremental Mercury Saturation, fraction
+Pore Throat Radius, microns
+
+GRAPH 6A:    WELL DUYONG DEEP-1
+SAMPLE NO: 2    DEPTH: 3184.0 M
+MERCURY INJECTION CAPILLARY PRESSURE & PORE SIZE DISTRIBUTION HISTOGRAM
+
+============================================================
+PAGE 30  |  500.8s  |  1793 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+High Pressure Method
+
+Sample      : 3
+Depth, mtr   : 3528.0
+Porosity, fraction   : 0.093
+Permeability to Air, md: 0.005
+
+GRAPH 4B:    WELL DUYONG DEEP-1
+SAMPLE NO: 3    DEPTH: 3528.0 M
+MERCURY INJECTION CAPILLARY PRESSURE VS. WETTING PHASE SATURATION [LINEAR]
+
+============================================================
+PAGE 31  |  465.2s  |  1794 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+High Pressure Method
+
+Sample      : 3
+Depth, mtr   : 3528.0
+Porosity, fraction    : 0.093
+Permeability to Air, md: 0.005
+
+GRAPH 5B:    WELL DUYONG DEEP-1
+SAMPLE NO: 3    DEPTH: 3528.0 M
+MERCURY INJECTION CAPILLARY PRESSURE VS. WETTING PHASE SATURATION [SEMILOG]
+
+============================================================
+PAGE 32  |  530.2s  |  1816 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+Pore Size Distribution
+
+Sample      : 3
+Depth, mtr   : 3528.0
+Porosity, fraction   : 0.093
+Permeability to Air, md: 0.005
+
+Cumulative Mercury Saturation, fraction
+Incremental Mercury Saturation, fraction
+Pore Throat Radius, microns
+
+GRAPH 6B:    WELL DUYONG DEEP-1
+SAMPLE NO: 3    DEPTH: 3528.0 M
+MERCURY INJECTION CAPILLARY PRESSURE & PORE SIZE DISTRIBUTION HISTOGRAM
+
+============================================================
+PAGE 33  |  825.7s  |  1871 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+High Pressure Method
+
+<table>
+  <tr>
+    <th>Sample</th>
+    <td>4</td>
+  </tr>
+  <tr>
+    <th>Depth, mtr</th>
+    <td>3576.0</td>
+  </tr>
+  <tr>
+    <th>Porosity, fraction</th>
+    <td>0.112</td>
+  </tr>
+  <tr>
+    <th>Permeability to Air, md:</th>
+    <td>0.038</td>
+  </tr>
+</table>
+
+GRAPH 4C:      WELL DUYONG DEEP-1
+SAMPLE NO: 4    DEPTH: 3576.0 M
+MERCURY INJECTION CAPILLARY PRESSURE VS. WETTING PHASE SATURATION [LINEAR]
+
+============================================================
+PAGE 34  |  515.2s  |  1794 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+High Pressure Method
+
+Sample        : 4
+Depth, mtr    : 3576.0
+Porosity, fraction   : 0.112
+Permeability to Air, md: 0.038
+
+GRAPH 5C:      WELL DUYONG DEEP-1
+SAMPLE NO: 4    DEPTH: 3576.0 M
+MERCURY INJECTION CAPILLARY PRESSURE VS. WETTING PHASE SATURATION [SEMILOG]
+
+============================================================
+PAGE 35  |  520.1s  |  1816 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+Pore Size Distribution
+
+Sample        : 4
+Depth, mtr    : 3576.0
+Porosity, fraction   : 0.112
+Permeability to Air, md: 0.038
+
+Cumulative Mercury Saturation, fraction
+Incremental Mercury Saturation, fraction
+Pore Throat Radius, microns
+
+GRAPH 6C:      WELL DUYONG DEEP-1
+SAMPLE NO: 4    DEPTH: 3576.0 M
+MERCURY INJECTION CAPILLARY PRESSURE & PORE SIZE DISTRIBUTION HISTOGRAM
+
+============================================================
+PAGE 36  |  501.2s  |  1793 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+High Pressure Method
+
+Sample      : 6
+Depth, mtr   : 3598.5
+Porosity, fraction    : 0.100
+Permeability to Air, md: 0.010
+
+GRAPH 4D:    WELL DUYONG DEEP-1
+SAMPLE NO: 6    DEPTH: 3598.5 M
+MERCURY INJECTION CAPILLARY PRESSURE VS. WETTING PHASE SATURATION [LINEAR]
+
+============================================================
+PAGE 37  |  553.0s  |  1793 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+High Pressure Method
+
+Sample      : 6
+Depth, mtr   : 3598.5
+Porosity, fraction : 0.100
+Permeability to Air, md: 0.010
+
+GRAPH 5D:    WELL DUYONG DEEP-1
+SAMPLE NO: 6    DEPTH: 3598.5 M
+MERCURY INJECTION CAPILLARY PRESSURE VS. WETTING PHASE SATURATION [SEMILOG]
+
+============================================================
+PAGE 38  |  567.4s  |  1815 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+MERCURY INJECTION
+Pore Size Distribution
+
+Sample      : 6
+Depth, mtr   : 3598.5
+Porosity, fraction : 0.100
+Permeability to Air, md: 0.010
+
+Cumulative Mercury Saturation, fraction
+Incremental Mercury Saturation, fraction
+Pore Throat Radius, microns
+
+GRAPH 6D:    WELL DUYONG DEEP-1
+SAMPLE NO: 6    DEPTH: 3598.5 M
+MERCURY INJECTION CAPILLARY PRESSURE & PORE SIZE DISTRIBUTION HISTOGRAM

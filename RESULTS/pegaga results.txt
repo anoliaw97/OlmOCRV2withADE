@@ -1,0 +1,2553 @@
+============================================================
+PAGE 1  |  500.2s  |  1732 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+RELATIVE PERMEABILITY NUMERICAL INTERPRETATION
+
+PEGAGA-2
+MALAYSIA
+
+MAX PODOLYAK
+11 NOVEMBER 2015
+
+MDC OIL & GAS (SK320) LIMITED
+
+============================================================
+PAGE 2  |  346.1s  |  1732 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+Relative Permeability Numerical Interpretation
+
+Pegaga-2
+
+Prepared for
+
+MDC Oil & Gas (SK320) Ltd
+
+By
+Max Podolyak
+Senior Core Analysis Consultant
+
+11th November 2015
+
+============================================================
+PAGE 3  |  531.1s  |  1817 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+Executive Summary
+
+This document provides full details of the experimental procedure and interpretation analysis for "hybrid" relative permeability tests carried out on 5 samples from well Pegaga-2. The tests were carried out by Core Laboratories Perth, Australia and managed and interpreted by Senergy International Sdn Bhd (Senergy) on behalf of MDC Oil & Gas.
+
+The experimental results were interpreted using Sendra™, a proprietary core flood simulator based on a two phase 1-D black oil simulation model together with an automated history matching routine.
+
+The flow chart summarising the test is provided in Figure 1.
+
+Laboratory results and raw data information is provided in separate report from Core Lab.
+
+============================================================
+PAGE 4  |  757.7s  |  1931 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 1: SCAL Flow Chart
+
+Set 5B Relative Permeabilities
+
+SS Air Permeability (2700 psi NCS)
+Porosity and Grain Density
+(2700 psi NCS Pore Volume + Helium Grain Volume)
+
+Brine Saturation
+Porosity: saturated pore volume + Archimedes Bulk Volume
+
+USS Kr Gas-Water (Drainage) at Res. NCS **+
+(Krw curve)
+
+Single speed drainage to ultimate Swir (gas-water)
+
+• Mount in core holder
+• Measure SS Kd@Swir
+• Flow Decline and back pressure
+• Measure Kd@Sw
+    (all at Res. NCS ***)
+
+Centrifuge (Single Speed) Brine-Decane (Imbibition) (Krg curve) (automated data acquisition)
+
+Krg@Sw
+At Res. NCS ***
+Dean-Stark extraction (Sw) / Methanol Leach
+
+Conventional Oven Dry at 100 °C
+
+SS Air Permeability (2700 psi NCS)
+Porosity and Grain Density
+(2700 psi NCS USS Pore Volume + Helium Grain Volume + Calliper Bulk Volume)
+
+============================================================
+PAGE 5  |  1398.2s  |  1932 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+Contents
+
+Executive Summary .................................................................................................................. ii
+1    Introduction ..................................................................................................................... 5
+2    Relative Permeability Test Procedure ............................................................................. 6
+3    Coreflood Simulation .................................................................................................... 8
+    3.1    USS G-W Drainage and O-W Centrifuge Imbibition (Hybrid) ................................. 9
+    3.1.1    History Matching Sample 2-015 ........................................................................... 9
+    3.1.2    History Matching Sample 2-019 ....................................................................... 16
+    3.1.3    History Matching Sample 2-023 ....................................................................... 23
+    3.1.4    History Matching Sample 2-029 ....................................................................... 30
+    3.1.5    History Matching Sample 2-033 ....................................................................... 36
+4    Discussion and Conclusion .......................................................................................... 44
+    4.1    Test Procedure and Numerical Interpretation .......................................................... 44
+    4.2    Data Averaging (Normalization) ........................................................................... 46
+5    References .................................................................................................................... 48
+
+============================================================
+PAGE 6  |  1616.7s  |  2214 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+1 Introduction
+
+A combination (hybrid) of drainage USS gas flood and imbibition centrifuge tests can be used to define both imbibition krg and krw curves. This relies on the observation that, in a gas-water system, there is little or no hysteresis between the wetting phase (water) relative permeability curves on drainage and imbibition, so the imbibition water relative permeability, krw, can be generated from a drainage gas flood.
+
+Gas-water relative permeability tests provide drainage krg and krw curves and are generally performed for gas storage modelling. However, drainage tests can also be used to generate or constrain imbibition krw curves. This is predicated on the assumption that there is no hysteresis in the wetting phase (water) curve. Drainage tests can then be used to provide part of the imbibition krw curve (from Swir to Sgr).
+
+The single speed imbibition (water-displacing-decane) centrifuge test is used to generate an imbibition cycle gas-equivalent relative permeability – krg. Due to gas compressibility and diffusion effects, the imbibition test is performed by replacing the gas phase with a light hydrocarbon (decane). The use of a capillary dominated flood also better replicates the potential field conditions (aquifer influx) than a dynamic test. On completion (at Sgr equivalent saturation) the sample is removed, loaded into a coreholder and endpoint Kw’ at Sgr determined. The remaining imbibition krw curve is transposed from the drainage experiment and truncated at Sgr Endpoint permeability to brine at residual decane saturation (essentially Kw’ at Sgr) can then be measured in a coreholder.
+
+Combined drainage and imbibition centrifuge were considered to calculate imbibition krw and krg. Gas-equivalent imbibition krg relative permeability can be obtained from water-decane centrifuge experiments at a single pre-selected speed, within the limitations of the Bond Number (Nb<10^{-5}), from the speed, time and production data using the Hagoort method.
+
+Typical imbibition and drainage curves for a water wet-system are illustrated in Figure 2. There is hysteresis between the drainage and imbibition gas relative permeability curves but not in the water (wetting phase) curves.
+
+![Illustration of Hysteresis Effects](page_374_1016_1002_482.png)
+
+Figure 2: Illustration of Hysteresis Effects
+
+============================================================
+PAGE 7  |  2721.4s  |  2664 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+2 Relative Permeability Test Procedure
+
+The test specification procedure was agreed with Mubadala and Core Lab; the document was submitted to all parties on 13th April 2015 under the following reference: “Relative Permeability Test Specification”. Below is a brief workflow of the lab processes carried out:
+
+1. Water Saturation: saturate plug with SFW in-situ. Use backpressure to ensure there is no trapped gas in the system.
+
+2. USS Gas-Water Kr (Drainage): inject humidified gas into the sample at constant pressure. Monitor gas and SFW production over time. Continue gas injection until no more SFW is produced. Normally, periods of around 24 hours should be allowed to ensure equilibrium, but this needs to be determined for each particular case. Calculate the effective permeability to gas at Swi.
+
+3. Desaturation to Swi: unload sample, weigh and spin in centrifuge under the relevant fluid and the speed, to desaturate sample to a lower Swi, if possible. Full equilibrium is required for the last Pc pressure point only. Monitor and record any SFW production. On completion of desaturation, following saturation stability, reduce the spin speed slowly (to prevent sample failure) then remove the sample.
+
+Removed samples should be wrapped in the cling film and aluminium foil and placed in the fridge (8-10° C) for 24 hr to acquire stable fluid redistribution.
+
+<table>
+  <tr>
+    <th>Sample ID:</th>
+    <th>Depth (m)</th>
+    <th>Ka (mD) NCS</th>
+    <th>Phi (%)</th>
+    <th>Target Water Saturation Swi, %</th>
+    <th>Achieved Water Saturation Swi, %</th>
+  </tr>
+  <tr>
+    <td>2-015</td>
+    <td>2511.1</td>
+    <td>2.46</td>
+    <td>18.6</td>
+    <td>20</td>
+    <td>20.5</td>
+  </tr>
+  <tr>
+    <td>2-019</td>
+    <td>2512.2</td>
+    <td>37</td>
+    <td>24.5</td>
+    <td>7.5</td>
+    <td>9.2</td>
+  </tr>
+  <tr>
+    <td>2-023</td>
+    <td>2513.4</td>
+    <td>9.93</td>
+    <td>22.87</td>
+    <td>15</td>
+    <td>16.4</td>
+  </tr>
+  <tr>
+    <td>2-029</td>
+    <td>2515.1</td>
+    <td>13.8</td>
+    <td>18.1</td>
+    <td>10</td>
+    <td>10.5</td>
+  </tr>
+  <tr>
+    <td>2-033</td>
+    <td>2516.16</td>
+    <td>21.6</td>
+    <td>25</td>
+    <td>5</td>
+    <td>7.4</td>
+  </tr>
+</table>
+
+4. Kg@Swi: weigh sample and load into a coreholder (vertical orientation) and apply temperature and pressure. Monitor and record any SFW production. Flow humidified gas and measure effective permeability at Swi. Monitor and record any SFW production.
+
+5. Gas displacement with Decane: while in core holder, flow Decane under low flow rates of 2-3 cc/hr without applying any back pressure for the period of 24 hrs. Upon completion increase the flow rate to 60 cc/hr and apply the back pressure of 200 psi; during decane flow process release and reapply the back pressure every 30 min for the period of 6-8 hrs, i.e. to allow the pulsed pressurisation/depressurisation of the core plug while maintaining the flow.
+
+6. Kd@Swi (Kg equivalent) (Decane Flood (gas replacement)): flow decane at a flow rate and pore volumes until pressure drop and flow rate are stable. Monitor and record any SFW production. Measure effective permeability to decane at Swi.
+
+============================================================
+PAGE 8  |  547.0s  |  1847 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+7. Brine-Decane Imbibition Krd curve (Krg equivalent): place the weighted test plugs in the centrifuge under the fluid, temperature and net confining pressure. Initiate the full brine imbibition cycle, desaturating the plug to Srg at the indicated speed / pressure. Allow for capillary equilibrium. Record volumetric production vs. time. (automated data acquisition is required) Calculate Krg. On completion of the centrifuge test, following saturation stability, reduce the spin speed slowly (to prevent sample failure) then remove the sample.
+
+8. Kw@Srd (Srg equivalent): weigh sample and load into a core holder and apply temperature and pressure. Monitor and record any decane production. Flow SFW and measure effective permeability at Srd. Monitor and record any oil production
+
+============================================================
+PAGE 9  |  2812.0s  |  2586 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3 Coreflood Simulation
+
+For this work LR-Senergy recommended numerical determination of relative permeability and the provision of core flood raw data for input into the Sendra™ core flood simulator. Sendra™ is a proprietary core flood simulator based on a two phase 1-D black oil simulation model together with an automated history matching routine.
+
+Sendra™ is used to reconcile time and spatially dependent experimental data and provide relative permeability output data that is corrected for the effects of laboratory scale capillary pressure. In the laboratory, at the core plug scale capillary pressure may have a dominant effect on the displacement processes. Ultimately this may give misleading relative permeability information if left uncorrected. Capillary pressure effects can be observed from in-situ saturation monitoring data. Ideally, capillary pressure effects are minimised by core flooding at high rate (so that viscous forces are dominating) or by increasing the length scale (so that capillary pressure is small relative to pressure drop). However, this is not always possible and if capillary pressure effects are evident in measurement data, it is usually possible to extract reservoir relative permeability curves by the history matching process.
+
+Plug sample characteristics (length, diameter, porosity and base permeability), injected fluid properties (\( \mu w \) and \( \mu o \)), core flooding rates, brine fractions and flooding durations are used as input parameters for core flood simulation. For history matching, measured transient data is also added to the model (dP f[time], Sw f[time] and Sw f[length fraction]. Capillary pressure may also be added as input data or Sendra™ can be used to model capillary pressure by fitting observed saturation profiles.
+
+History matching of observed transient data was used to provide modelled relative permeability for G-W USS drainage tests. Air-mercury capillary pressure data acquired on the samples after the completion of the relative permeability study was used in the Sendra™ simulation process to account for possible capillary end effects and to define relative permeability to the “true” irreducible water saturation fraction. Pc data was provided by Core Lab and available in Core Lab report: “Advanced Rock Properties Report, High Pressure Mercury Test (HPMI) & Relative Permeabilities” from 26th October 2015 (File: SCM 14026).
+
+History matching of observed transient data was used to provide modelled relative permeability for Centrifuge Imbibiton O-W technique. For imbibition tests in the water wet systems, it was assumed that the capillary pressure Pc=0.
+
+Each USS Drainage and Centrifuge Kr Imbibition tests are discussed individually in some details in Sections 3.1 to Sections 3.5.
+
+A summary of the best-fit models are provided below in Table 1.
+
+<table>
+  <tr>
+    <th colspan="2">Table 2: Simulation Models</th>
+    <th colspan="2"></th>
+  </tr>
+  <tr>
+    <th>Test Ref:</th>
+    <th>G-W Drainage</th>
+    <th>Test Ref:</th>
+    <th>O-W Imbibition</th>
+  </tr>
+  <tr>
+    <td>2-015</td>
+    <td>Corey</td>
+    <td>2-015</td>
+    <td>Corey</td>
+  </tr>
+  <tr>
+    <td>2-019</td>
+    <td>Corey</td>
+    <td>2-019</td>
+    <td>Corey</td>
+  </tr>
+  <tr>
+    <td>2-023</td>
+    <td>Corey</td>
+    <td>2-023</td>
+    <td>Corey</td>
+  </tr>
+  <tr>
+    <td>2-029</td>
+    <td>Corey</td>
+    <td>2-029</td>
+    <td>Corey</td>
+  </tr>
+  <tr>
+    <td>2-033</td>
+    <td>Corey</td>
+    <td>2-033</td>
+    <td>Corey</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 10  |  1514.8s  |  2102 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3.1 USS G-W Drainage and O-W Centrifuge Imbibition (Hybrid)
+
+3.1.1 History Matching Sample 2-015
+
+3.1.1.1 Drainage USS
+
+To model Plug 2-015, plug ambient porosity (0.186 frac) was used as input data together with a plug diameter of 3.78 cm and sample length of 4.71 cm.
+
+For this work, drainage capillary pressure obtained at the end of the study was constrained to allow history matching of in-situ saturation profiles. Simulation output data has been provided in Excel format as a „Corey” model. The parameters used in simulation process are provided in Table 3.1.1 and 3.1.3. The resulting simulated water production transients provided a reasonable match of empirical data; gas production had relatively poorer match, which were believed to be compromised due to the possible gas compressibility effects. Modelled relative permeability curves are provided in Figure 3.1 2 and Figure 3.1 3 for reference. Figure 3.1 2 shows the capillary pressure function used to model the saturation profiles presented. Measured and simulated transient data is shown in Figure 3.1 1.
+
+Upon the completion of the USS gasflood experiment, the achieved Swi was (0.392 frac) and Kg at Sw (0.459mD), furthermore additionally scheduled G-W centrifugation helped to achieve even lower “true” irreducible Swir (0.205 frac) which were used as a true end point saturation during the relative permeability simulation on Sendra; measured Kg at “true” Swir (0.967 mD).
+
+![Water and Gas production (ml) vs time (s)](page_320_670_1000_400.png)
+
+Figure 3.1 1: Water and Gas production (ml) vs time (s)
+
+============================================================
+PAGE 11  |  527.0s  |  1796 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 3.1 2: Modelled Relative Permeability and Capillary Pressure
+
+<table>
+  <tr>
+    <th></th>
+    <th>Lab Data USS Krg</th>
+    <th>Lab Data USS Krw</th>
+    <th>Sendra USS Drn Krg</th>
+    <th>Sendra USS Drn Krw</th>
+    <th>Swir</th>
+  </tr>
+</table>
+
+Figure 3.1 3: Laboratory reported and Sendra Simulated Krg and Krw
+
+============================================================
+PAGE 12  |  888.1s  |  1958 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3.1.1.2 Imbibition Centrifuge Kr
+
+Model input parameters for imbibition stage were as following: initial water saturation prior to the waterflood (0.205 frac.), decane (light oil) end point permeability at Swir (0.459 frac.), equivalent Sgr (0.466 frac.) and Kw at Sgr (0.062 frac).
+
+For this work, Pc=0 was used in a simulation process. Simulation output data has been provided in Excel format as a „Corey" model. The parameters used are provided in Table 3.1.3. The resulting simulated oil production transients provided good match of empirical data. It was observed that experimental data production curve indicated slight “blip", possibly associated with retained oil production due to sample heterogeneity, shown on Figure 3.1 4. The effects are known as laboratory artefact and require data fix by Sendra. Modelled relative permeability curves are provided in Figure 3.1 5 for reference.
+
+![Experimental and Simulated Oil Production (ml) vs. Time (s).](page_370_682_1002_410.png)
+
+Figure 3.1 4: Experimental and Simulated Oil Production (ml) vs. Time (s).
+
+============================================================
+PAGE 13  |  1567.7s  |  1901 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+Figure 3.1 5: Experimental and Simulated Kro relative Permeability
+
+Final relative permeability data set for sample 2-015 included the combination of the USS Drainage (Krw) and Centrifuge Imbibition. Corey exponents Nw = 4.55 (USS) and Ng = 2.7 (Centrifuge Kr) were used to define the imbibition relative permeability curvature within the achieved saturation end points: Swir = 0.205 frac. and Srg = 0.4665 frac.. Calculated end point relative permeability Krg at Swir = 1 frac. and Krw at Sgr = 0.064 frac.. Final test results are provided in Table 3.1.4 and also availalbe graphically in Figure 3.1 6 and Figure 3.1 7.
+
+Figure 3.1 6: Plug 2-015 Final Simulated Imbibition Krg and Krw (Normal Plot)
+
+============================================================
+PAGE 14  |  3781.8s  |  2865 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+![Plug 2-015 Final Simulated imbibition Krg and Krw (Log Plot)](page_184_120_1080_670.png)
+
+Figure 3.1 7: Plug 2-015 Final Simulated imbibition Krg and Krw (Log Plot)
+
+Simulation output data for the drainage and imbibition floods are tabulated for reference in Tables 3.1.1 to 3.1.4.
+
+Table 3.1 1: Plug 2-015 Primary Drainage Test Parameters
+
+<table>
+  <tr>
+    <th>Kw, mD</th>
+    <th>Swir, frac</th>
+    <th>Kg@Swir, mD</th>
+    <th>Krw Initial, mD</th>
+    <th>Krg @Swir, mD</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>1.63</td>
+    <td>0.205</td>
+    <td>0.062</td>
+    <td>1</td>
+    <td>0.593</td>
+    <td>4.55</td>
+    <td>2.5</td>
+  </tr>
+</table>
+
+Table 3.1 2: Primary Drainage USS Relative Permeability Data
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.000</td>
+    <td>0.205</td>
+    <td>0.0E+00</td>
+    <td>0.205</td>
+    <td>1.00E+00</td>
+  </tr>
+  <tr>
+    <td>0.025</td>
+    <td>0.225</td>
+    <td>5.14E-08</td>
+    <td>0.225</td>
+    <td>9.39E-01</td>
+  </tr>
+  <tr>
+    <td>0.050</td>
+    <td>0.245</td>
+    <td>1.20E-06</td>
+    <td>0.245</td>
+    <td>8.80E-01</td>
+  </tr>
+  <tr>
+    <td>0.075</td>
+    <td>0.265</td>
+    <td>7.61E-06</td>
+    <td>0.265</td>
+    <td>8.23E-01</td>
+  </tr>
+  <tr>
+    <td>0.100</td>
+    <td>0.285</td>
+    <td>2.82E-05</td>
+    <td>0.285</td>
+    <td>7.68E-01</td>
+  </tr>
+  <tr>
+    <td>0.125</td>
+    <td>0.304</td>
+    <td>7.78E-05</td>
+    <td>0.304</td>
+    <td>7.16E-01</td>
+  </tr>
+  <tr>
+    <td>0.150</td>
+    <td>0.324</td>
+    <td>1.78E-04</td>
+    <td>0.324</td>
+    <td>6.66E-01</td>
+  </tr>
+  <tr>
+    <td>0.175</td>
+    <td>0.344</td>
+    <td>3.60E-04</td>
+    <td>0.344</td>
+    <td>6.18E-01</td>
+  </tr>
+  <tr>
+    <td>0.200</td>
+    <td>0.364</td>
+    <td>6.60E-04</td>
+    <td>0.364</td>
+    <td>5.72E-01</td>
+  </tr>
+  <tr>
+    <td>0.225</td>
+    <td>0.384</td>
+    <td>1.13E-03</td>
+    <td>0.384</td>
+    <td>5.29E-01</td>
+  </tr>
+  <tr>
+    <td>0.250</td>
+    <td>0.404</td>
+    <td>1.82E-03</td>
+    <td>0.404</td>
+    <td>4.87E-01</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 15  |  37705.4s  |  3819 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr><td>0.275</td><td>0.424</td><td>2.81E-03</td><td>0.424</td><td>4.48E-01</td></tr>
+  <tr><td>0.300</td><td>0.444</td><td>4.18E-03</td><td>0.444</td><td>4.10E-01</td></tr>
+  <tr><td>0.325</td><td>0.463</td><td>6.01E-03</td><td>0.463</td><td>3.74E-01</td></tr>
+  <tr><td>0.350</td><td>0.483</td><td>8.42E-03</td><td>0.483</td><td>3.41E-01</td></tr>
+  <tr><td>0.375</td><td>0.503</td><td>1.15E-02</td><td>0.503</td><td>3.09E-01</td></tr>
+  <tr><td>0.400</td><td>0.523</td><td>1.55E-02</td><td>0.523</td><td>2.79E-01</td></tr>
+  <tr><td>0.425</td><td>0.543</td><td>2.04E-02</td><td>0.543</td><td>2.51E-01</td></tr>
+  <tr><td>0.450</td><td>0.563</td><td>2.64E-02</td><td>0.563</td><td>2.24E-01</td></tr>
+  <tr><td>0.475</td><td>0.583</td><td>3.38E-02</td><td>0.583</td><td>2.00E-01</td></tr>
+  <tr><td>0.500</td><td>0.603</td><td>4.27E-02</td><td>0.603</td><td>1.77E-01</td></tr>
+  <tr><td>0.525</td><td>0.622</td><td>5.33E-02</td><td>0.622</td><td>1.56E-01</td></tr>
+  <tr><td>0.550</td><td>0.642</td><td>6.59E-02</td><td>0.642</td><td>1.36E-01</td></tr>
+  <tr><td>0.575</td><td>0.662</td><td>8.06E-02</td><td>0.662</td><td>1.18E-01</td></tr>
+  <tr><td>0.600</td><td>0.682</td><td>9.79E-02</td><td>0.682</td><td>1.01E-01</td></tr>
+  <tr><td>0.625</td><td>0.702</td><td>1.18E-01</td><td>0.702</td><td>8.61E-02</td></tr>
+  <tr><td>0.650</td><td>0.722</td><td>1.41E-01</td><td>0.722</td><td>7.25E-02</td></tr>
+  <tr><td>0.675</td><td>0.742</td><td>1.67E-01</td><td>0.742</td><td>6.02E-02</td></tr>
+  <tr><td>0.700</td><td>0.762</td><td>1.97E-01</td><td>0.762</td><td>4.93E-02</td></tr>
+  <tr><td>0.725</td><td>0.781</td><td>2.31E-01</td><td>0.781</td><td>3.97E-02</td></tr>
+  <tr><td>0.750</td><td>0.801</td><td>2.70E-01</td><td>0.801</td><td>3.12E-02</td></tr>
+  <tr><td>0.775</td><td>0.821</td><td>3.14E-01</td><td>0.821</td><td>2.40E-02</td></tr>
+  <tr><td>0.800</td><td>0.841</td><td>3.62E-01</td><td>0.841</td><td>1.79E-02</td></tr>
+  <tr><td>0.825</td><td>0.861</td><td>4.17E-01</td><td>0.861</td><td>1.28E-02</td></tr>
+  <tr><td>0.850</td><td>0.881</td><td>4.77E-01</td><td>0.881</td><td>8.71E-03</td></tr>
+  <tr><td>0.875</td><td>0.901</td><td>5.45E-01</td><td>0.901</td><td>5.52E-03</td></tr>
+  <tr><td>0.900</td><td>0.921</td><td>6.19E-01</td><td>0.921</td><td>3.16E-03</td></tr>
+  <tr><td>0.925</td><td>0.940</td><td>7.01E-01</td><td>0.940</td><td>1.54E-03</td></tr>
+  <tr><td>0.950</td><td>0.960</td><td>7.92E-01</td><td>0.960</td><td>5.59E-04</td></tr>
+  <tr><td>0.975</td><td>0.980</td><td>8.91E-01</td><td>0.980</td><td>9.88E-05</td></tr>
+  <tr><td>1.000</td><td>1.000</td><td>1.00E+00</td><td>1.000</td><td>0.0E+00</td></tr>
+</table>
+
+Table 3.1 3: Plug 2-015 Primary Imbibition Test Parameters
+
+<table>
+  <tr>
+    <th>Kg@Swir, mD</th>
+    <th>Swir, frac</th>
+    <th>Kw@Sgr, mD</th>
+    <th>Sgr, frac</th>
+    <th>Krg@Swir, mD</th>
+    <th>Krw@Sgr, mD</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>0.967</td>
+    <td>0.205</td>
+    <td>0.062</td>
+    <td>0.4665</td>
+    <td>1</td>
+    <td>0.0643</td>
+    <td>4.55</td>
+    <td>2.7</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 16  |  9000.6s  |  4255 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+Table 3.1 4: Primary Imbibition G-W Relative Permeability (Hybrid)
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr><td>0.000</td><td>0.205</td><td>0.0E+00</td><td>0.205</td><td>1.00E+00</td></tr>
+  <tr><td>0.025</td><td>0.213</td><td>3.3E-09</td><td>0.213</td><td>9.34E-01</td></tr>
+  <tr><td>0.050</td><td>0.221</td><td>7.7E-08</td><td>0.221</td><td>8.71E-01</td></tr>
+  <tr><td>0.075</td><td>0.230</td><td>4.9E-07</td><td>0.230</td><td>8.10E-01</td></tr>
+  <tr><td>0.100</td><td>0.238</td><td>1.8E-06</td><td>0.238</td><td>7.52E-01</td></tr>
+  <tr><td>0.125</td><td>0.246</td><td>5.0E-06</td><td>0.246</td><td>6.97E-01</td></tr>
+  <tr><td>0.150</td><td>0.254</td><td>1.1E-05</td><td>0.254</td><td>6.45E-01</td></tr>
+  <tr><td>0.175</td><td>0.262</td><td>2.3E-05</td><td>0.262</td><td>5.95E-01</td></tr>
+  <tr><td>0.200</td><td>0.271</td><td>4.2E-05</td><td>0.271</td><td>5.47E-01</td></tr>
+  <tr><td>0.225</td><td>0.279</td><td>7.3E-05</td><td>0.279</td><td>5.02E-01</td></tr>
+  <tr><td>0.250</td><td>0.287</td><td>1.2E-04</td><td>0.287</td><td>4.60E-01</td></tr>
+  <tr><td>0.275</td><td>0.295</td><td>1.8E-04</td><td>0.295</td><td>4.20E-01</td></tr>
+  <tr><td>0.300</td><td>0.304</td><td>2.7E-04</td><td>0.304</td><td>3.82E-01</td></tr>
+  <tr><td>0.325</td><td>0.312</td><td>3.9E-04</td><td>0.312</td><td>3.46E-01</td></tr>
+  <tr><td>0.350</td><td>0.320</td><td>5.4E-04</td><td>0.320</td><td>3.13E-01</td></tr>
+  <tr><td>0.375</td><td>0.328</td><td>7.4E-04</td><td>0.328</td><td>2.81E-01</td></tr>
+  <tr><td>0.400</td><td>0.336</td><td>9.9E-04</td><td>0.336</td><td>2.52E-01</td></tr>
+  <tr><td>0.425</td><td>0.345</td><td>1.3E-03</td><td>0.345</td><td>2.24E-01</td></tr>
+  <tr><td>0.450</td><td>0.353</td><td>1.7E-03</td><td>0.353</td><td>1.99E-01</td></tr>
+  <tr><td>0.475</td><td>0.361</td><td>2.2E-03</td><td>0.361</td><td>1.76E-01</td></tr>
+  <tr><td>0.500</td><td>0.369</td><td>2.7E-03</td><td>0.369</td><td>1.54E-01</td></tr>
+  <tr><td>0.525</td><td>0.377</td><td>3.4E-03</td><td>0.377</td><td>1.34E-01</td></tr>
+  <tr><td>0.550</td><td>0.386</td><td>4.2E-03</td><td>0.386</td><td>1.16E-01</td></tr>
+  <tr><td>0.575</td><td>0.394</td><td>5.2E-03</td><td>0.394</td><td>9.92E-02</td></tr>
+  <tr><td>0.600</td><td>0.402</td><td>6.3E-03</td><td>0.402</td><td>8.42E-02</td></tr>
+  <tr><td>0.625</td><td>0.410</td><td>7.6E-03</td><td>0.410</td><td>7.08E-02</td></tr>
+  <tr><td>0.650</td><td>0.419</td><td>9.1E-03</td><td>0.419</td><td>5.87E-02</td></tr>
+  <tr><td>0.675</td><td>0.427</td><td>1.1E-02</td><td>0.427</td><td>4.81E-02</td></tr>
+  <tr><td>0.700</td><td>0.435</td><td>1.3E-02</td><td>0.435</td><td>3.87E-02</td></tr>
+  <tr><td>0.725</td><td>0.443</td><td>1.5E-02</td><td>0.443</td><td>3.06E-02</td></tr>
+  <tr><td>0.750</td><td>0.451</td><td>1.7E-02</td><td>0.451</td><td>2.37E-02</td></tr>
+  <tr><td>0.775</td><td>0.460</td><td>2.0E-02</td><td>0.460</td><td>1.78E-02</td></tr>
+  <tr><td>0.800</td><td>0.468</td><td>2.3E-02</td><td>0.468</td><td>1.30E-02</td></tr>
+  <tr><td>0.825</td><td>0.476</td><td>2.7E-02</td><td>0.476</td><td>9.04E-03</td></tr>
+  <tr><td>0.850</td><td>0.484</td><td>3.1E-02</td><td>0.484</td><td>5.96E-03</td></tr>
+  <tr><td>0.875</td><td>0.492</td><td>3.5E-02</td><td>0.492</td><td>3.64E-03</td></tr>
+  <tr><td>0.900</td><td>0.501</td><td>4.0E-02</td><td>0.501</td><td>2.00E-03</td></tr>
+  <tr><td>0.925</td><td>0.509</td><td>4.5E-02</td><td>0.509</td><td>9.18E-04</td></tr>
+  <tr><td>0.950</td><td>0.517</td><td>5.1E-02</td><td>0.517</td><td>3.07E-04</td></tr>
+  <tr><td>0.975</td><td>0.525</td><td>5.7E-02</td><td>0.525</td><td>4.73E-05</td></tr>
+  <tr><td>1.000</td><td>0.534</td><td>6.4E-02</td><td>0.534</td><td>0.0E+00</td></tr>
+</table>
+
+============================================================
+PAGE 17  |  1473.6s  |  2102 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3.1.2 History Matching Sample 2-019
+
+3.1.2.1 Drainage USS
+
+To model Plug 2-019, plug ambient porosity (0.245 frac) was used as input data together with a plug diameter of 3.78 cm and sample length of 4.97 cm. Additional parameters used in simulation process are provided in Table 3.2.1 and 3.2.3.
+
+Upon the completion of the USS primary gasflood experiment, the achieved Swi was (0.463 frac) and Kg at Sw (2.34 mD), furthermore additionally scheduled G-W centrifugation helped to achieve even lower “true” irreducible Swir (0.092 frac) which were used as a true end point saturation during the relative permeability simulation on Sendra; measured Kg at “true” Swir (28.2 mD).
+
+For this work, drainage capillary pressure obtained at the end of the study was constrained to allow history matching of in-situ saturation profiles, although the history matching was unsuccessful (dotted lines in Figure 3.2. 1). However a better match was obtained by introducing generic Pc data provided by Skjaeveland relationship (full & dashed lines Figure 3.2. 1). Figure 3.2. 2 indicated small discrepancy between the experimental and generic Pc curves used in the modelling process.
+
+Simulation output data has been provided in Excel format as a „Corey” model. The resulting simulated gas and water production transients provided a reasonable match of empirical data. Modelled relative permeability curves are provided in Figure 3.2. 2 and Figure 3.2. 3 for reference.
+
+![Water and Gas production (ml) vs time (s)](page_320_670_1047_495.png)
+
+Figure 3.2. 1: Water and Gas production (ml) vs time (s)
+
+============================================================
+PAGE 18  |  941.2s  |  1866 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 3.2. 2: Modelled Relative Permeability and Capillary Pressure
+
+![Modelled Relative Permeability and Capillary Pressure](page_184_120_1080_579.png)
+
+Figure 3.2. 3: Laboratory reported and Sendra Simulated Krg and Krw
+
+<table>
+  <tr>
+    <th></th>
+    <th>Lab Data USS Krg</th>
+    <th>Lab Data USS Krw</th>
+    <th>Sendra USS Drn Krg</th>
+    <th>Sendra USS Drn Krw</th>
+    <th>Swir</th>
+  </tr>
+</table>
+
+![Laboratory reported and Sendra Simulated Krg and Krw](page_184_670_1080_579.png)
+
+============================================================
+PAGE 19  |  1103.5s  |  1927 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3.1.2.2 Imbibition Centrifuge Kr
+
+Model input parameters for imbibition stage in sample 2-019 were as follows: initial water saturation prior to the waterflood (0.092 frac.), decane (light oil) end point effective permeability at Swir (26.7 mD), equivalent Sgr (0.256 frac.) and Kw at Sgr (9.75 mD).
+
+For this work, Pc=0 was used in a simulation process. Simulation output data has been provided in Excel format as a „Corey" model. The parameters used are provided in Table 3.2.4. The resulting simulated oil production transients provided good match of empirical data illustrated in Figure 3.2. 4. Modelled relative permeability curves are provided in Figure 3.2. 5 for reference.
+
+![Experimental and Simulated Oil Production (ml) vs. Time (s).](page_384_613_1012_496.png)
+
+Figure 3.2. 4: Experimental and Simulated Oil Production (ml) vs. Time (s).
+
+============================================================
+PAGE 20  |  419.6s  |  1903 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+Figure 3.2. 5: Experimental and Simulated Kro relative Permeability
+Final relative permeability data set for sample 2-019 included the combination of the USS Drainage (Krw) and Centrifuge Imbibition. Corey exponents Nw = 5.85 (USS) and Ng = 2.75 (Centrifuge Kr) were used to define the relative permeability curvature within the achieved end saturation points: Swir = 0.092 frac and Srg = 0.256 frac. Calculated end point relative permeability Krg at Swir = 1 frac. and Krw at Sgr = 0.364 frac.. Final test results are provided in Table 3.2.4 and also available graphically in normal plot Figure 3.2. 6 and log plot Figure 3.2. 7.
+
+Figure 3.2. 6: Plug 2-019 Final Simulated Imbibition Krg and Krw (Normal Plot)
+
+============================================================
+PAGE 21  |  4557.5s  |  2863 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+![Plug 2-019 Final Simulated imbibition Krg and Krw (Log Plot)](page_184_120_1080_670.png)
+
+Figure 3.2. 7: Plug 2-019 Final Simulated imbibition Krg and Krw (Log Plot)
+
+Simulation output data for the drainage and imbibition floods are tabulated for reference in Table 3.2. 1 to Table 3.2. 4
+
+Table 3.2. 1: Primary Drainage Test Parameters
+
+<table>
+  <tr>
+    <th>Kw, mD</th>
+    <th>Swir, frac</th>
+    <th>Kg@Swir, mD</th>
+    <th>Krw Initial, mD</th>
+    <th>Krg @Swir, mD</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>26.7</td>
+    <td>0.092</td>
+    <td>28.2</td>
+    <td>1</td>
+    <td>1.05</td>
+    <td>5.85</td>
+    <td>2.52</td>
+  </tr>
+</table>
+
+Table 3.2. 2: Primary Drainage USS Relative Permeability Data
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.000</td>
+    <td>0.092</td>
+    <td>0.0E+00</td>
+    <td>0.092</td>
+    <td>1.00E+00</td>
+  </tr>
+  <tr>
+    <td>0.025</td>
+    <td>0.115</td>
+    <td>4.25E-10</td>
+    <td>0.115</td>
+    <td>9.38E-01</td>
+  </tr>
+  <tr>
+    <td>0.050</td>
+    <td>0.137</td>
+    <td>2.45E-08</td>
+    <td>0.137</td>
+    <td>8.79E-01</td>
+  </tr>
+  <tr>
+    <td>0.075</td>
+    <td>0.160</td>
+    <td>2.62E-07</td>
+    <td>0.160</td>
+    <td>8.22E-01</td>
+  </tr>
+  <tr>
+    <td>0.100</td>
+    <td>0.183</td>
+    <td>1.41E-06</td>
+    <td>0.183</td>
+    <td>7.67E-01</td>
+  </tr>
+  <tr>
+    <td>0.125</td>
+    <td>0.206</td>
+    <td>5.21E-06</td>
+    <td>0.206</td>
+    <td>7.14E-01</td>
+  </tr>
+  <tr>
+    <td>0.150</td>
+    <td>0.228</td>
+    <td>1.51E-05</td>
+    <td>0.228</td>
+    <td>6.64E-01</td>
+  </tr>
+  <tr>
+    <td>0.175</td>
+    <td>0.251</td>
+    <td>3.73E-05</td>
+    <td>0.251</td>
+    <td>6.16E-01</td>
+  </tr>
+  <tr>
+    <td>0.200</td>
+    <td>0.274</td>
+    <td>8.15E-05</td>
+    <td>0.274</td>
+    <td>5.70E-01</td>
+  </tr>
+  <tr>
+    <td>0.225</td>
+    <td>0.296</td>
+    <td>1.62E-04</td>
+    <td>0.296</td>
+    <td>5.26E-01</td>
+  </tr>
+  <tr>
+    <td>0.250</td>
+    <td>0.319</td>
+    <td>3.01E-04</td>
+    <td>0.319</td>
+    <td>4.84E-01</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 22  |  8342.0s  |  3960 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr><td>0.275</td><td>0.342</td><td>5.25E-04</td><td>0.342</td><td>4.45E-01</td></tr>
+  <tr><td>0.300</td><td>0.364</td><td>8.73E-04</td><td>0.364</td><td>4.07E-01</td></tr>
+  <tr><td>0.325</td><td>0.387</td><td>1.39E-03</td><td>0.387</td><td>3.71E-01</td></tr>
+  <tr><td>0.350</td><td>0.410</td><td>2.15E-03</td><td>0.410</td><td>3.38E-01</td></tr>
+  <tr><td>0.375</td><td>0.433</td><td>3.22E-03</td><td>0.433</td><td>3.06E-01</td></tr>
+  <tr><td>0.400</td><td>0.455</td><td>4.70E-03</td><td>0.455</td><td>2.76E-01</td></tr>
+  <tr><td>0.425</td><td>0.478</td><td>6.70E-03</td><td>0.478</td><td>2.48E-01</td></tr>
+  <tr><td>0.450</td><td>0.501</td><td>9.36E-03</td><td>0.501</td><td>2.22E-01</td></tr>
+  <tr><td>0.475</td><td>0.523</td><td>1.28E-02</td><td>0.523</td><td>1.97E-01</td></tr>
+  <tr><td>0.500</td><td>0.546</td><td>1.73E-02</td><td>0.546</td><td>1.74E-01</td></tr>
+  <tr><td>0.525</td><td>0.569</td><td>2.31E-02</td><td>0.569</td><td>1.53E-01</td></tr>
+  <tr><td>0.550</td><td>0.591</td><td>3.03E-02</td><td>0.591</td><td>1.34E-01</td></tr>
+  <tr><td>0.575</td><td>0.614</td><td>3.93E-02</td><td>0.614</td><td>1.16E-01</td></tr>
+  <tr><td>0.600</td><td>0.637</td><td>5.04E-02</td><td>0.637</td><td>9.94E-02</td></tr>
+  <tr><td>0.625</td><td>0.660</td><td>6.40E-02</td><td>0.660</td><td>8.44E-02</td></tr>
+  <tr><td>0.650</td><td>0.682</td><td>8.05E-02</td><td>0.682</td><td>7.10E-02</td></tr>
+  <tr><td>0.675</td><td>0.705</td><td>1.00E-01</td><td>0.705</td><td>5.89E-02</td></tr>
+  <tr><td>0.700</td><td>0.728</td><td>1.24E-01</td><td>0.728</td><td>4.81E-02</td></tr>
+  <tr><td>0.725</td><td>0.750</td><td>1.52E-01</td><td>0.750</td><td>3.86E-02</td></tr>
+  <tr><td>0.750</td><td>0.773</td><td>1.86E-01</td><td>0.773</td><td>3.04E-02</td></tr>
+  <tr><td>0.775</td><td>0.796</td><td>2.25E-01</td><td>0.796</td><td>2.33E-02</td></tr>
+  <tr><td>0.800</td><td>0.818</td><td>2.71E-01</td><td>0.818</td><td>1.73E-02</td></tr>
+  <tr><td>0.825</td><td>0.841</td><td>3.25E-01</td><td>0.841</td><td>1.24E-02</td></tr>
+  <tr><td>0.850</td><td>0.864</td><td>3.86E-01</td><td>0.864</td><td>8.39E-03</td></tr>
+  <tr><td>0.875</td><td>0.887</td><td>4.58E-01</td><td>0.887</td><td>5.30E-03</td></tr>
+  <tr><td>0.900</td><td>0.909</td><td>5.40E-01</td><td>0.909</td><td>3.02E-03</td></tr>
+  <tr><td>0.925</td><td>0.932</td><td>6.34E-01</td><td>0.932</td><td>1.46E-03</td></tr>
+  <tr><td>0.950</td><td>0.955</td><td>7.41E-01</td><td>0.955</td><td>5.27E-04</td></tr>
+  <tr><td>0.975</td><td>0.977</td><td>8.62E-01</td><td>0.977</td><td>9.18E-05</td></tr>
+  <tr><td>1.000</td><td>1.000</td><td>1.00E+00</td><td>1.000</td><td>0.0E+00</td></tr>
+</table>
+
+Table 3.2. 3: Primary Imbibition Test Parameters
+
+<table>
+  <tr>
+    <th>Kg@Swir, mD</th>
+    <th>Swir, frac</th>
+    <th>Kw@Sgr, mD</th>
+    <th>Sgr, frac</th>
+    <th>Krg@Swir, mD</th>
+    <th>Krw@Sgr, mD</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>28.2</td>
+    <td>0.092</td>
+    <td>0.256</td>
+    <td>0.4665</td>
+    <td>1</td>
+    <td>0.346</td>
+    <td>5.85</td>
+    <td>2.75</td>
+  </tr>
+</table>
+
+Table 3.2. 4: Primary Imbibition G-W Relative Permeability (Hybrid)
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.000</td>
+    <td>0.092</td>
+    <td>0.0E+00</td>
+    <td>0.092</td>
+    <td>1.00E+00</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 23  |  9978.8s  |  4172 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr><td>0.025</td><td>0.108</td><td>1.5E-10</td><td>0.108</td><td>9.33E-01</td></tr>
+  <tr><td>0.050</td><td>0.125</td><td>8.5E-09</td><td>0.125</td><td>8.68E-01</td></tr>
+  <tr><td>0.075</td><td>0.141</td><td>9.1E-08</td><td>0.141</td><td>8.07E-01</td></tr>
+  <tr><td>0.100</td><td>0.157</td><td>4.9E-07</td><td>0.157</td><td>7.48E-01</td></tr>
+  <tr><td>0.125</td><td>0.174</td><td>1.8E-06</td><td>0.174</td><td>6.93E-01</td></tr>
+  <tr><td>0.150</td><td>0.190</td><td>5.2E-06</td><td>0.190</td><td>6.40E-01</td></tr>
+  <tr><td>0.175</td><td>0.206</td><td>1.3E-05</td><td>0.206</td><td>5.89E-01</td></tr>
+  <tr><td>0.200</td><td>0.222</td><td>2.8E-05</td><td>0.222</td><td>5.41E-01</td></tr>
+  <tr><td>0.225</td><td>0.239</td><td>5.6E-05</td><td>0.239</td><td>4.96E-01</td></tr>
+  <tr><td>0.250</td><td>0.255</td><td>1.0E-04</td><td>0.255</td><td>4.53E-01</td></tr>
+  <tr><td>0.275</td><td>0.271</td><td>1.8E-04</td><td>0.271</td><td>4.13E-01</td></tr>
+  <tr><td>0.300</td><td>0.288</td><td>3.0E-04</td><td>0.288</td><td>3.75E-01</td></tr>
+  <tr><td>0.325</td><td>0.304</td><td>4.8E-04</td><td>0.304</td><td>3.39E-01</td></tr>
+  <tr><td>0.350</td><td>0.320</td><td>7.4E-04</td><td>0.320</td><td>3.06E-01</td></tr>
+  <tr><td>0.375</td><td>0.337</td><td>1.1E-03</td><td>0.337</td><td>2.75E-01</td></tr>
+  <tr><td>0.400</td><td>0.353</td><td>1.6E-03</td><td>0.353</td><td>2.45E-01</td></tr>
+  <tr><td>0.425</td><td>0.369</td><td>2.3E-03</td><td>0.369</td><td>2.18E-01</td></tr>
+  <tr><td>0.450</td><td>0.385</td><td>3.2E-03</td><td>0.385</td><td>1.93E-01</td></tr>
+  <tr><td>0.475</td><td>0.402</td><td>4.4E-03</td><td>0.402</td><td>1.70E-01</td></tr>
+  <tr><td>0.500</td><td>0.418</td><td>6.0E-03</td><td>0.418</td><td>1.49E-01</td></tr>
+  <tr><td>0.525</td><td>0.434</td><td>8.0E-03</td><td>0.434</td><td>1.29E-01</td></tr>
+  <tr><td>0.550</td><td>0.451</td><td>1.0E-02</td><td>0.451</td><td>1.11E-01</td></tr>
+  <tr><td>0.575</td><td>0.467</td><td>1.4E-02</td><td>0.467</td><td>9.51E-02</td></tr>
+  <tr><td>0.600</td><td>0.483</td><td>1.7E-02</td><td>0.483</td><td>8.05E-02</td></tr>
+  <tr><td>0.625</td><td>0.500</td><td>2.2E-02</td><td>0.500</td><td>6.74E-02</td></tr>
+  <tr><td>0.650</td><td>0.516</td><td>2.8E-02</td><td>0.516</td><td>5.57E-02</td></tr>
+  <tr><td>0.675</td><td>0.532</td><td>3.5E-02</td><td>0.532</td><td>4.55E-02</td></tr>
+  <tr><td>0.700</td><td>0.548</td><td>4.3E-02</td><td>0.548</td><td>3.65E-02</td></tr>
+  <tr><td>0.725</td><td>0.565</td><td>5.3E-02</td><td>0.565</td><td>2.87E-02</td></tr>
+  <tr><td>0.750</td><td>0.581</td><td>6.4E-02</td><td>0.581</td><td>2.21E-02</td></tr>
+  <tr><td>0.775</td><td>0.597</td><td>7.8E-02</td><td>0.597</td><td>1.65E-02</td></tr>
+  <tr><td>0.800</td><td>0.614</td><td>9.4E-02</td><td>0.614</td><td>1.20E-02</td></tr>
+  <tr><td>0.825</td><td>0.630</td><td>1.1E-01</td><td>0.630</td><td>8.29E-03</td></tr>
+  <tr><td>0.850</td><td>0.646</td><td>1.3E-01</td><td>0.646</td><td>5.42E-03</td></tr>
+  <tr><td>0.875</td><td>0.663</td><td>1.6E-01</td><td>0.663</td><td>3.28E-03</td></tr>
+  <tr><td>0.900</td><td>0.679</td><td>1.9E-01</td><td>0.679</td><td>1.78E-03</td></tr>
+  <tr><td>0.925</td><td>0.695</td><td>2.2E-01</td><td>0.695</td><td>8.06E-04</td></tr>
+  <tr><td>0.950</td><td>0.711</td><td>2.6E-01</td><td>0.711</td><td>2.64E-04</td></tr>
+  <tr><td>0.975</td><td>0.728</td><td>3.0E-01</td><td>0.728</td><td>3.93E-05</td></tr>
+  <tr><td>1.000</td><td>0.744</td><td>3.5E-01</td><td>0.744</td><td>0.0E+00</td></tr>
+</table>
+
+============================================================
+PAGE 24  |  1507.1s  |  2067 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3.1.3 History Matching Sample 2-023
+
+3.1.3.1 Drainage USS
+
+To model Plug 2-023, plug ambient porosity (0.2287 frac) was used as input data together with a plug diameter of 3.79 cm and sample length of 4.80 cm. Additional parameters used in simulation process are provided in Table 3.3.1 and 3.3.3.
+
+Upon the completion of the USS primary gasflood experiment, the achieved Swi was (0.446 frac) and Kg at Sw (0.883 mD), furthermore additionally scheduled G-W centrifugation helped to achieve even lower “true” irreducible Swir (0.164 frac) which were used as a true end point saturation during the relative permeability simulation on Sendra; measured Kg at “true” Swir (5.6 mD).
+
+For this work, drainage capillary pressure obtained at the end of the study was constrained to allow history matching of in-situ saturation profiles. Simulation output data has been provided in Excel format as a „Corey” model. The parameters used are provided in Table 3.3. 1. The resulting simulated water and gas production transients provided a reasonable match of empirical data. Modelled relative permeability curves are provided in Figure 3.3. 2 and Figure 3.3. 3 for reference. Figure 3.3. 2 shows the capillary pressure function used to model the saturation profiles presented.
+
+![Water and Gas Production (ml) vs time (s) History Match](page_320_670_1047_496.png)
+
+Figure 3.3. 1: Water and Gas Production (ml) vs time (s) History Match
+
+============================================================
+PAGE 25  |  651.4s  |  1792 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 3.3. 2: Modelled Relative Permeability and Capillary Pressure
+
+<table>
+  <tr>
+    <th>Lab Data USS Krg</th>
+    <th>Lab Data USS Krw</th>
+    <th>Sendra USS Drn Krg</th>
+    <th>Sendra USS Drn Krw</th>
+    <th>Swir</th>
+  </tr>
+</table>
+
+Figure 3.3. 3: Laboratory reported and Sendra Simulated Krg and Krw
+
+============================================================
+PAGE 26  |  1249.0s  |  1976 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3.1.3.2 Imbibition Centrifuge Kr
+
+Model input parameters for imbibition stage in sample 2-023 were as follows: initial water saturation prior to the waterflood (0.164 frac.), decane (light oil) end point effective permeability at Swir (4.63 mD), equivalent Sgr (0.412 frac.) and Kw at Sgr (0.459 mD).
+
+For this work, Pc=0 was used in a simulation process. Simulation output data has been provided in Excel format as a „Corey” model. The parameters used are provided in Table 3.3. 3. The resulting simulated oil production transients provided good match of empirical data. It was observed that experimental data production curve indicated substantial curve deviation, possibly associated with retained oil production due to sample heterogeneity or other experimental issues, as shown on Figure 3.3. 4. The effects are known as laboratory artefacts and require data fix by Sendra. Modelled relative permeability curves are provided in Figure 3.3. 5 for reference.
+
+![Experimental and Simulated Oil Production (ml) vs. Time (s).](page_370_682_1002_496.png)
+
+Figure 3.3. 4: Experimental and Simulated Oil Production (ml) vs. Time (s).
+
+============================================================
+PAGE 27  |  984.0s  |  1901 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 3.3. 5: Experimental and Simulated Kro relative Permeability
+
+Final relative permeability data set for sample 2-023 included the combination of the USS Drainage (Krw) and Centrifuge Imbibition. Corey exponents Nw = 5.42 (USS) and Ng = 2.4 (Centrifuge Kr) were used to define the relative permeability curvature within the achieved end points: Swir = 0.164 frac and Srg = 0.412 frac. Calculated end point relative permeability Krg at Swir = 1 frac. and Krw at Sgr = 0.082 frac.. Final test results are provided in Table 3.3.4 and also available graphically in normal plot Figure 3.3. 6 and log plot Figure 3.3. 7.
+
+Figure 3.3. 6: Plug 2-023 Final Simulated Imbibition Krg and Krw (Normal Plot)
+
+============================================================
+PAGE 28  |  3000.8s  |  2941 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+![Plug 2-023 Final Simulated imbibition Krg and Krw (Log Plot)](page_184_120_1080_670.png)
+
+Figure 3.3. 7: Plug 2-023 Final Simulated imbibition Krg and Krw (Log Plot)
+
+Simulation output data for the drainage and imbibition floods are tabulated for reference in Table 3.3. 1 to Table 3.3. 4.
+
+Table 3.3. 1: Primary Drainage Test Parameters 2-023
+
+<table>
+  <tr>
+    <th>Kw, mD</th>
+    <th>Swir, frac</th>
+    <th>Kg@Swir, mD</th>
+    <th>Krw Initial, mD</th>
+    <th>Krg @Swir, mD</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>5.76</td>
+    <td>0.164</td>
+    <td>5.6</td>
+    <td>1</td>
+    <td>0.97</td>
+    <td>5.42</td>
+    <td>2.2</td>
+  </tr>
+</table>
+
+Table 3.3. 2: Primary Drainage USS Relative Permeability Data
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.000</td>
+    <td>0.164</td>
+    <td>0.0E+00</td>
+    <td>0.164</td>
+    <td>1.00E+00</td>
+  </tr>
+  <tr>
+    <td>0.025</td>
+    <td>0.185</td>
+    <td>2.07E-09</td>
+    <td>0.185</td>
+    <td>9.46E-01</td>
+  </tr>
+  <tr>
+    <td>0.050</td>
+    <td>0.206</td>
+    <td>8.88E-08</td>
+    <td>0.206</td>
+    <td>8.93E-01</td>
+  </tr>
+  <tr>
+    <td>0.075</td>
+    <td>0.227</td>
+    <td>8.00E-07</td>
+    <td>0.227</td>
+    <td>8.42E-01</td>
+  </tr>
+  <tr>
+    <td>0.100</td>
+    <td>0.248</td>
+    <td>3.80E-06</td>
+    <td>0.248</td>
+    <td>7.93E-01</td>
+  </tr>
+  <tr>
+    <td>0.125</td>
+    <td>0.269</td>
+    <td>1.27E-05</td>
+    <td>0.269</td>
+    <td>7.45E-01</td>
+  </tr>
+  <tr>
+    <td>0.150</td>
+    <td>0.289</td>
+    <td>3.42E-05</td>
+    <td>0.289</td>
+    <td>6.99E-01</td>
+  </tr>
+  <tr>
+    <td>0.175</td>
+    <td>0.310</td>
+    <td>7.89E-05</td>
+    <td>0.310</td>
+    <td>6.55E-01</td>
+  </tr>
+  <tr>
+    <td>0.200</td>
+    <td>0.331</td>
+    <td>1.63E-04</td>
+    <td>0.331</td>
+    <td>6.12E-01</td>
+  </tr>
+  <tr>
+    <td>0.225</td>
+    <td>0.352</td>
+    <td>3.08E-04</td>
+    <td>0.352</td>
+    <td>5.71E-01</td>
+  </tr>
+  <tr>
+    <td>0.250</td>
+    <td>0.373</td>
+    <td>5.46E-04</td>
+    <td>0.373</td>
+    <td>5.31E-01</td>
+  </tr>
+  <tr>
+    <td>0.275</td>
+    <td>0.394</td>
+    <td>9.14E-04</td>
+    <td>0.394</td>
+    <td>4.93E-01</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 29  |  8902.7s  |  4049 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr><td>0.300</td><td>0.415</td><td>1.47E-03</td><td>0.415</td><td>4.56E-01</td></tr>
+  <tr><td>0.325</td><td>0.436</td><td>2.26E-03</td><td>0.436</td><td>4.21E-01</td></tr>
+  <tr><td>0.350</td><td>0.457</td><td>3.38E-03</td><td>0.457</td><td>3.88E-01</td></tr>
+  <tr><td>0.375</td><td>0.478</td><td>4.91E-03</td><td>0.478</td><td>3.56E-01</td></tr>
+  <tr><td>0.400</td><td>0.498</td><td>6.97E-03</td><td>0.498</td><td>3.25E-01</td></tr>
+  <tr><td>0.425</td><td>0.519</td><td>9.68E-03</td><td>0.519</td><td>2.96E-01</td></tr>
+  <tr><td>0.450</td><td>0.540</td><td>1.32E-02</td><td>0.540</td><td>2.68E-01</td></tr>
+  <tr><td>0.475</td><td>0.561</td><td>1.77E-02</td><td>0.561</td><td>2.42E-01</td></tr>
+  <tr><td>0.500</td><td>0.582</td><td>2.34E-02</td><td>0.582</td><td>2.18E-01</td></tr>
+  <tr><td>0.525</td><td>0.603</td><td>3.04E-02</td><td>0.603</td><td>1.94E-01</td></tr>
+  <tr><td>0.550</td><td>0.624</td><td>3.92E-02</td><td>0.624</td><td>1.73E-01</td></tr>
+  <tr><td>0.575</td><td>0.645</td><td>4.98E-02</td><td>0.645</td><td>1.52E-01</td></tr>
+  <tr><td>0.600</td><td>0.666</td><td>6.27E-02</td><td>0.666</td><td>1.33E-01</td></tr>
+  <tr><td>0.625</td><td>0.687</td><td>7.83E-02</td><td>0.687</td><td>1.16E-01</td></tr>
+  <tr><td>0.650</td><td>0.707</td><td>9.68E-02</td><td>0.707</td><td>9.93E-02</td></tr>
+  <tr><td>0.675</td><td>0.728</td><td>1.19E-01</td><td>0.728</td><td>8.44E-02</td></tr>
+  <tr><td>0.700</td><td>0.749</td><td>1.45E-01</td><td>0.749</td><td>7.07E-02</td></tr>
+  <tr><td>0.725</td><td>0.770</td><td>1.75E-01</td><td>0.770</td><td>5.84E-02</td></tr>
+  <tr><td>0.750</td><td>0.791</td><td>2.10E-01</td><td>0.791</td><td>4.74E-02</td></tr>
+  <tr><td>0.775</td><td>0.812</td><td>2.51E-01</td><td>0.812</td><td>3.76E-02</td></tr>
+  <tr><td>0.800</td><td>0.833</td><td>2.98E-01</td><td>0.833</td><td>2.90E-02</td></tr>
+  <tr><td>0.825</td><td>0.854</td><td>3.53E-01</td><td>0.854</td><td>2.16E-02</td></tr>
+  <tr><td>0.850</td><td>0.875</td><td>4.14E-01</td><td>0.875</td><td>1.54E-02</td></tr>
+  <tr><td>0.875</td><td>0.896</td><td>4.85E-01</td><td>0.896</td><td>1.03E-02</td></tr>
+  <tr><td>0.900</td><td>0.916</td><td>5.65E-01</td><td>0.916</td><td>6.31E-03</td></tr>
+  <tr><td>0.925</td><td>0.937</td><td>6.55E-01</td><td>0.937</td><td>3.35E-03</td></tr>
+  <tr><td>0.950</td><td>0.958</td><td>7.57E-01</td><td>0.958</td><td>1.37E-03</td></tr>
+  <tr><td>0.975</td><td>0.979</td><td>8.72E-01</td><td>0.979</td><td>2.99E-04</td></tr>
+  <tr><td>1.000</td><td>1.000</td><td>1.00E+00</td><td>1.000</td><td>0.0E+00</td></tr>
+</table>
+
+Table 3.3. 3: Primary Imbibition Test Parameters 2-023
+
+<table>
+  <tr>
+    <th>Kg@Swir, mD</th>
+    <th>Swir, frac</th>
+    <th>Kw@Sgr, mD</th>
+    <th>Sgr, frac</th>
+    <th>Krg@Swir, mD</th>
+    <th>Krw@Sgr, mD</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>5.6</td>
+    <td>0.092</td>
+    <td>0.459</td>
+    <td>0.412</td>
+    <td>1</td>
+    <td>0.082</td>
+    <td>5.42</td>
+    <td>2.4</td>
+  </tr>
+</table>
+
+Table 3.3. 4: Primary Imbibition G-W Relative Permeability (Hybrid)
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.000</td>
+    <td>0.164</td>
+    <td>0.0E+00</td>
+    <td>0.164</td>
+    <td>1.00E+00</td>
+  </tr>
+  <tr>
+    <td>0.025</td>
+    <td>0.175</td>
+    <td>1.7E-10</td>
+    <td>0.175</td>
+    <td>9.41E-01</td>
+  </tr>
+  <tr>
+    <td>0.050</td>
+    <td>0.185</td>
+    <td>7.3E-09</td>
+    <td>0.185</td>
+    <td>8.84E-01</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 30  |  7777.8s  |  4049 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr><td>0.075</td><td>0.196</td><td>6.6E-08</td><td>0.196</td><td>8.29E-01</td></tr>
+  <tr><td>0.100</td><td>0.206</td><td>3.1E-07</td><td>0.206</td><td>7.77E-01</td></tr>
+  <tr><td>0.125</td><td>0.217</td><td>1.0E-06</td><td>0.217</td><td>7.26E-01</td></tr>
+  <tr><td>0.150</td><td>0.228</td><td>2.8E-06</td><td>0.228</td><td>6.77E-01</td></tr>
+  <tr><td>0.175</td><td>0.238</td><td>6.5E-06</td><td>0.238</td><td>6.30E-01</td></tr>
+  <tr><td>0.200</td><td>0.249</td><td>1.3E-05</td><td>0.249</td><td>5.85E-01</td></tr>
+  <tr><td>0.225</td><td>0.259</td><td>2.5E-05</td><td>0.259</td><td>5.42E-01</td></tr>
+  <tr><td>0.250</td><td>0.270</td><td>4.5E-05</td><td>0.270</td><td>5.01E-01</td></tr>
+  <tr><td>0.275</td><td>0.281</td><td>7.5E-05</td><td>0.281</td><td>4.62E-01</td></tr>
+  <tr><td>0.300</td><td>0.291</td><td>1.2E-04</td><td>0.291</td><td>4.25E-01</td></tr>
+  <tr><td>0.325</td><td>0.302</td><td>1.9E-04</td><td>0.302</td><td>3.89E-01</td></tr>
+  <tr><td>0.350</td><td>0.312</td><td>2.8E-04</td><td>0.312</td><td>3.56E-01</td></tr>
+  <tr><td>0.375</td><td>0.323</td><td>4.0E-04</td><td>0.323</td><td>3.24E-01</td></tr>
+  <tr><td>0.400</td><td>0.334</td><td>5.7E-04</td><td>0.334</td><td>2.93E-01</td></tr>
+  <tr><td>0.425</td><td>0.344</td><td>7.9E-04</td><td>0.344</td><td>2.65E-01</td></tr>
+  <tr><td>0.450</td><td>0.355</td><td>1.1E-03</td><td>0.355</td><td>2.38E-01</td></tr>
+  <tr><td>0.475</td><td>0.365</td><td>1.4E-03</td><td>0.365</td><td>2.13E-01</td></tr>
+  <tr><td>0.500</td><td>0.376</td><td>1.9E-03</td><td>0.376</td><td>1.89E-01</td></tr>
+  <tr><td>0.525</td><td>0.387</td><td>2.5E-03</td><td>0.387</td><td>1.68E-01</td></tr>
+  <tr><td>0.550</td><td>0.397</td><td>3.2E-03</td><td>0.397</td><td>1.47E-01</td></tr>
+  <tr><td>0.575</td><td>0.408</td><td>4.1E-03</td><td>0.408</td><td>1.28E-01</td></tr>
+  <tr><td>0.600</td><td>0.418</td><td>5.1E-03</td><td>0.418</td><td>1.11E-01</td></tr>
+  <tr><td>0.625</td><td>0.429</td><td>6.4E-03</td><td>0.429</td><td>9.50E-02</td></tr>
+  <tr><td>0.650</td><td>0.440</td><td>7.9E-03</td><td>0.440</td><td>8.05E-02</td></tr>
+  <tr><td>0.675</td><td>0.450</td><td>9.7E-03</td><td>0.450</td><td>6.74E-02</td></tr>
+  <tr><td>0.700</td><td>0.461</td><td>1.2E-02</td><td>0.461</td><td>5.56E-02</td></tr>
+  <tr><td>0.725</td><td>0.471</td><td>1.4E-02</td><td>0.471</td><td>4.51E-02</td></tr>
+  <tr><td>0.750</td><td>0.482</td><td>1.7E-02</td><td>0.482</td><td>3.59E-02</td></tr>
+  <tr><td>0.775</td><td>0.493</td><td>2.1E-02</td><td>0.493</td><td>2.79E-02</td></tr>
+  <tr><td>0.800</td><td>0.503</td><td>2.4E-02</td><td>0.503</td><td>2.10E-02</td></tr>
+  <tr><td>0.825</td><td>0.514</td><td>2.9E-02</td><td>0.514</td><td>1.53E-02</td></tr>
+  <tr><td>0.850</td><td>0.524</td><td>3.4E-02</td><td>0.524</td><td>1.05E-02</td></tr>
+  <tr><td>0.875</td><td>0.535</td><td>4.0E-02</td><td>0.535</td><td>6.80E-03</td></tr>
+  <tr><td>0.900</td><td>0.546</td><td>4.6E-02</td><td>0.546</td><td>3.98E-03</td></tr>
+  <tr><td>0.925</td><td>0.556</td><td>5.4E-02</td><td>0.556</td><td>2.00E-03</td></tr>
+  <tr><td>0.950</td><td>0.567</td><td>6.2E-02</td><td>0.567</td><td>7.54E-04</td></tr>
+  <tr><td>0.975</td><td>0.577</td><td>7.1E-02</td><td>0.577</td><td>1.43E-04</td></tr>
+  <tr><td>1.000</td><td>0.588</td><td>8.2E-02</td><td>0.588</td><td>0.0E+00</td></tr>
+</table>
+
+============================================================
+PAGE 31  |  1589.1s  |  2076 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3.1.4 History Matching Sample 2-029
+
+3.1.4.1 Drainage USS
+
+To model Plug 2-029, plug ambient porosity (0.181 frac) was used as input data together with a plug diameter of 3.78 cm and sample length of 5.04 cm. Additional parameters used in simulation process are provided in Tables 3.4.1 and 3.4.3.
+
+Upon the completion of the USS primary gasflood experiment, the achieved Swi was (0.410 frac) and Kg at Sw (1.24 mD), furthermore additionally scheduled G-W centrifugation helped to achieve even lower “true” irreducible Swir (0.105 frac) which were used as a true end point saturation during the relative permeability simulation on Sendra; measured Kg at “true” Swir (5.97 mD).
+
+For this work, drainage capillary pressure obtained at the end of the study was constrained to allow history matching of in-situ saturation profiles, although the history matching was unsuccessful. However, a better match was obtained by introducing generic Pc data provided by Skjaeveland relationship. Figure 3.4. 2 indicates a large discrepancy between the experimental and generic Pc curves used in the modelling process.
+
+Simulation output data has been provided in Excel format as a „Corey” model. The resulting simulated gas and water production transients provided a reasonable match of empirical data. Modelled relative permeability curves are provided in Figure 3.4. 2 and for reference.
+
+![Water and Gas Production (ml) vs. time (s) History Match](page_362_670_1017_496.png)
+
+Figure 3.4. 1: Water and Gas Production (ml) vs. time (s) History Match
+
+============================================================
+PAGE 32  |  535.8s  |  1788 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 3.4. 2: Modelled Relative Permeability and Capillary Pressure
+
+![Modelled Relative Permeability and Capillary Pressure](page_186_120_1077_563.png)
+
+Figure 3.4. 3: Laboratory reported and Sendra Simulated Krg and Krw
+
+![Laboratory reported and Sendra Simulated Krg and Krw](page_186_728_1077_563.png)
+
+============================================================
+PAGE 33  |  1271.8s  |  1968 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3.1.4.2 Imbibition Centrifuge Kr
+
+Model input parameters for imbibition stage in sample 2-029 were as follows: initial water saturation prior to the waterflood (0.105 frac.), decane (light oil) end point effective permeability at Swir (5.28 mD), equivalent Sgr (0.245 frac.) and Kw at Sgr (2.20 mD).
+
+For this work, Pc=0 was used in a simulation process. Simulation output data has been provided in Excel format as a „Corey" model. The parameters used are provided in Table 3.4. 1. The resulting simulated oil production transients provided good match of empirical data. Modelled relative permeability curves are provided in Figure 3.4. 5 for reference.
+
+![Experimental and Simulated Oil Production (ml) vs. Time (s).](page_370_613_1002_377.png)
+
+Figure 3.4. 4: Experimental and Simulated Oil Production (ml) vs. Time (s).
+
+![Experimental and Simulated Kro relative Permeability](page_370_1047_1002_377.png)
+
+Figure 3.4. 5: Experimental and Simulated Kro relative Permeability
+
+============================================================
+PAGE 34  |  1313.0s  |  1997 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Final relative permeability data set for sample 2-029 included the combination of the USS Drainage (Krw) and Centrifuge Imbibition. Corey exponents Nw = 5.9 (USS) and Ng = 2.28 (Centrifuge Kr) were used to define the relative permeability curvature within the achieved end points: Swir = 0.105 frac and Srg = 0.245 frac. Calculated end point relative permeability Krg at Swir = 1 frac. and Krw at Sgr = 0.369 frac.. Final test results are provided in Table 3.4.4 and also available graphically in normal plot Figure 3.4. 6 and log plot Figure 3.4. 7.
+
+![Normal plot showing simulated imbibition Krg and Krw for Plug 2-029](page_246_320_1002_482.png)
+
+Figure 3.4. 6: Plug 2-029 Final Simulated Imbibition Krg and Krw (Normal Plot)
+
+![Log plot showing simulated imbibition Krg and Krw for Plug 2-029](page_246_820_1002_482.png)
+
+Figure 3.4. 7: Plug 2-029 Final Simulated imbibition Krg and Krw (Log Plot)
+
+============================================================
+PAGE 35  |  8521.5s  |  3965 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+Simulation output data for the drainage and imbibition floods are tabulated for reference in Table 3.4. 1 to Table 3.4. 4.
+
+Table 3.4. 1: Plug 2-029 Primary Drainage Test Parameters
+
+<table>
+  <tr>
+    <th>Kw, mD</th>
+    <th>Swir, frac</th>
+    <th>Kg@Swir, mD</th>
+    <th>Krw Initial, mD</th>
+    <th>Krg @Swir, mD</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>5.48</td>
+    <td>0.105</td>
+    <td>5.97</td>
+    <td>1</td>
+    <td>1.09</td>
+    <td>5.9</td>
+    <td>2.33</td>
+  </tr>
+</table>
+
+Table 3.4. 2: Primary Drainage USS Relative Permeability Data
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr><td>0.000</td><td>0.105</td><td>0.0E+00</td><td>0.105</td><td>1.00E+00</td></tr>
+  <tr><td>0.025</td><td>0.127</td><td>3.53E-10</td><td>0.127</td><td>9.43E-01</td></tr>
+  <tr><td>0.050</td><td>0.150</td><td>2.11E-08</td><td>0.150</td><td>8.87E-01</td></tr>
+  <tr><td>0.075</td><td>0.172</td><td>2.31E-07</td><td>0.172</td><td>8.34E-01</td></tr>
+  <tr><td>0.100</td><td>0.195</td><td>1.26E-06</td><td>0.195</td><td>7.82E-01</td></tr>
+  <tr><td>0.125</td><td>0.217</td><td>4.70E-06</td><td>0.217</td><td>7.33E-01</td></tr>
+  <tr><td>0.150</td><td>0.239</td><td>1.38E-05</td><td>0.239</td><td>6.85E-01</td></tr>
+  <tr><td>0.175</td><td>0.262</td><td>3.42E-05</td><td>0.262</td><td>6.39E-01</td></tr>
+  <tr><td>0.200</td><td>0.284</td><td>7.52E-05</td><td>0.284</td><td>5.95E-01</td></tr>
+  <tr><td>0.225</td><td>0.306</td><td>1.51E-04</td><td>0.306</td><td>5.52E-01</td></tr>
+  <tr><td>0.250</td><td>0.329</td><td>2.80E-04</td><td>0.329</td><td>5.12E-01</td></tr>
+  <tr><td>0.275</td><td>0.351</td><td>4.92E-04</td><td>0.351</td><td>4.73E-01</td></tr>
+  <tr><td>0.300</td><td>0.374</td><td>8.22E-04</td><td>0.374</td><td>4.36E-01</td></tr>
+  <tr><td>0.325</td><td>0.396</td><td>1.32E-03</td><td>0.396</td><td>4.00E-01</td></tr>
+  <tr><td>0.350</td><td>0.418</td><td>2.04E-03</td><td>0.418</td><td>3.67E-01</td></tr>
+  <tr><td>0.375</td><td>0.441</td><td>3.07E-03</td><td>0.441</td><td>3.35E-01</td></tr>
+  <tr><td>0.400</td><td>0.463</td><td>4.49E-03</td><td>0.463</td><td>3.04E-01</td></tr>
+  <tr><td>0.425</td><td>0.485</td><td>6.42E-03</td><td>0.485</td><td>2.75E-01</td></tr>
+  <tr><td>0.450</td><td>0.508</td><td>8.99E-03</td><td>0.508</td><td>2.48E-01</td></tr>
+  <tr><td>0.475</td><td>0.530</td><td>1.24E-02</td><td>0.530</td><td>2.23E-01</td></tr>
+  <tr><td>0.500</td><td>0.553</td><td>1.67E-02</td><td>0.553</td><td>1.99E-01</td></tr>
+  <tr><td>0.525</td><td>0.575</td><td>2.23E-02</td><td>0.575</td><td>1.76E-01</td></tr>
+  <tr><td>0.550</td><td>0.597</td><td>2.94E-02</td><td>0.597</td><td>1.56E-01</td></tr>
+  <tr><td>0.575</td><td>0.620</td><td>3.82E-02</td><td>0.620</td><td>1.36E-01</td></tr>
+  <tr><td>0.600</td><td>0.642</td><td>4.91E-02</td><td>0.642</td><td>1.18E-01</td></tr>
+  <tr><td>0.625</td><td>0.664</td><td>6.25E-02</td><td>0.664</td><td>1.02E-01</td></tr>
+  <tr><td>0.650</td><td>0.687</td><td>7.87E-02</td><td>0.687</td><td>8.66E-02</td></tr>
+  <tr><td>0.675</td><td>0.709</td><td>9.84E-02</td><td>0.709</td><td>7.29E-02</td></tr>
+  <tr><td>0.700</td><td>0.732</td><td>1.22E-01</td><td>0.732</td><td>6.05E-02</td></tr>
+  <tr><td>0.725</td><td>0.754</td><td>1.50E-01</td><td>0.754</td><td>4.94E-02</td></tr>
+  <tr><td>0.750</td><td>0.776</td><td>1.83E-01</td><td>0.776</td><td>3.96E-02</td></tr>
+  <tr><td>0.775</td><td>0.799</td><td>2.22E-01</td><td>0.799</td><td>3.09E-02</td></tr>
+</table>
+
+============================================================
+PAGE 36  |  9760.8s  |  4230 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.800</td>
+    <td>0.821</td>
+    <td>2.68E-01</td>
+    <td>0.821</td>
+    <td>2.35E-02</td>
+  </tr>
+  <tr>
+    <td>0.825</td>
+    <td>0.843</td>
+    <td>3.21E-01</td>
+    <td>0.843</td>
+    <td>1.72E-02</td>
+  </tr>
+  <tr>
+    <td>0.850</td>
+    <td>0.866</td>
+    <td>3.83E-01</td>
+    <td>0.866</td>
+    <td>1.20E-02</td>
+  </tr>
+  <tr>
+    <td>0.875</td>
+    <td>0.888</td>
+    <td>4.55E-01</td>
+    <td>0.888</td>
+    <td>7.87E-03</td>
+  </tr>
+  <tr>
+    <td>0.900</td>
+    <td>0.911</td>
+    <td>5.37E-01</td>
+    <td>0.911</td>
+    <td>4.68E-03</td>
+  </tr>
+  <tr>
+    <td>0.925</td>
+    <td>0.933</td>
+    <td>6.31E-01</td>
+    <td>0.933</td>
+    <td>2.39E-03</td>
+  </tr>
+  <tr>
+    <td>0.950</td>
+    <td>0.955</td>
+    <td>7.39E-01</td>
+    <td>0.955</td>
+    <td>9.30E-04</td>
+  </tr>
+  <tr>
+    <td>0.975</td>
+    <td>0.978</td>
+    <td>8.61E-01</td>
+    <td>0.978</td>
+    <td>1.85E-04</td>
+  </tr>
+  <tr>
+    <td>1.000</td>
+    <td>1.000</td>
+    <td>1.00E+00</td>
+    <td>1.000</td>
+    <td>0.0E+00</td>
+  </tr>
+</table>
+
+Table 3.4. 3: Plug 2-029 Primary Imbibition Test Parameters
+
+<table>
+  <tr>
+    <th>Kg@Swir, mD</th>
+    <th>Swir, frac</th>
+    <th>Kw@Sgr, mD</th>
+    <th>Sgr, frac</th>
+    <th>Krg@Swir, mD</th>
+    <th>Krw@Sgr, mD</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>5.97</td>
+    <td>0.105</td>
+    <td>2.2</td>
+    <td>0.245</td>
+    <td>1</td>
+    <td>0.369</td>
+    <td>5.90</td>
+    <td>2.28</td>
+  </tr>
+</table>
+
+Table 3.4. 4: Primary Imbibition G-W Relative Permeability (Hybrid)
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.000</td>
+    <td>0.105</td>
+    <td>0.0E+00</td>
+    <td>0.105</td>
+    <td>1.00E+00</td>
+  </tr>
+  <tr>
+    <td>0.025</td>
+    <td>0.121</td>
+    <td>1.3E-10</td>
+    <td>0.121</td>
+    <td>9.44E-01</td>
+  </tr>
+  <tr>
+    <td>0.050</td>
+    <td>0.138</td>
+    <td>7.8E-09</td>
+    <td>0.138</td>
+    <td>8.90E-01</td>
+  </tr>
+  <tr>
+    <td>0.075</td>
+    <td>0.154</td>
+    <td>8.5E-08</td>
+    <td>0.154</td>
+    <td>8.37E-01</td>
+  </tr>
+  <tr>
+    <td>0.100</td>
+    <td>0.170</td>
+    <td>4.6E-07</td>
+    <td>0.170</td>
+    <td>7.86E-01</td>
+  </tr>
+  <tr>
+    <td>0.125</td>
+    <td>0.186</td>
+    <td>1.7E-06</td>
+    <td>0.186</td>
+    <td>7.38E-01</td>
+  </tr>
+  <tr>
+    <td>0.150</td>
+    <td>0.203</td>
+    <td>5.1E-06</td>
+    <td>0.203</td>
+    <td>6.90E-01</td>
+  </tr>
+  <tr>
+    <td>0.175</td>
+    <td>0.219</td>
+    <td>1.3E-05</td>
+    <td>0.219</td>
+    <td>6.45E-01</td>
+  </tr>
+  <tr>
+    <td>0.200</td>
+    <td>0.235</td>
+    <td>2.8E-05</td>
+    <td>0.235</td>
+    <td>6.01E-01</td>
+  </tr>
+  <tr>
+    <td>0.225</td>
+    <td>0.251</td>
+    <td>5.6E-05</td>
+    <td>0.251</td>
+    <td>5.59E-01</td>
+  </tr>
+  <tr>
+    <td>0.250</td>
+    <td>0.268</td>
+    <td>1.0E-04</td>
+    <td>0.268</td>
+    <td>5.19E-01</td>
+  </tr>
+  <tr>
+    <td>0.275</td>
+    <td>0.284</td>
+    <td>1.8E-04</td>
+    <td>0.284</td>
+    <td>4.80E-01</td>
+  </tr>
+  <tr>
+    <td>0.300</td>
+    <td>0.300</td>
+    <td>3.0E-04</td>
+    <td>0.300</td>
+    <td>4.43E-01</td>
+  </tr>
+  <tr>
+    <td>0.325</td>
+    <td>0.316</td>
+    <td>4.9E-04</td>
+    <td>0.316</td>
+    <td>4.08E-01</td>
+  </tr>
+  <tr>
+    <td>0.350</td>
+    <td>0.333</td>
+    <td>7.5E-04</td>
+    <td>0.333</td>
+    <td>3.74E-01</td>
+  </tr>
+  <tr>
+    <td>0.375</td>
+    <td>0.349</td>
+    <td>1.1E-03</td>
+    <td>0.349</td>
+    <td>3.42E-01</td>
+  </tr>
+  <tr>
+    <td>0.400</td>
+    <td>0.365</td>
+    <td>1.7E-03</td>
+    <td>0.365</td>
+    <td>3.12E-01</td>
+  </tr>
+  <tr>
+    <td>0.425</td>
+    <td>0.381</td>
+    <td>2.4E-03</td>
+    <td>0.381</td>
+    <td>2.83E-01</td>
+  </tr>
+  <tr>
+    <td>0.450</td>
+    <td>0.398</td>
+    <td>3.3E-03</td>
+    <td>0.398</td>
+    <td>2.56E-01</td>
+  </tr>
+  <tr>
+    <td>0.475</td>
+    <td>0.414</td>
+    <td>4.6E-03</td>
+    <td>0.414</td>
+    <td>2.30E-01</td>
+  </tr>
+  <tr>
+    <td>0.500</td>
+    <td>0.430</td>
+    <td>6.2E-03</td>
+    <td>0.430</td>
+    <td>2.06E-01</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 37  |  6897.0s  |  3533 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.525</td>
+    <td>0.446</td>
+    <td>8.2E-03</td>
+    <td>0.446</td>
+    <td>1.83E-01</td>
+  </tr>
+  <tr>
+    <td>0.550</td>
+    <td>0.463</td>
+    <td>1.1E-02</td>
+    <td>0.463</td>
+    <td>1.62E-01</td>
+  </tr>
+  <tr>
+    <td>0.575</td>
+    <td>0.479</td>
+    <td>1.4E-02</td>
+    <td>0.479</td>
+    <td>1.42E-01</td>
+  </tr>
+  <tr>
+    <td>0.600</td>
+    <td>0.495</td>
+    <td>1.8E-02</td>
+    <td>0.495</td>
+    <td>1.24E-01</td>
+  </tr>
+  <tr>
+    <td>0.625</td>
+    <td>0.511</td>
+    <td>2.3E-02</td>
+    <td>0.511</td>
+    <td>1.07E-01</td>
+  </tr>
+  <tr>
+    <td>0.650</td>
+    <td>0.528</td>
+    <td>2.9E-02</td>
+    <td>0.528</td>
+    <td>9.13E-02</td>
+  </tr>
+  <tr>
+    <td>0.675</td>
+    <td>0.544</td>
+    <td>3.6E-02</td>
+    <td>0.544</td>
+    <td>7.71E-02</td>
+  </tr>
+  <tr>
+    <td>0.700</td>
+    <td>0.560</td>
+    <td>4.5E-02</td>
+    <td>0.560</td>
+    <td>6.42E-02</td>
+  </tr>
+  <tr>
+    <td>0.725</td>
+    <td>0.576</td>
+    <td>5.5E-02</td>
+    <td>0.576</td>
+    <td>5.27E-02</td>
+  </tr>
+  <tr>
+    <td>0.750</td>
+    <td>0.593</td>
+    <td>6.8E-02</td>
+    <td>0.593</td>
+    <td>4.24E-02</td>
+  </tr>
+  <tr>
+    <td>0.775</td>
+    <td>0.609</td>
+    <td>8.2E-02</td>
+    <td>0.609</td>
+    <td>3.33E-02</td>
+  </tr>
+  <tr>
+    <td>0.800</td>
+    <td>0.625</td>
+    <td>9.9E-02</td>
+    <td>0.625</td>
+    <td>2.55E-02</td>
+  </tr>
+  <tr>
+    <td>0.825</td>
+    <td>0.641</td>
+    <td>1.2E-01</td>
+    <td>0.641</td>
+    <td>1.88E-02</td>
+  </tr>
+  <tr>
+    <td>0.850</td>
+    <td>0.658</td>
+    <td>1.4E-01</td>
+    <td>0.658</td>
+    <td>1.32E-02</td>
+  </tr>
+  <tr>
+    <td>0.875</td>
+    <td>0.674</td>
+    <td>1.7E-01</td>
+    <td>0.674</td>
+    <td>8.73E-03</td>
+  </tr>
+  <tr>
+    <td>0.900</td>
+    <td>0.690</td>
+    <td>2.0E-01</td>
+    <td>0.690</td>
+    <td>5.25E-03</td>
+  </tr>
+  <tr>
+    <td>0.925</td>
+    <td>0.706</td>
+    <td>2.3E-01</td>
+    <td>0.706</td>
+    <td>2.72E-03</td>
+  </tr>
+  <tr>
+    <td>0.950</td>
+    <td>0.723</td>
+    <td>2.7E-01</td>
+    <td>0.723</td>
+    <td>1.08E-03</td>
+  </tr>
+  <tr>
+    <td>0.975</td>
+    <td>0.739</td>
+    <td>3.2E-01</td>
+    <td>0.739</td>
+    <td>2.22E-04</td>
+  </tr>
+  <tr>
+    <td>1.000</td>
+    <td>0.755</td>
+    <td>3.7E-01</td>
+    <td>0.755</td>
+    <td>0</td>
+  </tr>
+</table>
+
+3.1.5 History Matching Sample 2-033
+
+3.1.5.1 Drainage USS
+
+To model Plug 2-033, plug ambient porosity (0.181 frac) was used as input data together with a plug diameter of 3.78 cm and sample length of 5.085 cm. Simulation output data has been provided in Excel format as a „Corey” model. The parameters used are provided in Table 3.5. 1.
+
+Upon the completion of the USS primary gasflood experiment, the achieved Swi was (0.392 frac) and Kg at Sw (4.01 mD), furthermore additionally scheduled G-W centrifugation helped to achieve even lower “true” irreducible Swir (0.074 frac) which were used as a true end point saturation during the relative permeability simulation on Sendra; measured Kg at “true” Swir (16.6 mD).
+
+For this work, drainage capillary pressure obtained at the end of the study was constrained to allow history matching of in-situ saturation profiles, although the history matching was unsuccessful (dotted curves Figure 3.5. 1). However, a better match was obtained by introducing generic Pc data provided by Skjaeveland relationship (full curves Figure 3.5. 1). Figure 3.5. 2 indicates a large discrepancy between the experimental and generic Pc curves used in the modelling process.
+
+Simulation output data has been provided in Excel format as a „Corey” model. The resulting simulated gas and water production transients provided a reasonable match of empirical data.
+
+============================================================
+PAGE 38  |  588.8s  |  1768 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Modelled relative permeability curves are provided in Figure 3.1 2 and Figure 3.5. 3 for reference.
+
+![Water and Gas Production (ml) vs. time (s) History Match](page_184_370_1082_627.png)
+
+Figure 3.5. 1: Water and Gas Production (ml) vs. time (s) History Match
+
+============================================================
+PAGE 39  |  625.5s  |  1788 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Figure 3.5. 2: Modelled Relative Permeability and Capillary Pressure
+
+![Modelled Relative Permeability and Capillary Pressure](page_184_120_1079_627.png)
+
+Figure 3.5. 3: Laboratory reported and Sendra Simulated Krg and Krw
+
+![Laboratory reported and Sendra Simulated Krg and Krw](page_184_728_1079_627.png)
+
+============================================================
+PAGE 40  |  1126.8s  |  1961 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+3.1.5.2 Imbibition Centrifuge Kr
+
+Model input parameters for imbibition stage in sample 2-033 were as follows: initial water saturation prior to the waterflood (0.074 frac.), decane (light oil) end point effective permeability at Swir (14.5 mD), equivalent Sgr (0.210 frac.) and Kw at Sgr (4.84 mD).
+
+For this work, Pc=0 was used in a simulation process. Simulation output data has been provided in Excel format as a „Corey" model. The parameters used are provided in Table 3.5. 3. It was observed that experimental data production curve indicated some curve deviation, possibly associated with retained oil production due to sample heterogeneity or other experimental issues, as shown on Figure 3.3. 4. The effects are known as laboratory artefacts and require data fix by Sendra. Modelled relative permeability curves are provided in Figure 3.5. 5 for reference.
+
+![Experimental and Simulated Oil Production (ml) vs. Time (s)](page_362_693_1017_496.png)
+
+Figure 3.5. 4: Experimental and Simulated Oil Production (ml) vs. Time (s)
+
+============================================================
+PAGE 41  |  816.3s  |  1908 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+Figure 3.5. 5: Experimental and Simulated Kro relative Permeability (2-033)
+
+Final relative permeability data set for sample 2-033 included the combination of the USS Drainage (Krw) and Centrifuge Imbibition. Corey exponents Nw = 6.15 (USS) and Ng = 2.08 (Centrifuge Kr) were used to define the relative permeability curvature within the achieved end points: Swir = 0.074 frac and Srg = 0.21 frac. Calculated end point relative permeability Krg at Swir = 1 frac. and Krw at Sgr = 0.292 frac. Final test results are provided in Table 3.5.4 and also available graphically in a normal plot Figure 3.5. 6 and log plot Figure 3.5. 7.
+
+Figure 3.5. 6: Plug 2-033 Final Simulated Imbibition Krg and Krw (Normal Plot)
+
+============================================================
+PAGE 42  |  1325.9s  |  2937 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+![Plug 2-033 Final Simulated imbibition Krg and Krw (Log Plot)](page_184_120_1080_670.png)
+
+Figure 3.5. 7: Plug 2-033 Final Simulated imbibition Krg and Krw (Log Plot)
+
+Simulation output data for the drainage and imbibition floods are tabulated for reference in Table 3.5. 1 to Table 3.5. 4.
+
+Table 3.5. 1: Plug 2-033 Primary Drainage Test Parameters
+
+<table>
+  <tr>
+    <th>Kw, mD</th>
+    <th>Swir, frac</th>
+    <th>Kg@Swir, mD</th>
+    <th>Krw Initial, frac</th>
+    <th>Krg @Swir, frac</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>13</td>
+    <td>0.074</td>
+    <td>16.6</td>
+    <td>1</td>
+    <td>1.27</td>
+    <td>6.15</td>
+    <td>2</td>
+  </tr>
+</table>
+
+Table 3.5. 2: Primary Drainage USS Relative Permeability Data
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.000</td>
+    <td>0.074</td>
+    <td>0.0E+00</td>
+    <td>0.074</td>
+    <td>1.00E+00</td>
+  </tr>
+  <tr>
+    <td>0.025</td>
+    <td>0.097</td>
+    <td>1.40E-10</td>
+    <td>0.097</td>
+    <td>9.51E-01</td>
+  </tr>
+  <tr>
+    <td>0.050</td>
+    <td>0.120</td>
+    <td>9.97E-09</td>
+    <td>0.120</td>
+    <td>9.03E-01</td>
+  </tr>
+  <tr>
+    <td>0.075</td>
+    <td>0.143</td>
+    <td>1.21E-07</td>
+    <td>0.143</td>
+    <td>8.56E-01</td>
+  </tr>
+  <tr>
+    <td>0.100</td>
+    <td>0.167</td>
+    <td>7.08E-07</td>
+    <td>0.167</td>
+    <td>8.10E-01</td>
+  </tr>
+  <tr>
+    <td>0.125</td>
+    <td>0.190</td>
+    <td>2.79E-06</td>
+    <td>0.190</td>
+    <td>7.66E-01</td>
+  </tr>
+  <tr>
+    <td>0.150</td>
+    <td>0.213</td>
+    <td>8.57E-06</td>
+    <td>0.213</td>
+    <td>7.23E-01</td>
+  </tr>
+  <tr>
+    <td>0.175</td>
+    <td>0.236</td>
+    <td>2.21E-05</td>
+    <td>0.236</td>
+    <td>6.81E-01</td>
+  </tr>
+  <tr>
+    <td>0.200</td>
+    <td>0.259</td>
+    <td>5.03E-05</td>
+    <td>0.259</td>
+    <td>6.40E-01</td>
+  </tr>
+  <tr>
+    <td>0.225</td>
+    <td>0.282</td>
+    <td>1.04E-04</td>
+    <td>0.282</td>
+    <td>6.01E-01</td>
+  </tr>
+  <tr>
+    <td>0.250</td>
+    <td>0.306</td>
+    <td>1.98E-04</td>
+    <td>0.306</td>
+    <td>5.63E-01</td>
+  </tr>
+  <tr>
+    <td>0.275</td>
+    <td>0.329</td>
+    <td>3.56E-04</td>
+    <td>0.329</td>
+    <td>5.26E-01</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 43  |  9061.9s  |  4048 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr><td>0.300</td><td>0.352</td><td>6.09E-04</td><td>0.352</td><td>4.90E-01</td></tr>
+  <tr><td>0.325</td><td>0.375</td><td>9.96E-04</td><td>0.375</td><td>4.56E-01</td></tr>
+  <tr><td>0.350</td><td>0.398</td><td>1.57E-03</td><td>0.398</td><td>4.23E-01</td></tr>
+  <tr><td>0.375</td><td>0.421</td><td>2.40E-03</td><td>0.421</td><td>3.91E-01</td></tr>
+  <tr><td>0.400</td><td>0.444</td><td>3.57E-03</td><td>0.444</td><td>3.60E-01</td></tr>
+  <tr><td>0.425</td><td>0.468</td><td>5.18E-03</td><td>0.468</td><td>3.31E-01</td></tr>
+  <tr><td>0.450</td><td>0.491</td><td>7.37E-03</td><td>0.491</td><td>3.03E-01</td></tr>
+  <tr><td>0.475</td><td>0.514</td><td>1.03E-02</td><td>0.514</td><td>2.76E-01</td></tr>
+  <tr><td>0.500</td><td>0.537</td><td>1.41E-02</td><td>0.537</td><td>2.50E-01</td></tr>
+  <tr><td>0.525</td><td>0.560</td><td>1.90E-02</td><td>0.560</td><td>2.26E-01</td></tr>
+  <tr><td>0.550</td><td>0.583</td><td>2.53E-02</td><td>0.583</td><td>2.03E-01</td></tr>
+  <tr><td>0.575</td><td>0.606</td><td>3.33E-02</td><td>0.606</td><td>1.81E-01</td></tr>
+  <tr><td>0.600</td><td>0.630</td><td>4.32E-02</td><td>0.630</td><td>1.60E-01</td></tr>
+  <tr><td>0.625</td><td>0.653</td><td>5.55E-02</td><td>0.653</td><td>1.41E-01</td></tr>
+  <tr><td>0.650</td><td>0.676</td><td>7.07E-02</td><td>0.676</td><td>1.23E-01</td></tr>
+  <tr><td>0.675</td><td>0.699</td><td>8.92E-02</td><td>0.699</td><td>1.06E-01</td></tr>
+  <tr><td>0.700</td><td>0.722</td><td>1.12E-01</td><td>0.722</td><td>9.00E-02</td></tr>
+  <tr><td>0.725</td><td>0.745</td><td>1.38E-01</td><td>0.745</td><td>7.56E-02</td></tr>
+  <tr><td>0.750</td><td>0.769</td><td>1.70E-01</td><td>0.769</td><td>6.25E-02</td></tr>
+  <tr><td>0.775</td><td>0.792</td><td>2.09E-01</td><td>0.792</td><td>5.06E-02</td></tr>
+  <tr><td>0.800</td><td>0.815</td><td>2.54E-01</td><td>0.815</td><td>4.00E-02</td></tr>
+  <tr><td>0.825</td><td>0.838</td><td>3.06E-01</td><td>0.838</td><td>3.06E-02</td></tr>
+  <tr><td>0.850</td><td>0.861</td><td>3.68E-01</td><td>0.861</td><td>2.25E-02</td></tr>
+  <tr><td>0.875</td><td>0.884</td><td>4.40E-01</td><td>0.884</td><td>1.56E-02</td></tr>
+  <tr><td>0.900</td><td>0.907</td><td>5.23E-01</td><td>0.907</td><td>1.00E-02</td></tr>
+  <tr><td>0.925</td><td>0.931</td><td>6.19E-01</td><td>0.931</td><td>5.62E-03</td></tr>
+  <tr><td>0.950</td><td>0.954</td><td>7.29E-01</td><td>0.954</td><td>2.50E-03</td></tr>
+  <tr><td>0.975</td><td>0.977</td><td>8.56E-01</td><td>0.977</td><td>6.25E-04</td></tr>
+  <tr><td>1.000</td><td>1.000</td><td>1.00E+00</td><td>1.000</td><td>0.0E+00</td></tr>
+</table>
+
+Table 3.5. 3: Plug 2-033 Primary Imbibition Test Parameters
+
+<table>
+  <tr>
+    <th>Kg@Swir, mD</th>
+    <th>Swir, frac</th>
+    <th>Kw@Sgr, mD</th>
+    <th>Sgr, frac</th>
+    <th>Krg@Swir, mD</th>
+    <th>Krw@Sgr, mD</th>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>16.6</td>
+    <td>0.074</td>
+    <td>4.84</td>
+    <td>0.21</td>
+    <td>1</td>
+    <td>0.292</td>
+    <td>6.15</td>
+    <td>2.08</td>
+  </tr>
+</table>
+
+Table 3.5. 4: Primary Imbibition G-W Relative Permeability (Hybrid)
+
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr>
+    <td>0.000</td>
+    <td>0.074</td>
+    <td>0.0E+00</td>
+    <td>0.074</td>
+    <td>1.00E+00</td>
+  </tr>
+  <tr>
+    <td>0.025</td>
+    <td>0.092</td>
+    <td>4.1E-11</td>
+    <td>0.092</td>
+    <td>9.49E-01</td>
+  </tr>
+  <tr>
+    <td>0.050</td>
+    <td>0.110</td>
+    <td>2.9E-09</td>
+    <td>0.110</td>
+    <td>8.99E-01</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 44  |  9157.9s  |  4063 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: True
+is_diagram: False
+---
+<table>
+  <tr>
+    <th>Swn</th>
+    <th>Sw</th>
+    <th>Krw</th>
+    <th>Sw</th>
+    <th>Krg</th>
+  </tr>
+  <tr><td>0.075</td><td>0.128</td><td>3.5E-08</td><td>0.128</td><td>8.50E-01</td></tr>
+  <tr><td>0.100</td><td>0.146</td><td>2.1E-07</td><td>0.146</td><td>8.03E-01</td></tr>
+  <tr><td>0.125</td><td>0.164</td><td>8.1E-07</td><td>0.164</td><td>7.57E-01</td></tr>
+  <tr><td>0.150</td><td>0.181</td><td>2.5E-06</td><td>0.181</td><td>7.13E-01</td></tr>
+  <tr><td>0.175</td><td>0.199</td><td>6.4E-06</td><td>0.199</td><td>6.70E-01</td></tr>
+  <tr><td>0.200</td><td>0.217</td><td>1.5E-05</td><td>0.217</td><td>6.29E-01</td></tr>
+  <tr><td>0.225</td><td>0.235</td><td>3.0E-05</td><td>0.235</td><td>5.89E-01</td></tr>
+  <tr><td>0.250</td><td>0.253</td><td>5.8E-05</td><td>0.253</td><td>5.50E-01</td></tr>
+  <tr><td>0.275</td><td>0.271</td><td>1.0E-04</td><td>0.271</td><td>5.12E-01</td></tr>
+  <tr><td>0.300</td><td>0.289</td><td>1.8E-04</td><td>0.289</td><td>4.76E-01</td></tr>
+  <tr><td>0.325</td><td>0.307</td><td>2.9E-04</td><td>0.307</td><td>4.42E-01</td></tr>
+  <tr><td>0.350</td><td>0.325</td><td>4.6E-04</td><td>0.325</td><td>4.08E-01</td></tr>
+  <tr><td>0.375</td><td>0.343</td><td>7.0E-04</td><td>0.343</td><td>3.76E-01</td></tr>
+  <tr><td>0.400</td><td>0.360</td><td>1.0E-03</td><td>0.360</td><td>3.46E-01</td></tr>
+  <tr><td>0.425</td><td>0.378</td><td>1.5E-03</td><td>0.378</td><td>3.16E-01</td></tr>
+  <tr><td>0.450</td><td>0.396</td><td>2.1E-03</td><td>0.396</td><td>2.88E-01</td></tr>
+  <tr><td>0.475</td><td>0.414</td><td>3.0E-03</td><td>0.414</td><td>2.62E-01</td></tr>
+  <tr><td>0.500</td><td>0.432</td><td>4.1E-03</td><td>0.432</td><td>2.37E-01</td></tr>
+  <tr><td>0.525</td><td>0.450</td><td>5.5E-03</td><td>0.450</td><td>2.13E-01</td></tr>
+  <tr><td>0.550</td><td>0.468</td><td>7.4E-03</td><td>0.468</td><td>1.90E-01</td></tr>
+  <tr><td>0.575</td><td>0.486</td><td>9.7E-03</td><td>0.486</td><td>1.69E-01</td></tr>
+  <tr><td>0.600</td><td>0.504</td><td>1.3E-02</td><td>0.504</td><td>1.49E-01</td></tr>
+  <tr><td>0.625</td><td>0.522</td><td>1.6E-02</td><td>0.522</td><td>1.30E-01</td></tr>
+  <tr><td>0.650</td><td>0.539</td><td>2.1E-02</td><td>0.539</td><td>1.13E-01</td></tr>
+  <tr><td>0.675</td><td>0.557</td><td>2.6E-02</td><td>0.557</td><td>9.65E-02</td></tr>
+  <tr><td>0.700</td><td>0.575</td><td>3.3E-02</td><td>0.575</td><td>8.17E-02</td></tr>
+  <tr><td>0.725</td><td>0.593</td><td>4.0E-02</td><td>0.593</td><td>6.82E-02</td></tr>
+  <tr><td>0.750</td><td>0.611</td><td>5.0E-02</td><td>0.611</td><td>5.59E-02</td></tr>
+  <tr><td>0.775</td><td>0.629</td><td>6.1E-02</td><td>0.629</td><td>4.49E-02</td></tr>
+  <tr><td>0.800</td><td>0.647</td><td>7.4E-02</td><td>0.647</td><td>3.52E-02</td></tr>
+  <tr><td>0.825</td><td>0.665</td><td>8.9E-02</td><td>0.665</td><td>2.66E-02</td></tr>
+  <tr><td>0.850</td><td>0.683</td><td>1.1E-01</td><td>0.683</td><td>1.93E-02</td></tr>
+  <tr><td>0.875</td><td>0.701</td><td>1.3E-01</td><td>0.701</td><td>1.32E-02</td></tr>
+  <tr><td>0.900</td><td>0.718</td><td>1.5E-01</td><td>0.718</td><td>8.32E-03</td></tr>
+  <tr><td>0.925</td><td>0.736</td><td>1.8E-01</td><td>0.736</td><td>4.57E-03</td></tr>
+  <tr><td>0.950</td><td>0.754</td><td>2.1E-01</td><td>0.754</td><td>1.97E-03</td></tr>
+  <tr><td>0.975</td><td>0.772</td><td>2.5E-01</td><td>0.772</td><td>4.65E-04</td></tr>
+  <tr><td>1.000</td><td>0.790</td><td>2.9E-01</td><td>0.790</td><td></td></tr>
+</table>
+
+Table 3.1 5: Primary Imbibition G-W Relative Permeability (Hybrid)
+
+============================================================
+PAGE 45  |  3278.9s  |  2486 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+4 Discussion and Conclusion
+
+4.1 Test Procedure and Numerical Interpretation
+
+Primary G-W drainage USS and W-O centrifuge imbibiton tests were carried out on five samples from Pegaga-2 well. A combination (hybrid) of drainage USS gas flood and imbibition centrifuge tests can be used to define both imbibition krg and krw curves. This relies on the observation that, in a gas-water system, there is little or no hysteresis between the wetting phase (water) relative permeability curves on drainage and imbibition, so the imbibition water relative permeability, krw, can be generated from a drainage gas flood.
+
+Initial water saturation (Swir) were dependent upon samples permeability and RQI, ranged between 0.072 frac to 0.205 frac, providing good coverage of initial water saturation profiles observed in the Pegaga-2 gas column. Effective gas permeability (Kg) at ultimate irreducible water saturation (Swir) ranged from 0.95 mD to 28.2 mD and were used as absolute permeability (K abs) values for relative permeability (Kr) scaling. End of study achieved equivalent residual gas saturation (Sgr) were between 0.467 frac. and 0.210 frac., with higher residual gas saturation observed in the poorer quality rocks. Gas recovery factors observed in a good quality rocks were around 75-80 % and around 54-58 % in poor quality rocks. End point effective water permeability (Kw effective) at residual gas saturation (Sgr) ranged between 0.062 mD to 9.75 mD, resulting in relatively small relative permeability fractions to water, calculated as low as 0.064 in poor quality rocks and up to 0.369 in good quality rocks.
+
+Full gasflood Krw-Krg analyses were simulated on 1D simulators (Sendra™ ), to verify the production history match and correct for capillary end effects. Sendra™ was used to reconcile time and spatially dependent experimental data and provide relative permeability output data that is corrected for the effects of laboratory scale capillary pressure (capillary end effects).
+
+Dynamic tests using unsteady-state gas-displacing water methods (Kg-Kw) can often yield an irreducible water saturations that is too high due to the extremely unfavourable mobility ratio of the gas flood and lack and inefficiency of viscous forces and to overcome the capillary forces that trap water at irreducible saturations. The fore it is important to assure ultimate true irreducible water saturation is achieved for the representative modelling process.
+
+In general there were reasonably good history match obtained for all of the tested samples. Air-Mercury Pc data was directly measured on the tested samples and generated Pc curves were applied in modelling process for the G-W primary drainage stage. It was observed that Pc curves applied on samples 2-019, 2-029 and 2-033 resulted in unsuccessful history match, therefore alternative approach of generating suitable Pc data was performed using Skjaeveland capillary pressure estimation, where by a better match to experimental data was obtained. It should be noted, that mercury Pc curves techniques does not provide with true wetting and none-wetting phases displacement, therefore some minor data reconciling conflicts could have been expected.
+
+During the history matching process of the primary imbibition centrifuge data it was observed that oil production from samples 2-019, 2-023 and 2-033 were affected due to the possible sample heterogeneity, which led to abnormal production profile, and curve dipping. For this work Pc=0 was used in a simulation process, which is typically assumed for imbibition stage displacement of the water wet systems.
+
+============================================================
+PAGE 46  |  216.3s  |  1817 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Interpreted data from five samples were plotted on a combined graph normal plot and log plots Figure 4.1 and Figure 4.2.
+
+![Simulated Relative Permeability (Normal) graph showing multiple curves for different samples](page_186_153_1077_496.png)
+
+Figure 4. 1: Simulated Relative Permeability (Normal)
+
+![Simulated Relative Permeability (Log) graph showing multiple curves for different samples](page_186_670_1077_496.png)
+
+Figure 4. 2: Simulated Relative Permeability (Log)
+
+============================================================
+PAGE 47  |  2036.0s  |  2212 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+4.2 Data Averaging (Normalization)
+
+Laboratory data are frequently available for many samples within a single reservoir model "rock" type or zone. It is normal to average data within a zone to obtain a set of "rock curves" for each zone. Essentially this is the process of "upscaling" from core-scale measurements to reservoir grid block or reservoir zone scales. The average rock relative permeability curves represent point relative permeabilities in the reservoir zone, and are dependent upon the average water saturation at that point. Since there is usually a water saturation distribution in the reservoir zone, there must be a corresponding relative permeability distribution within the zone. Relative permeability normalization helps to provide with a single set of curvature parameters (Corey Exponents) for the simplification of the modelling and data scaling processes.
+
+For normalized water saturation:
+\[
+Swn = \frac{Sw - Swir}{1 - Swir - Sgr}
+\]
+where: Swn: normalized water saturation
+Sw: water saturation at a point during relative permeability
+Swir: irreducible water saturation
+Sgr: residual (trapped) gas saturation
+
+For normalized gas relative permeability:
+\[
+krgn = krg(max) * (1 - Swn)^{Ng}
+\]
+where: krg: relative permeability to gas at a point during relative permeability
+krg_{max}: maximum relative permeability to gas
+Sw: water saturation at a point during relative permeability
+Ng: Corey exponent for gas
+
+For normalized water relative permeability:
+\[
+krwn = \frac{krw}{krwl} = Swn^{Nw}
+\]
+where: Swn: normalized water saturation
+Nw: Corey exponent for waer
+
+Figures 4.3 and 4.4 provide with a graphical results for normalized relative permeability data. Normalized relative permeability results indicated similarities in curvature behavior between among most of the tested samples, with only sample 2-015 Krw curve being an outlier (it should be noted 2-015 sample has the lowest Phi% and Ka, mD). Composite normalized Corey exponent values for any given saturation endpoint values Swir – Sgr are provided in a Table 4.1.
+
+Table 4 1: Normalized Corey Exponents
+
+<table>
+  <tr>
+    <th>Nw</th>
+    <th>Ng</th>
+  </tr>
+  <tr>
+    <td>5.6</td>
+    <td>2.45</td>
+  </tr>
+</table>
+
+============================================================
+PAGE 48  |  660.6s  |  1785 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: True
+---
+Normalised Relative Permeability
+
+![Normalized Relative Permeability (Normal)](page_120_120_1208_480.png)
+
+Figure 4. 3: Normalized Relative Permeability (Normal)
+
+Normalised Relative Permeability
+
+![Normalized Relative Permeability (Log)](page_120_600_1208_480.png)
+
+Figure 4. 4: Normalized Relative Permeability (Log)
+
+============================================================
+PAGE 49  |  892.7s  |  1885 tokens
+============================================================
+---
+primary_language: en
+is_rotation_valid: True
+rotation_correction: 0
+is_table: False
+is_diagram: False
+---
+5  References
+
+1. Skjaeveland, S.M, Siqveland, L.M., Kjosavik, A., Hammervold Thomas, W.L., Virnovsky, G.A.: “Capillary Pressure Correlation for Mixed-Wet Reservoirs”, SPE Reservoir Eval. & Eng. 3 (1), February 2000.
+
+2. Nordtvedt, J.E (SCA-9931) The Significance of Violated Assumptions on Core Analysis Results
+
+3. Jos G. Maas. Use of the simulator for SCAL interpretation
+
+4. Grimstad, A.A.a, Koltveit, K.a, Nordtvedt, J.E.b, Watson, A.T.c,Mannseth, T. b, Sylte, A.b: The uniqueness and accuracy of porous media multiphase properties estimated from displacement experiments
+
+5. Sendra Software: https://www.prores.no/sendra/
