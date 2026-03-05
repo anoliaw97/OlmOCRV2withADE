@@ -163,15 +163,17 @@ def extract_angsi(filepath):
     perm_data = []
     for row in t1_grid[2:]:   # skip the two header rows
         if len(row) < 4: continue
+        # TABLE I cols: Depth | Plug No. | Porosity% | Ka_bulk md | Bulk Dens | Grain Dens
+        # Header sub-row has "Bulk/Grain" for both Perm and Density, but only Ka_bulk
+        # and both density columns appear in data (6 values total).
         perm_data.append({
-            "Well":            "Angsi-1",
-            "Sample_ID":       safe_num(row[1]) if len(row) > 1 else None,
-            "Depth_ft":        safe_num(row[0]),
-            "Phi_pct":         safe_num(row[2]),
-            "Ka_bulk_mD":      safe_num(row[3]),
-            "Ka_grain_mD":     safe_num(row[4]) if len(row) > 4 else None,
-            "Bulk_Density_gcc":safe_num(row[5]) if len(row) > 5 else None,
-            "Grain_Density_gcc":safe_num(row[6]) if len(row) > 6 else None,
+            "Well":             "Angsi-1",
+            "Sample_ID":        str(row[1]).strip() if len(row) > 1 else None,
+            "Depth_ft":         safe_num(row[0]),
+            "Phi_pct":          safe_num(row[2]),
+            "Ka_bulk_mD":       safe_num(row[3]),
+            "Bulk_Density_gcc": safe_num(row[4]) if len(row) > 4 else None,
+            "Grain_Density_gcc":safe_num(row[5]) if len(row) > 5 else None,
         })
 
     # TABLE II: Gas-Oil Capillary Pressure
@@ -286,8 +288,8 @@ def write_angsi(data, outpath):
 
     # ── Single sheet: All_Features_ML ────────────────────────────────────────
     ws = wb.active; ws.title = "ML_Dataset"
-    all_hdrs = ["Well","Sample_ID","Depth_ft","Phi_pct","Ka_bulk_mD","Ka_grain_mD",
-                "Grain_Density_gcc","Bulk_Density_gcc","Formation_Factor","Sat_Exponent",
+    all_hdrs = ["Well","Sample_ID","Depth_ft","Phi_pct","Ka_bulk_mD",
+                "Bulk_Density_gcc","Grain_Density_gcc","Formation_Factor","Sat_Exponent",
                 "RQI","log10_Ka",
                 "Pc_entry_psi_Run1","Sw_at_Pc_entry_Run1",
                 "Pc_max_psi_Run1","Sw_at_Pc_max_Run1",
