@@ -24,8 +24,8 @@ import base64
 import io
 import pandas as pd
 
-# Add current directory to path for olmocr package
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path for olmocr package
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from olmocr.data.renderpdf import render_pdf_to_base64png
@@ -483,8 +483,9 @@ class OlmoCRAgenticGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("olmOCR Agentic Document Extraction")
-        self.root.geometry("1200x700")
-        self.root.minsize(900, 500)
+        self.root.geometry("1400x900")
+        self.root.minsize(1000, 700)
+        self.root.resizable(True, True)
 
         self.mode = tk.StringVar(value="single")
         self.selected_files = []
@@ -1916,6 +1917,12 @@ class OlmoCRAgenticGUI:
             self.log("Load an extraction file first (External) to post-process.")
             return
         try:
+            # Add current directory to path for postprocessor module
+            import sys
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            if current_dir not in sys.path:
+                sys.path.insert(0, current_dir)
+            
             from olmocr_postprocessor import process_extraction_file
             records, structured_json, raw_text = process_extraction_file(
                 self.pp_external_path,
@@ -1930,7 +1937,8 @@ class OlmoCRAgenticGUI:
             self.pp_status.config(text=f"External post-process: {len(records)} record(s)", foreground="green")
             self.log(f"External post-process produced {len(records)} records from {Path(self.pp_external_path).name}")
         except Exception as e:
-            self.log_error(f"External post-process failed: {e}")
+            import traceback
+            self.log_error(f"External post-process failed: {e}\n{traceback.format_exc()}")
 
     # ===== CHAT =====
     
