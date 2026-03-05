@@ -284,40 +284,8 @@ def extract_angsi(filepath):
 def write_angsi(data, outpath):
     wb = openpyxl.Workbook()
 
-    # ── Sheet 1: Sample Properties ────────────────────────────────────────────
-    ws = wb.active; ws.title = "Sample_Properties"
-    sp_hdrs = ["Well","Sample_ID","Depth_ft","Phi_pct","Ka_bulk_mD","Ka_grain_mD",
-               "Bulk_Density_gcc","Grain_Density_gcc",
-               "Formation_Factor","Sat_Exponent","RQI","log10_Ka"]
-    write_hdr(ws, sp_hdrs)
-    for ri, d in enumerate(data["sample_properties"], 2):
-        bg = LGRAY if ri%2==0 else WHITE
-        write_row(ws, [d.get(h) for h in sp_hdrs], ri, bg)
-    ws.freeze_panes = "A2"; autofit(ws)
-
-    # ── Sheet 2: Gas-Oil Capillary Pressure ───────────────────────────────────
-    ws2 = wb.create_sheet("GasOil_CapPressure")
-    pc_hdrs = ["Well","Sample_ID","Depth_ft","Run","Pc_psi","Sw_pct_PV","Sw_frac",
-               "log10_Pc","Estimated","Fluid","Method","IFT_dynes_cm"]
-    write_hdr(ws2, pc_hdrs)
-    sample_colors = {"AN-30": WHITE, "AN-36": LGRAY}
-    for ri, d in enumerate(data["capillary_pressure"], 2):
-        bg = sample_colors.get(d.get("Sample_ID"), WHITE)
-        write_row(ws2, [d.get(h) for h in pc_hdrs], ri, bg)
-    ws2.freeze_panes = "A2"; autofit(ws2)
-
-    # ── Sheet 3: Electrical Properties ───────────────────────────────────────
-    ws3 = wb.create_sheet("Electrical_Properties")
-    e_hdrs = ["Well","Sample_ID","Depth_ft","Phi_pct","Ka_mD",
-              "Formation_Factor","Sat_Exponent"]
-    write_hdr(ws3, e_hdrs)
-    for ri, d in enumerate(data["electrical"], 2):
-        bg = LGRAY if ri%2==0 else WHITE
-        write_row(ws3, [d.get(h) for h in e_hdrs], ri, bg)
-    ws3.freeze_panes = "A2"; autofit(ws3)
-
-    # ── Sheet 4: All_Features_Combined (ML-ready) ────────────────────────────
-    ws4 = wb.create_sheet("All_Features_ML")
+    # ── Single sheet: All_Features_ML ────────────────────────────────────────
+    ws = wb.active; ws.title = "ML_Dataset"
     all_hdrs = ["Well","Sample_ID","Depth_ft","Phi_pct","Ka_bulk_mD","Ka_grain_mD",
                 "Grain_Density_gcc","Bulk_Density_gcc","Formation_Factor","Sat_Exponent",
                 "RQI","log10_Ka",
@@ -325,8 +293,7 @@ def write_angsi(data, outpath):
                 "Pc_max_psi_Run1","Sw_at_Pc_max_Run1",
                 "Pc_entry_psi_Run2","Sw_at_Pc_entry_Run2",
                 "Pc_max_psi_Run2","Sw_at_Pc_max_Run2"]
-    write_hdr(ws4, all_hdrs)
-    # Build per-sample Pc summary
+    write_hdr(ws, all_hdrs)
     pc_map = {}
     for d in data["capillary_pressure"]:
         sid = d["Sample_ID"]; run = d["Run"]
@@ -343,8 +310,8 @@ def write_angsi(data, outpath):
             else:
                 row_vals += [None, None, None, None]
         bg = LGRAY if ri%2==0 else WHITE
-        write_row(ws4, row_vals, ri, bg)
-    ws4.freeze_panes = "A2"; autofit(ws4)
+        write_row(ws, row_vals, ri, bg)
+    ws.freeze_panes = "A2"; autofit(ws)
 
     wb.save(outpath)
     print(f"  Saved: {outpath}  ({sum(1 for _ in data['sample_properties'])} samples)")
@@ -624,15 +591,13 @@ def write_duyong(data, outpath):
     wb = openpyxl.Workbook()
     sample_colors = {"D-002":WHITE,"D-003":LGRAY,"D-004":LBLUE,"D-006":YLLOW}
 
-    # ── Sheet 1: Sample Properties (consolidated from CEC + FRF tables) ───────
-    ws = wb.active; ws.title = "Sample_Properties"
+    # Build props lookup (needed for single sheet)
     cec_map = {d["Sample_ID"]:d for d in data["cec"]}
-    # Get per-sample Ka, Phi, FRF from frf_ri_long (first row per sample)
     frf_map = {}
     for d in data["frf_ri_long"]:
         sid = d["Sample_ID"]
         if sid not in frf_map:
-            frf_map[sid] = d   # store first occurrence (has all rowspan cols)
+            frf_map[sid] = d
     props = []
     for sid in ["D-002","D-003","D-004","D-006"]:
         cec = cec_map.get(sid, {}); frf = frf_map.get(sid, {})
@@ -653,79 +618,12 @@ def write_duyong(data, outpath):
             "RQI":              rqi,
             "log10_Ka":         round(math.log10(ka),4) if ka else None,
         })
-    sp_hdrs = ["Well","Sample_ID","Depth_m","Phi_pct","Ka_NOB_mD","Grain_Density_gcc",
-               "CEC_meq100g","Qv_meq_ml","FRF","m_Archie","RQI","log10_Ka"]
-    write_hdr(ws, sp_hdrs)
-    for ri, d in enumerate(props, 2):
-        bg = sample_colors.get(d["Sample_ID"], WHITE)
-        write_row(ws, [d.get(h) for h in sp_hdrs], ri, bg)
-    ws.freeze_panes="A2"; autofit(ws)
 
-    # ── Sheet 2: FRF + Resistivity Index (TABLE 1 – long format) ──────────────
-    ws2 = wb.create_sheet("FRF_and_ResistivityIndex")
-    frf_hdrs = ["Well","Sample_ID","Depth_m","Ka_NOB_mD","Phi_NOB_frac",
-                "FRF","m_Archie","Sw_frac","RI","n_sat_exp"]
-    write_hdr(ws2, frf_hdrs)
-    for ri, d in enumerate(data["frf_ri_long"], 2):
-        bg = sample_colors.get(d["Sample_ID"], WHITE)
-        write_row(ws2, [d.get(h) for h in frf_hdrs], ri, bg)
-    ws2.freeze_panes="A2"; autofit(ws2)
-
-    # ── Sheet 3: Air-Brine Centrifuge Pc (TABLE 2 – long format) ──────────────
-    ws3 = wb.create_sheet("AirBrine_CapPressure")
-    ab_hdrs = ["Well","Sample_ID","Depth_m","NOB_psi","Ka_air_mD","Phi_pct",
-               "Pc_psi","Sw_brine_pct_PV","Sw_frac"]
-    write_hdr(ws3, ab_hdrs)
-    for ri, d in enumerate(data["airbrine_pc"], 2):
-        bg = sample_colors.get(d["Sample_ID"], WHITE)
-        write_row(ws3, [d.get(h) for h in ab_hdrs], ri, bg)
-    ws3.freeze_panes="A2"; autofit(ws3)
-
-    # ── Sheet 4: CEC ──────────────────────────────────────────────────────────
-    ws4 = wb.create_sheet("CEC_Properties")
-    cec_hdrs = ["Well","Sample_ID","Depth_m","Phi_pct","Grain_Density_gcc",
-                "CEC_meq100g","Qv_meq_ml"]
-    write_hdr(ws4, cec_hdrs)
-    for ri, d in enumerate(data["cec"], 2):
-        bg = sample_colors.get(d.get("Sample_ID",""), WHITE)
-        write_row(ws4, [d.get(h) for h in cec_hdrs], ri, bg)
-    ws4.freeze_panes="A2"; autofit(ws4)
-
-    # ── Sheet 5: MICP All Samples (long format, ML-ready) ─────────────────────
-    ws5 = wb.create_sheet("MICP_All_Samples")
-    micp_hdrs = ["Well","Sample_ID","Depth_m","Pc_inj_psia","Hg_Sat_fracVp","Hg_Sat_fracVb",
-                 "PoreThroat_AB_micron","PoreThroat_OB_lab_micron","PoreThroat_OB_res_micron",
-                 "Sw_wetting_fracVp","J_Function","log10_Pc"]
-    write_hdr(ws5, micp_hdrs)
-    prev_sid = None; row_base_bg = WHITE
-    for ri, d in enumerate(data["micp"], 2):
-        sid = d["Sample_ID"]
-        if sid != prev_sid:
-            prev_sid = sid
-            row_base_bg = sample_colors.get(sid, WHITE)
-        write_row(ws5, [d.get(h) for h in micp_hdrs], ri, row_base_bg)
-    ws5.freeze_panes="A2"; autofit(ws5)
-
-    # ── Sheets 6–9: MICP Per Sample ───────────────────────────────────────────
+    # ── Single sheet: ML_Dataset (all features per sample) ───────────────────
+    ws = wb.active; ws.title = "ML_Dataset"
     from collections import defaultdict
     by_sample = defaultdict(list)
     for d in data["micp"]: by_sample[d["Sample_ID"]].append(d)
-    for sid, rows in sorted(by_sample.items()):
-        wsn = wb.create_sheet(f"MICP_{sid}")
-        wsn.cell(1,1, f"Duyong Deep-1 | Sample {sid} | MICP Air-Mercury Capillary Pressure").font = \
-            Font(name="Calibri", bold=True, color=NAVY, size=10)
-        if rows:
-            d0 = rows[0]; ka = frf_map.get(sid, {}).get("Ka_NOB_mD", "?")
-            wsn.cell(2,1, f"Depth: {d0['Depth_m']} m  |  Ka: {ka} mD  |  {len(rows)} data points").font = \
-                Font(name="Calibri", italic=True, size=9, color="595959")
-        write_hdr(wsn, micp_hdrs, row=3)
-        for ri, d in enumerate(rows, 4):
-            write_row(wsn, [d.get(h) for h in micp_hdrs], ri, LGRAY if ri%2==0 else WHITE)
-        wsn.freeze_panes="A4"; autofit(wsn)
-
-    # ── Sheet 10: All_Features_ML ─────────────────────────────────────────────
-    ws6 = wb.create_sheet("All_Features_ML")
-    # Pivot MICP stats per sample
     micp_stats = {}
     for sid, rows in by_sample.items():
         pts = [r for r in rows if isinstance(r.get("Hg_Sat_fracVp"),(int,float)) and r["Hg_Sat_fracVp"]>0]
@@ -739,7 +637,6 @@ def write_duyong(data, outpath):
                 "Sw_irr_fracVp": last["Sw_wetting_fracVp"],
                 "n_micp_pts":    len(rows),
             }
-    # Air-brine Pc: Sw at max Pc per sample
     ab_stats = {}
     for d in data["airbrine_pc"]:
         sid = d["Sample_ID"]
@@ -748,13 +645,13 @@ def write_duyong(data, outpath):
                 "CEC_meq100g","Qv_meq_ml","FRF","m_Archie","RQI","log10_Ka",
                 "Sw_at_AirBrine_Pc200psi",
                 "Pc_entry_MICP_psia","Sw_at_entry_MICP","Pc_max_MICP_psia","Sw_irr_MICP","n_micp_pts"]
-    write_hdr(ws6, all_hdrs)
+    write_hdr(ws, all_hdrs)
     for ri, p in enumerate(props, 2):
         sid = p["Sample_ID"]
         ms  = micp_stats.get(sid, {})
         ab  = {d["Pc_psi"]:d["Sw_frac"] for d in ab_stats.get(sid,[])}
         bg  = sample_colors.get(sid, WHITE)
-        write_row(ws6, [
+        write_row(ws, [
             p.get("Well"), p.get("Sample_ID"), p.get("Depth_m"), p.get("Phi_pct"),
             p.get("Ka_NOB_mD"), p.get("Grain_Density_gcc"),
             p.get("CEC_meq100g"), p.get("Qv_meq_ml"), p.get("FRF"), p.get("m_Archie"),
@@ -763,11 +660,10 @@ def write_duyong(data, outpath):
             ms.get("Pc_entry_psia"), ms.get("Sw_at_entry"),
             ms.get("Pc_max_psia"),   ms.get("Sw_irr_fracVp"), ms.get("n_micp_pts"),
         ], ri, bg)
-    ws6.freeze_panes="A2"; autofit(ws6)
+    ws.freeze_panes="A2"; autofit(ws)
 
     wb.save(outpath)
-    print(f"  Saved: {outpath}  ({len(props)} samples, {len(data['micp'])} MICP pts, "
-          f"{len(data['frf_ri_long'])} FRF/RI pts, {len(data['airbrine_pc'])} AirBrine Pc pts)")
+    print(f"  Saved: {outpath}  ({len(props)} samples, {len(data['micp'])} MICP pts)")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1002,148 +898,18 @@ def write_pegaga(data, outpath):
         "2-015": WHITE, "2-019": LGRAY, "2-023": LBLUE,
         "2-029": YLLOW, "2-033": GREEN,
     }
-
-    # ── Sheet 1: Sample Properties ────────────────────────────────────────────
-    ws = wb.active; ws.title = "Sample_Properties"
-    sp_hdrs = ["Well","Sample_ID","Depth_m","Ka_mD","Phi_pct",
-               "Swi_target_pct","Swi_achieved_pct","RQI","log10_Ka"]
-    write_hdr(ws, sp_hdrs)
-    for ri, d in enumerate(data["sample_props"], 2):
-        ka = d.get("Ka_mD"); phi = d.get("Phi_pct")
-        d["RQI"]     = round(0.0314*math.sqrt(ka/(phi/100)),4) if ka and phi else None
-        d["log10_Ka"]= round(math.log10(ka),4) if ka else None
-        bg = sample_colors.get(d["Sample_ID"], WHITE)
-        write_row(ws, [d.get(h) for h in sp_hdrs], ri, bg)
-    ws.freeze_panes="A2"; autofit(ws)
-
-    # ── Sheet 2: Corey Parameters (wide per sample) ───────────────────────────
-    ws2 = wb.create_sheet("Corey_Parameters")
-    c_hdrs = ["Well","Sample_ID","Depth_m","Ka_mD","Phi_pct",
-              # Drainage
-              "Kw_abs_mD","Swir_drn","Kg_Swir_mD","Nw_drn","Ng_drn",
-              # Imbibition
-              "Swir_imb","Sgr","Kw_Sgr_mD","Krw_at_Sgr","Nw_imb","Ng_imb",
-              # Derived
-              "RQI","GasRecovery_pct","Krg_max","log10_Ka"]
-    write_hdr(ws2, c_hdrs)
     sp_map = {d["Sample_ID"]:d for d in data["sample_props"]}
-    for ri, sid in enumerate(SAMPLE_IDS, 2):
-        sp  = sp_map.get(sid, {})
-        drn = data["drainage_params"].get(sid, {})
-        imb = data["imb_params"].get(sid, {})
-        ka  = sp.get("Ka_mD"); phi = sp.get("Phi_pct")
-        swir = imb.get("Swir_frac") or drn.get("Swir_frac")
-        sgr  = imb.get("Sgr_frac")
-        gas_rec = round((1-swir-sgr)/(1-swir)*100,1) if swir and sgr else None
-        rqi  = round(0.0314*math.sqrt(ka/(phi/100)),4) if ka and phi else None
-        log_ka = round(math.log10(ka),4) if ka else None
-        row_vals = [
-            "Pegaga-2", sid, sp.get("Depth_m"), ka, phi,
-            drn.get("Kw_abs_mD"), drn.get("Swir_frac"), drn.get("Kg_Swir_mD"),
-            drn.get("Nw"), drn.get("Ng"),
-            imb.get("Swir_frac"), imb.get("Sgr_frac"), imb.get("Kw_Sgr_mD"),
-            imb.get("Krw_Sgr"), imb.get("Nw"), imb.get("Ng"),
-            rqi, gas_rec, 1.0, log_ka,
-        ]
-        bg = sample_colors.get(sid, WHITE)
-        write_row(ws2, row_vals, ri, bg)
-    ws2.freeze_panes="A2"; autofit(ws2)
 
-    # ── Sheet 3: Drainage Kr – All Samples (long format) ─────────────────────
-    ws3 = wb.create_sheet("Kr_Drainage_LongFormat")
-    kd_hdrs = ["Well","Sample_ID","Depth_m","Ka_mD","Phi_pct",
-               "Swir_frac","Nw","Ng","Swn","Sw","Krw","Krg","log10_Ka","RQI"]
-    write_hdr(ws3, kd_hdrs)
-    ri = 2
-    for sid in SAMPLE_IDS:
-        rows = data["kr_drainage"].get(sid, [])
-        sp  = sp_map.get(sid, {})
-        drn = data["drainage_params"].get(sid, {})
-        ka  = sp.get("Ka_mD"); phi = sp.get("Phi_pct")
-        rqi  = round(0.0314*math.sqrt(ka/(phi/100)),4) if ka and phi else None
-        log_ka = round(math.log10(ka),4) if ka else None
-        bg = sample_colors.get(sid, WHITE)
-        for row in rows:
-            vals = ["Pegaga-2", sid, sp.get("Depth_m"), ka, phi,
-                    drn.get("Swir_frac"), drn.get("Nw"), drn.get("Ng"),
-                    row["Swn"], row["Sw"], row["Krw"], row["Krg"],
-                    log_ka, rqi]
-            write_row(ws3, vals, ri, bg); ri += 1
-    ws3.freeze_panes="A2"; autofit(ws3)
-
-    # ── Sheet 4: Imbibition Kr – All Samples (long format) ───────────────────
-    ws4 = wb.create_sheet("Kr_Imbibition_LongFormat")
-    ki_hdrs = ["Well","Sample_ID","Depth_m","Ka_mD","Phi_pct",
-               "Swir_frac","Sgr_frac","Nw","Ng","Swn","Sw","Krw","Krg","log10_Ka","RQI"]
-    write_hdr(ws4, ki_hdrs)
-    ri = 2
-    for sid in SAMPLE_IDS:
-        rows = data["kr_imbibition"].get(sid, [])
-        sp  = sp_map.get(sid, {})
-        imb = data["imb_params"].get(sid, {})
-        ka  = sp.get("Ka_mD"); phi = sp.get("Phi_pct")
-        rqi  = round(0.0314*math.sqrt(ka/(phi/100)),4) if ka and phi else None
-        log_ka = round(math.log10(ka),4) if ka else None
-        bg = sample_colors.get(sid, WHITE)
-        for row in rows:
-            vals = ["Pegaga-2", sid, sp.get("Depth_m"), ka, phi,
-                    imb.get("Swir_frac"), imb.get("Sgr_frac"),
-                    imb.get("Nw"), imb.get("Ng"),
-                    row["Swn"], row["Sw"], row["Krw"], row["Krg"],
-                    log_ka, rqi]
-            write_row(ws4, vals, ri, bg); ri += 1
-    ws4.freeze_panes="A2"; autofit(ws4)
-
-    # ── Sheets 5–9: Per-sample kr tables (both cycles, wide format) ──────────
-    for sid in SAMPLE_IDS:
-        wsn = wb.create_sheet(f"Kr_{sid}")
-        sp  = sp_map.get(sid, {})
-        drn = data["drainage_params"].get(sid, {})
-        imb = data["imb_params"].get(sid, {})
-        # Title info
-        wsn.cell(1,1, f"Pegaga-2 | Sample {sid} | G-W USS Drainage + Centrifuge Imbibition Kr").font = \
-            Font(name="Calibri", bold=True, color=NAVY, size=10)
-        info = (f"Depth: {sp.get('Depth_m')} m | Ka: {sp.get('Ka_mD')} mD | "
-                f"Phi: {sp.get('Phi_pct')}% | "
-                f"Swir(drn)={drn.get('Swir_frac')} | Nw={drn.get('Nw')} | Ng={drn.get('Ng')} | "
-                f"Sgr(imb)={imb.get('Sgr_frac')}")
-        wsn.cell(2,1, info).font = Font(name="Calibri", italic=True, size=9, color="595959")
-
-        # Side-by-side: Drainage (cols 1-5) | Imbibition (cols 7-11)
-        write_hdr(wsn, ["Swn","Sw","Krw_drainage","Sw","Krg_drainage",
-                         "","Swn","Sw","Krw_imbibition","Sw","Krg_imbibition"], row=3,
-                  bg=NAVY)
-        drn_rows = data["kr_drainage"].get(sid, [])
-        imb_rows = data["kr_imbibition"].get(sid, [])
-        n_rows = max(len(drn_rows), len(imb_rows))
-        for ri in range(n_rows):
-            bg = LGRAY if ri%2==0 else WHITE
-            wsn.row_dimensions[ri+4].height = 14
-            dr = drn_rows[ri] if ri < len(drn_rows) else {}
-            ir = imb_rows[ri]  if ri < len(imb_rows) else {}
-            vals = [
-                dr.get("Swn"), dr.get("Sw"), dr.get("Krw"), dr.get("Sw2"), dr.get("Krg"),
-                "",
-                ir.get("Swn"), ir.get("Sw"), ir.get("Krw"), ir.get("Sw2"), ir.get("Krg"),
-            ]
-            for c, v in enumerate(vals, 1):
-                cell = wsn.cell(ri+4, c, v)
-                cell.fill = _fill(bg); cell.font = _font(); cell.border = _bdr()
-        wsn.freeze_panes = "A4"; autofit(wsn)
-
-    # ── Sheet 10: ML_Features_Combined ───────────────────────────────────────
-    ws_ml = wb.create_sheet("ML_Features_Combined")
+    # ── Single sheet: ML_Dataset (all features per sample) ───────────────────
+    ws = wb.active; ws.title = "ML_Dataset"
     ml_hdrs = [
         "Well","Sample_ID","Depth_m","Ka_mD","Phi_pct","RQI","log10_Ka",
         "Swi_achieved_pct",
-        # Drainage
         "Kw_abs_mD","Swir_frac","Kg_Swir_mD","Nw_drn","Ng_drn","n_drn_pts",
-        # Imbibition
         "Sgr_frac","Kw_Sgr_mD","Krw_at_Sgr","Nw_imb","Ng_imb","n_imb_pts",
-        # Derived
         "GasRecovery_pct","Krg_max","Swn_at_crossover",
     ]
-    write_hdr(ws_ml, ml_hdrs)
+    write_hdr(ws, ml_hdrs)
     for ri, sid in enumerate(SAMPLE_IDS, 2):
         sp  = sp_map.get(sid, {})
         drn = data["drainage_params"].get(sid, {})
@@ -1156,7 +922,6 @@ def write_pegaga(data, outpath):
         gas_rec = round((1-swir-sgr)/(1-swir)*100,1) if swir and sgr else None
         n_drn = len(data["kr_drainage"].get(sid, []))
         n_imb = len(data["kr_imbibition"].get(sid, []))
-        # Find Swn where Krw ≈ Krg (crossover)
         crossover = None
         for row in data["kr_imbibition"].get(sid, []):
             if row.get("Krw") and row.get("Krg"):
@@ -1165,7 +930,7 @@ def write_pegaga(data, outpath):
                         crossover = row["Swn"]; break
                 except: pass
         bg = sample_colors.get(sid, WHITE)
-        write_row(ws_ml, [
+        write_row(ws, [
             "Pegaga-2", sid, sp.get("Depth_m"), ka, phi, rqi, log_ka,
             sp.get("Swi_achieved_pct"),
             drn.get("Kw_abs_mD"), drn.get("Swir_frac"), drn.get("Kg_Swir_mD"),
@@ -1174,7 +939,7 @@ def write_pegaga(data, outpath):
             imb.get("Nw"), imb.get("Ng"), n_imb,
             gas_rec, 1.0, crossover,
         ], ri, bg)
-    ws_ml.freeze_panes="A2"; autofit(ws_ml)
+    ws.freeze_panes="A2"; autofit(ws)
 
     wb.save(outpath)
     total_kr = sum(len(v) for v in data["kr_drainage"].values()) + \
