@@ -574,9 +574,26 @@ class OlmoCRAgenticGUI:
         ttk.Entry(control_frame, textvariable=self.api_key_var, width=10, show="*").pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="Set", command=self.set_api_key, width=5).pack(side=tk.LEFT, padx=2)
         
-        # Main content - PanedWindow for resizable panels
-        main_paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        main_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Main content - Scrollable Canvas
+        self.canvas_frame = tk.Frame(self.root)
+        self.canvas_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.main_canvas = tk.Canvas(self.canvas_frame, bg='#f0f0f0')
+        self.scrollbar = ttk.Scrollbar(self.canvas_frame, orient="vertical", command=self.main_canvas.yview)
+        self.main_canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.main_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        self.scroll_content = ttk.Frame(self.main_canvas)
+        self.canvas_window = self.main_canvas.create_window(0, 0, window=self.scroll_content, anchor="nw")
+        
+        self.scroll_content.bind("<Configure>", self._on_frame_configure)
+        self.main_canvas.bind("<Configure>", self._on_canvas_configure)
+        
+        # PanedWindow inside scrollable content
+        main_paned = ttk.PanedWindow(self.scroll_content, orient=tk.HORIZONTAL)
+        main_paned.pack(fill=tk.BOTH, expand=True)
         
         left_frame = ttk.Frame(main_paned)
         main_paned.add(left_frame, weight=1)
@@ -592,6 +609,12 @@ class OlmoCRAgenticGUI:
         
         self.status_label = ttk.Label(self.root, text="Ready", relief=tk.SUNKEN, anchor=tk.W, padding=2)
         self.status_label.pack(fill=tk.X, padx=5, pady=(0, 5))
+    
+    def _on_frame_configure(self, event=None):
+        self.main_canvas.configure(scrollregion=self.main_canvas.bbox("all"))
+    
+    def _on_canvas_configure(self, event):
+        self.main_canvas.itemconfig(self.canvas_window, width=event.width)
 
     def _create_left_panel(self, parent):
         preview_frame = ttk.LabelFrame(parent, text="📄 Preview", padding=3)
@@ -1255,17 +1278,6 @@ class OlmoCRAgenticGUI:
         pp_frame = ttk.Frame(self.response_notebook)
         self.response_notebook.add(pp_frame, text="Post-Process")
 
-        # --- External Post-Process Upload ---
-        ext_frame = ttk.LabelFrame(pp_frame, text="External Extraction Upload (TXT/JSON)", padding=4)
-        ext_frame.pack(fill=tk.X, padx=6, pady=(4, 6))
-        ext_row = ttk.Frame(ext_frame)
-        ext_row.pack(fill=tk.X)
-        self.pp_external_path = None
-        ttk.Button(ext_row, text="Load Extraction File", command=self.cmd_load_external_extraction).pack(side=tk.LEFT, padx=(0, 6))
-        self.pp_external_label = ttk.Label(ext_row, text="No file loaded", foreground="gray")
-        self.pp_external_label.pack(side=tk.LEFT, padx=(0, 6))
-        ttk.Button(ext_row, text="Process External Extraction", command=self.cmd_process_external_extraction).pack(side=tk.LEFT, padx=(6, 0))
-
         # --- Info banner ---
         info = ttk.Label(
             pp_frame,
@@ -1902,43 +1914,6 @@ class OlmoCRAgenticGUI:
         except Exception as e:
             self.log_error(f"Invalid range: {e}")
             self.custom_range_applied = False
-
-    # ===== External Post-Process Upload (New) =====
-    def cmd_load_external_extraction(self):
-        path = filedialog.askopenfilename(filetypes=[("Text/JSON", "*.txt;*.json;*.md")] )
-        if path:
-            self.pp_external_path = path
-            if hasattr(self, 'pp_external_label'):
-                self.pp_external_label.config(text=Path(path).name)
-            self.log(f"Loaded external extraction: {Path(path).name}")
-
-    def cmd_process_external_extraction(self):
-        if not hasattr(self, 'pp_external_path') or not self.pp_external_path:
-            self.log("Load an extraction file first (External) to post-process.")
-            return
-        try:
-            # Add current directory to path for postprocessor module
-            import sys
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            if current_dir not in sys.path:
-                sys.path.insert(0, current_dir)
-            
-            from olmocr_postprocessor import process_extraction_file
-            records, structured_json, raw_text = process_extraction_file(
-                self.pp_external_path,
-                columns=self.template_columns if self.template_columns else None,
-                llm_provider=self.llm_provider.get().lower(),
-                api_key=self.api_key,
-            )
-            self.pp_records = records
-            self.structured_data = structured_json
-            self.pp_output_text.delete("1.0", tk.END)
-            self.pp_output_text.insert(tk.END, structured_json)
-            self.pp_status.config(text=f"External post-process: {len(records)} record(s)", foreground="green")
-            self.log(f"External post-process produced {len(records)} records from {Path(self.pp_external_path).name}")
-        except Exception as e:
-            import traceback
-            self.log_error(f"External post-process failed: {e}\n{traceback.format_exc()}")
 
     # ===== CHAT =====
     
