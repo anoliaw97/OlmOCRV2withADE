@@ -360,6 +360,204 @@ def add_benchmark_comparison(prs):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+#  PART 3 – STRUCTURED TABLE SLIDES  (from extracted HTML tables)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _side_by_side_tables(prs, title, subtitle, left_title, left_hdrs, left_rows,
+                          right_title, right_hdrs, right_rows,
+                          left_ratios=None, right_ratios=None):
+    """Two tables side-by-side on one slide."""
+    slide = add_layout_slide(prs)
+    add_slide_title(slide, title, subtitle)
+
+    gap   = Emu(150_000)
+    half  = Emu((SW - 700_000) // 2 - int(gap) // 2)
+    tbl_h = Emu(SH - int(CONTENT_TOP) - 700_000)
+
+    # Left section label
+    add_textbox(slide, MARGIN, Emu(int(CONTENT_TOP) - 280_000), half, Emu(260_000), [
+        para_xml(left_title, size=11, bold=True, color="002060")
+    ])
+    styled_table(slide, MARGIN, CONTENT_TOP, half, tbl_h,
+                 left_hdrs, left_rows, col_ratios=left_ratios, body_size=10, hdr_size=11)
+
+    right_x = Emu(int(MARGIN) + int(half) + int(gap))
+    add_textbox(slide, right_x, Emu(int(CONTENT_TOP) - 280_000), half, Emu(260_000), [
+        para_xml(right_title, size=11, bold=True, color="002060")
+    ])
+    styled_table(slide, right_x, CONTENT_TOP, half, tbl_h,
+                 right_hdrs, right_rows, col_ratios=right_ratios, body_size=10, hdr_size=11)
+    return slide
+
+
+def _full_table_slide(prs, title, subtitle, tbl_label, headers, rows,
+                      col_ratios=None, body_size=10, note=None):
+    slide = add_layout_slide(prs)
+    add_slide_title(slide, title, subtitle)
+    add_textbox(slide, MARGIN, Emu(int(CONTENT_TOP) - 280_000), CONTENT_W, Emu(260_000), [
+        para_xml(tbl_label, size=11, bold=True, color="002060")
+    ])
+    tbl_h = Emu(SH - int(CONTENT_TOP) - (300_000 if note else 100_000))
+    styled_table(slide, MARGIN, CONTENT_TOP, CONTENT_W, tbl_h,
+                 headers, rows, col_ratios=col_ratios, body_size=body_size, hdr_size=11)
+    if note:
+        add_textbox(slide, MARGIN, Emu(SH - 250_000), CONTENT_W, Emu(240_000), [
+            para_xml(note, size=10, color="595959")
+        ])
+    return slide
+
+
+def add_duyong_structured_slides(prs):
+    """3 slides showing key extracted tables from Duyong Deep 1."""
+    from extract_tables import extract_tables_from_file
+
+    tables = extract_tables_from_file('RESULTS/Duyon Deep 1 Full.txt')
+
+    # ── Slide 1: TABLE 1 (FRF) + TABLE 4 (CEC) side by side ──────────────────
+    t1 = next(t for t in tables if t['page'] == 11)   # FRF
+    t4 = next(t for t in tables if t['page'] == 14)   # CEC
+
+    frf_hdrs = ['Sample ID', 'Depth (m)', 'Ka@NOB (mD)', 'φ@NOB (frac)', 'FRF (F)', 'm']
+    frf_rows = [row for row in t1['grid'][2:]]   # skip 2-row header
+
+    cec_hdrs = ['Sample ID', 'Depth (m)', 'Porosity (%)', 'Grain Density (g/cc)', 'CEC (meq/100g)', 'Qv (meq/ml)']
+    cec_rows = [row for row in t4['grid'][1:]]   # single header row
+
+    _side_by_side_tables(
+        prs,
+        title="Extracted Structured Tables — Duyong Deep 1 (I)",
+        subtitle="Well Duyong Deep-1, Block PM12  |  NOB = 560 psi  |  Saturant: 3,500 ppm synthetic brine",
+        left_title="TABLE 1 — Formation Resistivity Factor at NOB Conditions",
+        left_hdrs=frf_hdrs, left_rows=frf_rows,
+        left_ratios=[0.16, 0.18, 0.18, 0.18, 0.15, 0.15],
+        right_title="TABLE 4 — Cation Exchange Capacity",
+        right_hdrs=cec_hdrs, right_rows=cec_rows,
+        right_ratios=[0.16, 0.18, 0.18, 0.20, 0.18, 0.10],
+    )
+
+    # ── Slide 2: TABLE 2 — FRF + RI (all data) ────────────────────────────────
+    t2 = next(t for t in tables if t['page'] == 12)
+    ri_hdrs = ['Sample', 'Depth (m)', 'Ka (mD)', 'φ (frac)', 'F', 'm', 'Sw (frac)', 'RI (I)', 'n']
+    ri_rows = [row for row in t2['grid'][2:]]   # 20 data rows
+
+    _full_table_slide(
+        prs,
+        title="Extracted Structured Tables — Duyong Deep 1 (II)",
+        subtitle="Well Duyong Deep-1  |  Formation Resistivity Factor & Resistivity Index at NOB Conditions",
+        tbl_label="TABLE 2 — Formation Resistivity Factor & Resistivity Index  (4 samples × 5 Sw measurements)",
+        headers=ri_hdrs, rows=ri_rows,
+        col_ratios=[0.09, 0.11, 0.09, 0.09, 0.09, 0.07, 0.12, 0.09, 0.07],
+        note="Saturant: 3,500 ppm  |  Resistivity of saturant: 1,500 Ω·m @ 77°F  |  NOB: 560 psi  |  F = a/φ^m  |  RI = a/Sw^n"
+    )
+
+    # ── Slide 3: TABLE 3 (Cap Press) + Pore Size Dist side by side ────────────
+    t3 = next(t for t in tables if t['page'] == 13)
+    t_psd = next(t for t in tables if t['page'] == 7)
+
+    # TABLE 3 has 15 cols — keep: Sample, Depth, Ka, Phi, Sw@1, Sw@25, Sw@50, Sw@100, Sw@200 psi
+    # Header row 2: ['Sample d','Depth m','NOB psi','Ka md','Phi %','0','1','2','4','8','15','25','50','100','200']
+    cap_hdrs = ['Sample', 'Depth (m)', 'Ka (mD)', 'Phi (%)', 'Sw@1 psi', 'Sw@25 psi', 'Sw@50 psi', 'Sw@100 psi', 'Sw@200 psi']
+    # Cols to keep: indices 0,1,3,4, 6(=1psi), 11(=25psi), 12(=50psi), 13(=100psi), 14(=200psi)
+    keep_idx = [0, 1, 3, 4, 6, 11, 12, 13, 14]
+    cap_rows = []
+    for row in t3['grid'][2:]:
+        cap_rows.append([row[i] if i < len(row) else '' for i in keep_idx])
+
+    psd_hdrs = ['Sample ID', 'Depth (m)', 'Porosity (%)', 'Micro r<0.5 (%)', 'Meso 0.5-1.5 (%)', 'Macro r>1.5 (%)']
+    psd_rows = [row for row in t_psd['grid'][2:]]
+
+    _side_by_side_tables(
+        prs,
+        title="Extracted Structured Tables — Duyong Deep 1 (III)",
+        subtitle="Well Duyong Deep-1  |  Capillary Pressure & Pore Size Distribution",
+        left_title="TABLE 3 — Air-Brine Capillary Pressure by Centrifuge (key Sw columns)",
+        left_hdrs=cap_hdrs, left_rows=cap_rows,
+        left_ratios=[0.10, 0.12, 0.12, 0.10, 0.12, 0.12, 0.12, 0.12, 0.08],
+        right_title="TABLE 5 — Pore Size Distribution Summary",
+        right_hdrs=psd_hdrs, right_rows=psd_rows,
+        right_ratios=[0.16, 0.18, 0.18, 0.20, 0.18, 0.10],
+    )
+
+
+def add_pegaga_structured_slides(prs):
+    """3 slides showing key extracted tables from Pegaga-2."""
+    from extract_tables import extract_tables_from_file
+
+    tables = extract_tables_from_file('RESULTS/pegaga results.txt')
+
+    # ── Slide 4: Sample Properties ────────────────────────────────────────────
+    t_sp = next(t for t in tables if t['page'] == 7)
+    sp_hdrs = ['Sample ID', 'Depth (m)', 'Ka NCS (mD)', 'Porosity (%)', 'Target Swi (%)', 'Achieved Swi (%)']
+    sp_rows = [row for row in t_sp['grid'][1:]]
+
+    _full_table_slide(
+        prs,
+        title="Extracted Structured Tables — Pegaga-2 (I)",
+        subtitle="Pegaga-2, Malaysia  |  Hybrid USS G-W Drainage + O-W Centrifuge Imbibition Kr Tests",
+        tbl_label="Table 1 — Sample Properties & Target / Achieved Swi",
+        headers=sp_hdrs, rows=sp_rows,
+        col_ratios=[0.14, 0.14, 0.18, 0.18, 0.18, 0.18],
+        body_size=12,
+    )
+
+    # ── Slide 5: Combined drainage + imbibition params for all 5 samples ──────
+    drn_pages  = [14, 21, 28, 35, 42]
+    imb_pages  = [15, 22, 29, 36, 43]
+    sample_ids = ['2-015', '2-019', '2-023', '2-029', '2-033']
+
+    drn_tables = [next(t for t in tables if t['page'] == p and len(t['grid'][0]) == 7) for p in drn_pages]
+    imb_tables = [next(t for t in tables if t['page'] == p and len(t['grid'][0]) == 8) for p in imb_pages]
+
+    # Combined drainage params table
+    drn_hdrs = ['Sample', 'Kw (mD)', 'Swir (frac)', 'Kg@Swir (mD)', 'Krg@Swir', 'Nw', 'Ng']
+    drn_rows = []
+    for sid, t in zip(sample_ids, drn_tables):
+        row = t['grid'][1]  # data row
+        drn_rows.append([sid, row[0], row[1], row[2], row[4], row[5], row[6]])
+
+    # Combined imbibition params table
+    imb_hdrs = ['Sample', 'Kg@Swir (mD)', 'Swir (frac)', 'Kw@Sgr (mD)', 'Sgr (frac)', 'Krg@Swir', 'Krw@Sgr', 'Nw', 'Ng']
+    imb_rows = []
+    for sid, t in zip(sample_ids, imb_tables):
+        row = t['grid'][1]
+        imb_rows.append([sid] + row)
+
+    _side_by_side_tables(
+        prs,
+        title="Extracted Structured Tables — Pegaga-2 (II)",
+        subtitle="Corey model parameters extracted by olmOCR ADE  |  All 5 samples  |  Sendra™ history-matched",
+        left_title="Drainage USS — Corey Model Parameters",
+        left_hdrs=drn_hdrs, left_rows=drn_rows,
+        left_ratios=[0.14, 0.14, 0.14, 0.14, 0.14, 0.15, 0.15],
+        right_title="Imbibition Centrifuge — Corey Model Parameters",
+        right_hdrs=imb_hdrs, right_rows=imb_rows,
+        right_ratios=[0.12, 0.12, 0.12, 0.12, 0.11, 0.10, 0.10, 0.10, 0.11],
+    )
+
+    # ── Slide 6: Sample 2-015 drainage kr data (first 12 rows) ───────────────
+    # The kr data is in tables with 5 cols (Swn, Sw, Krw, Sw, Krg)
+    # Find table on page 14 with 5 cols and many rows (skip the 2-row param table)
+    kr_tbl_p14 = [t for t in tables if t['page'] == 14 and len(t['grid'][0]) == 5]
+    # There may be multiple; pick the one with >5 rows
+    kr_drn_015 = next((t for t in kr_tbl_p14 if len(t['grid']) > 5), None)
+
+    if kr_drn_015:
+        kr_hdrs = ['Swn (norm.)', 'Sw (drainage)', 'Krw', 'Sw (imbibition)', 'Krg']
+        # Show first 12 data rows
+        kr_rows = kr_drn_015['grid'][1:13]
+        _full_table_slide(
+            prs,
+            title="Extracted Structured Tables — Pegaga-2 (III)",
+            subtitle="Sample 2-015  |  Depth 2511.1 m  |  Ka = 2.46 mD  |  φ = 18.6%  |  Swir = 0.205 frac",
+            tbl_label="Table 3.1.2 — Primary Drainage USS Relative Permeability Data  (first 12 of 41 rows shown)",
+            headers=kr_hdrs, rows=kr_rows,
+            col_ratios=[0.20, 0.20, 0.20, 0.20, 0.20],
+            body_size=12,
+            note="Full dataset in RESULTS/Pegaga2_Extracted_Tables.xlsx  |  Corey model: Nw = 4.55, Ng = 2.5  |  Krg@Swir = 0.593"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -379,6 +577,12 @@ def main():
 
     print("Adding benchmark comparison slide...")
     add_benchmark_comparison(prs)
+
+    print("Adding Duyong Deep 1 structured table slides...")
+    add_duyong_structured_slides(prs)
+
+    print("Adding Pegaga-2 structured table slides...")
+    add_pegaga_structured_slides(prs)
 
     prs.save(PPTX_OUT)
     print(f"\n✓  Saved {len(prs.slides)} slides → {PPTX_OUT}")
