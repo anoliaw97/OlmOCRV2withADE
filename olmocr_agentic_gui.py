@@ -9,6 +9,8 @@ Usage: python olmocr_agentic_gui.py
 
 import os
 import sys
+import importlib.util
+import traceback
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox
 from pathlib import Path
@@ -24,8 +26,15 @@ import base64
 import io
 import pandas as pd
 
-# Add parent directory to path for olmocr package
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add current + parent directories to path
+# - current dir: local companion modules (e.g., scal_langextract_rag_gui.py)
+# - parent dir: installed/local olmocr package resolution
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PARENT_DIR = os.path.dirname(_CURRENT_DIR)
+if _CURRENT_DIR not in sys.path:
+    sys.path.insert(0, _CURRENT_DIR)
+if _PARENT_DIR not in sys.path:
+    sys.path.insert(0, _PARENT_DIR)
 
 try:
     from olmocr.data.renderpdf import render_pdf_to_base64png
@@ -48,6 +57,15 @@ try:
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
+
+# Optional integration: SCAL LangExtract + Offline RAG window
+try:
+    from scal_langextract_rag_gui import SCALApp
+    SCAL_RAG_AVAILABLE = True
+    SCAL_RAG_IMPORT_ERROR = ""
+except Exception:
+    SCAL_RAG_AVAILABLE = False
+    SCAL_RAG_IMPORT_ERROR = str(sys.exc_info()[1])
 
 MODEL_ID = "allenai/olmOCR-2-7B-1025-FP8"
 LLM_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
@@ -573,6 +591,7 @@ class OlmoCRAgenticGUI:
         self.api_key_var = tk.StringVar(value=os.getenv("GROQ_API_KEY", ""))
         ttk.Entry(control_frame, textvariable=self.api_key_var, width=10, show="*").pack(side=tk.LEFT, padx=2)
         ttk.Button(control_frame, text="Set", command=self.set_api_key, width=5).pack(side=tk.LEFT, padx=2)
+        ttk.Button(control_frame, text="SCAL RAG", command=self.cmd_open_scal_rag, width=10).pack(side=tk.LEFT, padx=4)
         
         # Main content - Scrollable Canvas
         self.canvas_frame = tk.Frame(self.root)
@@ -1884,6 +1903,45 @@ class OlmoCRAgenticGUI:
         self.stop_btn.config(state=tk.DISABLED)
         # Refresh post-process stats now that extraction is complete
         self._update_pp_doc_stats()
+
+    def cmd_open_scal_rag(self):
+        """Open integrated SCAL LangExtract + Offline RAG window.
+
+        If extraction results already exist, pre-load them into the SCAL window.
+        """
+        try:
+            # Lazy-load module on click to avoid startup hard-failure
+            module_path = os.path.join(_CURRENT_DIR, "scal_langextract_rag_gui.py")
+            if not os.path.exists(module_path):
+                self.log_error(f"SCAL RAG module not found at: {module_path}")
+                return
+
+            spec = importlib.util.spec_from_file_location("scal_langextract_rag_gui", module_path)
+            if spec is None or spec.loader is None:
+                self.log_error("Unable to create import spec for scal_langextract_rag_gui.py")
+                return
+            scal_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(scal_module)
+            SCALAppLocal = getattr(scal_module, "SCALApp", None)
+            if SCALAppLocal is None:
+                self.log_error("SCALApp class not found in scal_langextract_rag_gui.py")
+                return
+
+            win = tk.Toplevel(self.root)
+            win.title("SCAL LangExtract + Offline RAG")
+            app = SCALAppLocal(win)
+
+            # Pre-load compiled extraction text from current workflow if available
+            if self.extracted_data:
+                compiled = "\n\n".join(r.get("raw_response", "") for r in self.extracted_data)
+                source_name = Path(self.selected_files[0]).name if self.selected_files else "olmocr_extracted_pages"
+                app.load_text(compiled, source_name=source_name)
+                app.build_rag()
+                self.log("Opened SCAL RAG window with current extraction pre-loaded")
+            else:
+                self.log("Opened SCAL RAG window")
+        except Exception as e:
+            self.log_error(f"Failed to open SCAL RAG window: {e}\n{traceback.format_exc()}")
 
     def _apply_custom_range(self):
         try:
