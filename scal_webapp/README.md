@@ -147,6 +147,21 @@ This launches at `http://localhost:7860` and provides:
 - saved prompt templates
 - missing-page detection for already-extracted files
 
+## Preferred Python web UI (NiceGUI)
+
+For a more desktop-like panel workflow, use NiceGUI:
+
+```bash
+run_scal_opencode_nicegui_conda.bat
+```
+
+This launches at `http://localhost:8088` and includes:
+- chat-first interface inspired by OpenCode/Open WebUI
+- source/evidence panel with parsed HTML table rendering
+- export actions (Excel/Word) from retrieved results
+- RAG rebuild/indexing panel
+- optional OLMOCR PDF extraction panel with missing-page extraction
+
 ## Package and install anywhere
 
 Build wheel package on a source machine:

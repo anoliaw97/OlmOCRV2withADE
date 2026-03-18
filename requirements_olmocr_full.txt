@@ -11,5 +11,6 @@ openai
 langextract
 streamlit
 gradio
+nicegui
 scikit-learn
 joblib
