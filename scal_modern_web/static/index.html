@@ -43,10 +43,7 @@
       <div class="folder-row">
         <input id="dataRoot" type="text" class="folder-input"
           value="C:\Users\Mining\Downloads\Fine Tunining Datasets-20260318T052420Z-1-001\Fine Tunining Datasets\train" />
-        <!-- folder input via webkitdirectory — instant, no subprocess -->
-        <label class="icon-btn" title="Browse folder">
-          📁<input id="folderPick" type="file" webkitdirectory multiple style="display:none" />
-        </label>
+        <button id="browseDataRootBtn" class="icon-btn" title="Browse folder">📁</button>
       </div>
       <button class="btn-full" id="refreshDocsBtn">↻ Refresh Documents</button>
     </div>
@@ -88,9 +85,8 @@
       <div class="extract-card">
         <div class="row-browse">
           <input id="pdfFilePath" type="text" class="folder-input" placeholder="PDF path — browse or drag-drop" readonly />
-          <label class="icon-btn" title="Browse PDF file">
-            📂<input id="pdfFilePick" type="file" accept="application/pdf" style="display:none" />
-          </label>
+          <button id="browsePdfBtn" class="icon-btn" title="Browse PDF file">📂</button>
+          <input id="pdfFilePick" type="file" accept="application/pdf" style="display:none" />
         </div>
         <div id="pdfPageInfo" class="info-chip hidden"></div>
         <div class="range-row">
@@ -113,9 +109,7 @@
       <div class="section-label">Output Folder <span class="badge badge-opt">Optional</span></div>
       <div class="folder-row">
         <input id="outputDir" type="text" class="folder-input" placeholder="Same as data root" />
-        <label class="icon-btn" title="Browse output folder">
-          📁<input id="outputFolderPick" type="file" webkitdirectory multiple style="display:none" />
-        </label>
+        <button id="browseOutputBtn" class="icon-btn" title="Browse output folder">📁</button>
       </div>
     </div>
 

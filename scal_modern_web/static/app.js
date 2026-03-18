@@ -74,49 +74,41 @@ function initTabs() {
 }
 
 /* ══════════════════════════════════════════
-   Folder / file pick — fast, browser-native
-   webkitdirectory gives us the folder path
-   from the first file in the selection.
+   Browse helpers
+   - Folders: use server-side tkinter dialog
+     (runs in executor, non-blocking)
+   - PDF files: use hidden <input type=file>
+     for instant local pick
 ══════════════════════════════════════════ */
+async function browseFolder(inputId, btnEl) {
+  if (btnEl) { btnEl.textContent = '⏳'; btnEl.disabled = true; }
+  try {
+    const d = await apiFetch('/api/browse/folder', { method: 'POST' });
+    if (d.path) $(inputId).value = d.path;
+  } catch (e) {
+    console.warn('Folder browse failed:', e.message);
+  } finally {
+    if (btnEl) { btnEl.textContent = '📁'; btnEl.disabled = false; }
+  }
+}
+
 function initBrowse() {
-  // Data root — folder pick
-  $('folderPick').onchange = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    // Extract folder path from the relative webkitRelativePath
-    const rel = f.webkitRelativePath || '';
-    const parts = rel.split('/');
-    // We want everything up to but NOT including the first filename
-    // The full path isn't directly accessible for security, but we can
-    // use the input value trick or fall back to showing the folder name
-    const folderName = parts[0] || f.name;
-    // Try to reconstruct from dataRoot default + folder name
-    const cur = $('dataRoot').value.trim();
-    // If the user browsed and got a different folder, show it.
-    // We can't get the full OS path from webkitdirectory, so we show the relative root.
-    $('dataRoot').value = cur.endsWith(folderName) ? cur : (cur || folderName);
-    e.target.value = '';
-  };
+  // Data root folder browse — server dialog
+  $('browseDataRootBtn').onclick = (e) => browseFolder('dataRoot', e.currentTarget);
 
-  // Output folder — same
-  $('outputFolderPick').onchange = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    const parts = (f.webkitRelativePath || f.name).split('/');
-    $('outputDir').value = parts[0] || '';
-    e.target.value = '';
-  };
+  // Output folder browse — server dialog
+  $('browseOutputBtn').onclick = (e) => browseFolder('outputDir', e.currentTarget);
 
-  // PDF file pick — instant
+  // PDF file pick — instant browser native (no OS path restriction for files)
   $('pdfFilePick').onchange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
     $('pdfFilePath').value = f.name;
-    $('pdfFilePath').dataset.file = ''; // mark as browser-file (no OS path)
     $('pdfPageInfo').textContent = `Selected: ${f.name}`;
     show('pdfPageInfo', true);
     show('extractCheckOut', false);
   };
+  $('browsePdfBtn').onclick = () => $('pdfFilePick').click();
 }
 
 /* ══════════════════════════════════════════

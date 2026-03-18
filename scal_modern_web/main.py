@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+import sys
 import threading
 import traceback
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
+
+# Executor for blocking tkinter dialogs
+_DIALOG_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 
 import joblib
 import pandas as pd
@@ -93,16 +99,26 @@ def parse_name(file_name: str) -> tuple[str | None, int | None, str]:
 
 
 def scan_docs(root: Path) -> dict[str, dict[int, dict[str, Path]]]:
+    """Scan folder for extracted page files AND plain PDFs.
+
+    Recognised patterns (case-insensitive):
+      - <stem>_page<N>.pdf / .md / .json  → grouped under <stem>
+      - <stem>.pdf (plain, no page number) → added as page 1 under <stem>
+    """
     docs: dict[str, dict[int, dict[str, Path]]] = {}
     if not root.exists():
         return docs
-    for p in root.glob("*"):
+    for p in root.iterdir():
         if not p.is_file():
             continue
         stem, page, ext = parse_name(p.name)
-        if stem is None or page is None:
-            continue
-        docs.setdefault(stem, {}).setdefault(page, {})[ext] = p
+        if stem is not None and page is not None:
+            # Normal _pageN file
+            docs.setdefault(stem, {}).setdefault(page, {})[ext] = p
+        elif p.suffix.lower() == ".pdf":
+            # Plain PDF — treat as its own single-page document
+            doc_stem = p.stem
+            docs.setdefault(doc_stem, {}).setdefault(1, {})["pdf"] = p
     return docs
 
 
@@ -514,6 +530,47 @@ class ChatReq(BaseModel):
     top_k: int = 8
 
 
+# ── Folder / file browse (non-blocking, runs tkinter in executor) ─────────────
+
+def _tkdialog_folder() -> str:
+    import tkinter
+    import tkinter.filedialog
+    root = tkinter.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    path = tkinter.filedialog.askdirectory(parent=root) or ""
+    root.destroy()
+    return path
+
+
+def _tkdialog_file(accept: str) -> str:
+    import tkinter
+    import tkinter.filedialog
+    root = tkinter.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    ftypes = [("PDF files", "*.pdf"), ("All files", "*.*")] if ".pdf" in accept else [("All files", "*.*")]
+    path = tkinter.filedialog.askopenfilename(parent=root, filetypes=ftypes) or ""
+    root.destroy()
+    return path
+
+
+@app.post("/api/browse/folder")
+async def api_browse_folder():
+    """Opens a native folder picker dialog (non-blocking)."""
+    loop = asyncio.get_event_loop()
+    path = await loop.run_in_executor(_DIALOG_EXECUTOR, _tkdialog_folder)
+    return {"path": path}
+
+
+@app.post("/api/browse/file")
+async def api_browse_file(payload: dict = {}):
+    accept = (payload or {}).get("accept", "")
+    loop = asyncio.get_event_loop()
+    path = await loop.run_in_executor(_DIALOG_EXECUTOR, _tkdialog_file, accept)
+    return {"path": path}
+
+
 # ── Documents & index ─────────────────────────────────────────────────────────
 
 @app.get("/api/docs")
@@ -533,6 +590,31 @@ def api_docs(root: str | None = None):
         "documents": names,
         "coverage": {n: coverage_for_doc(n) for n in names},
         "pages_map": pages_map,
+    }
+
+
+@app.get("/api/docs/debug")
+def api_docs_debug(root: str | None = None):
+    """Returns raw file listing to help diagnose why documents aren't appearing."""
+    rr = Path(root) if root else DATA_ROOT
+    if not rr.exists():
+        return {"error": f"Path does not exist: {rr}", "path": str(rr)}
+    files = []
+    for p in rr.iterdir():
+        if p.is_file():
+            stem, page, ext = parse_name(p.name)
+            files.append({
+                "name": p.name,
+                "parsed_stem": stem,
+                "parsed_page": page,
+                "parsed_ext": ext,
+                "matched": stem is not None,
+            })
+    return {
+        "path": str(rr),
+        "total_files": len(files),
+        "matched_files": sum(1 for f in files if f["matched"]),
+        "files": files[:50],  # first 50
     }
 
 
