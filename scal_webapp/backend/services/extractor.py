@@ -8,6 +8,14 @@ from pypdf import PdfReader
 from ..schemas import TableJSON
 
 
+DEFAULT_FULL_EXTRACTION_PROMPT = (
+    "Attached is one page of a document that you must process. "
+    "Return markdown with front matter fields: primary_language, is_rotation_valid, "
+    "rotation_correction, is_table, is_diagram. "
+    "Convert equations to LaTeX and tables to HTML."
+)
+
+
 SCAL_KEYWORDS = {
     "capillary_pressure": ["capillary", "pc", "sw", "drainage", "imbibition"],
     "relative_permeability": ["relative permeability", "krw", "kro", "krg"],
@@ -147,3 +155,41 @@ def extract_targeted_tables(pdf_path: str, default_use_case: str, allowed_types:
         tables = _parse_page_tables(text, file_name, page_num, allowed_types, default_use_case)
         results.extend(tables)
     return results
+
+
+def extract_full_document_as_json_pages(pdf_path: str, page_range: str | None = None) -> list[TableJSON]:
+    """Default full-document extraction.
+
+    Offline fallback implementation stores full extracted page text into JSON rows.
+    This is intentionally broad (extract everything per page), and downstream
+    use-case filtering happens in RAG/use-case prompts.
+    """
+    reader = PdfReader(pdf_path)
+    selected_pages = parse_page_range(len(reader.pages), page_range)
+    file_name = Path(pdf_path).name
+
+    out: list[TableJSON] = []
+    for page_num in selected_pages:
+        text = reader.pages[page_num - 1].extract_text() or ""
+        if not text.strip():
+            continue
+        out.append(
+            TableJSON(
+                file_name=file_name,
+                page_number=page_num,
+                table_id=f"P{page_num:03d}_FULL",
+                extraction_type="full_page_text",
+                table_title=f"Full extraction page {page_num}",
+                columns=["page_text"],
+                rows=[{"page_text": text}],
+                units=None,
+                metadata={
+                    "report_name": Path(file_name).stem,
+                    "parameter_type": "full_page_text",
+                    "prompt_used": DEFAULT_FULL_EXTRACTION_PROMPT,
+                    "page_number": page_num,
+                },
+            )
+        )
+
+    return out

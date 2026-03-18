@@ -9,6 +9,7 @@ from ..database import get_db
 from ..models import ProcessingLog
 from ..schemas import QueryRequest
 from ..services.indexer import LocalHybridIndex
+from ..services.local_llm import get_rag_llm, get_usecase_llm
 from ..services.rag import synthesize_answer
 
 
@@ -30,7 +31,21 @@ def ask_question(req: QueryRequest, db: Session = Depends(get_db)):
 
     index = LocalHybridIndex(INDEX_DIR)
     hits = index.search(req.question, top_k=req.top_k, filters=filters)
-    response = synthesize_answer(req.question, hits)
+    try:
+        response = synthesize_answer(req.question, hits, use_case_prompt=req.use_case_prompt)
+    except Exception as e:
+        response = {
+            "answer": f"Local LLM answer generation failed: {e}",
+            "sources": [
+                {
+                    "file_name": h["metadata"].get("file_name"),
+                    "page_number": h["metadata"].get("page_number"),
+                    "table_id": h["metadata"].get("table_id"),
+                    "extraction_type": h["metadata"].get("extraction_type"),
+                }
+                for h in hits
+            ],
+        }
 
     db.add(
         ProcessingLog(
@@ -44,6 +59,23 @@ def ask_question(req: QueryRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return response
+
+
+@router.post("/load-llm")
+def load_local_llms():
+    try:
+        rag = get_rag_llm()
+        usecase = get_usecase_llm()
+        rag.load()
+        usecase.load()
+        return {
+            "ok": True,
+            "rag_model": rag.model_name,
+            "usecase_model": usecase.model_name,
+            "loaded": True,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 @router.get("/logs")

@@ -30,6 +30,8 @@ class TableJSON(BaseModel):
 
 class QueryRequest(BaseModel):
     question: str
+    use_case: str | None = None
+    use_case_prompt: str | None = None
     report_name: str | None = None
     file_name: str | None = None
     page_number: int | None = None

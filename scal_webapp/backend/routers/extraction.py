@@ -13,7 +13,7 @@ from ..database import get_db
 from ..models import ExtractedTable, RagChunk, Report
 from ..schemas import ExtractionSettings
 from ..services.exporter import export_excel, export_json, export_word
-from ..services.extractor import extract_targeted_tables
+from ..services.extractor import extract_full_document_as_json_pages, extract_targeted_tables
 from ..services.indexer import LocalHybridIndex
 from ..services.logger import log_event
 from ..services.postprocess import build_rag_chunks, normalize_tables
@@ -50,13 +50,22 @@ async def run_extraction(
 
     log_event(db, "ingest", f"Uploaded {file.filename}", report.id)
 
-    tables = extract_targeted_tables(
-        pdf_path=str(dest),
-        default_use_case=settings.use_case,
-        allowed_types=settings.extraction_types,
-        page_range=settings.page_range,
-    )
-    log_event(db, "extract", f"Detected {len(tables)} targeted tables", report.id)
+    # Default workflow: full extraction of all page content into JSON-page records.
+    # Targeted SCAL extraction can still be enabled by mode/use_case controls.
+    if settings.mode == "operator" and settings.extraction_types:
+        tables = extract_targeted_tables(
+            pdf_path=str(dest),
+            default_use_case=settings.use_case,
+            allowed_types=settings.extraction_types,
+            page_range=settings.page_range,
+        )
+        log_event(db, "extract", f"Operator targeted extraction produced {len(tables)} table JSON records", report.id)
+    else:
+        tables = extract_full_document_as_json_pages(
+            pdf_path=str(dest),
+            page_range=settings.page_range,
+        )
+        log_event(db, "extract", f"Default full extraction produced {len(tables)} page JSON records", report.id)
 
     if settings.normalize:
         tables = normalize_tables(tables)
@@ -110,6 +119,154 @@ async def run_extraction(
         "rag_chunks": len(rag_chunks),
         "status": "ready",
     }
+
+
+@router.post("/import-json")
+async def import_existing_json(
+    json_file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if not json_file.filename.lower().endswith(".json"):
+        raise HTTPException(status_code=400, detail="Only JSON files are supported")
+
+    raw = await json_file.read()
+    try:
+        payload = json.loads(raw.decode("utf-8", errors="ignore"))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+
+    report = Report(file_name=json_file.filename, report_name=Path(json_file.filename).stem, status="processing")
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    log_event(db, "ingest", f"Imported existing extraction JSON {json_file.filename}", report.id)
+
+    tables: list[dict] = []
+    if isinstance(payload, list):
+        # Case A: already table-json list
+        if payload and isinstance(payload[0], dict) and ("rows" in payload[0] or "columns" in payload[0]):
+            tables = payload
+        # Case B: page extraction list from GUI with raw_response
+        elif payload and isinstance(payload[0], dict) and "raw_response" in payload[0]:
+            temp = []
+            for i, p in enumerate(payload, start=1):
+                page_number = int(p.get("page", i) or i)
+                text = str(p.get("raw_response", ""))
+                temp.append(
+                    {
+                        "file_name": p.get("source_file", json_file.filename),
+                        "page_number": page_number,
+                        "table_id": f"P{page_number:03d}_FULL",
+                        "extraction_type": "full_page_text",
+                        "table_title": f"Imported full page {page_number}",
+                        "columns": ["page_text"],
+                        "rows": [{"page_text": text}],
+                        "units": {},
+                        "metadata": {
+                            "report_name": Path(json_file.filename).stem,
+                            "imported": True,
+                            "source": "raw_response_list",
+                        },
+                    }
+                )
+            tables = temp
+    elif isinstance(payload, dict):
+        if isinstance(payload.get("tables"), list):
+            tables = payload["tables"]
+        elif isinstance(payload.get("records"), list):
+            # fallback map records into single pseudo table
+            tables = [
+                {
+                    "file_name": json_file.filename,
+                    "page_number": 1,
+                    "table_id": "IMPORTED_001",
+                    "extraction_type": "imported_json",
+                    "table_title": "Imported structured records",
+                    "columns": sorted({k for r in payload["records"] if isinstance(r, dict) for k in r.keys()}),
+                    "rows": payload["records"],
+                    "units": {},
+                    "metadata": {"report_name": Path(json_file.filename).stem, "imported": True},
+                }
+            ]
+
+    # normalize structure and persist
+    normalized_tables = []
+    for i, t in enumerate(tables, start=1):
+        normalized_tables.append(
+            {
+                "file_name": t.get("file_name", json_file.filename),
+                "page_number": int(t.get("page_number", 1) or 1),
+                "table_id": t.get("table_id", f"IMPORTED_{i:03d}"),
+                "extraction_type": t.get("extraction_type", "imported_json"),
+                "table_title": t.get("table_title"),
+                "columns": t.get("columns", []),
+                "rows": t.get("rows", []),
+                "units": t.get("units", {}),
+                "metadata": t.get("metadata", {"report_name": Path(json_file.filename).stem, "imported": True}),
+            }
+        )
+
+    for t in normalized_tables:
+        db.add(
+            ExtractedTable(
+                report_id=report.id,
+                file_name=t["file_name"],
+                page_number=t["page_number"],
+                table_id=t["table_id"],
+                extraction_type=t["extraction_type"],
+                table_title=t["table_title"],
+                columns_json=t["columns"],
+                rows_json=t["rows"],
+                units_json=t["units"],
+                metadata_json=t["metadata"],
+            )
+        )
+    db.commit()
+
+    # rebuild index from all report tables (simple deterministic behavior)
+    rows = db.query(ExtractedTable).all()
+    all_tables = [
+        {
+            "file_name": r.file_name,
+            "page_number": r.page_number,
+            "table_id": r.table_id,
+            "extraction_type": r.extraction_type,
+            "table_title": r.table_title,
+            "columns": r.columns_json,
+            "rows": r.rows_json,
+            "units": r.units_json,
+            "metadata": r.metadata_json,
+        }
+        for r in rows
+    ]
+
+    rag_chunks = []
+    for t in all_tables:
+        for idx, row in enumerate(t.get("rows", []), start=1):
+            txt = "; ".join(f"{k}={row.get(k)}" for k in t.get("columns", []))
+            rag_chunks.append(
+                {
+                    "chunk_text": f"{t.get('extraction_type')} | {t.get('table_title') or ''} | row {idx}: {txt}",
+                    "metadata": {
+                        "file_name": t.get("file_name"),
+                        "page_number": t.get("page_number"),
+                        "table_id": t.get("table_id"),
+                        "extraction_type": t.get("extraction_type"),
+                        "sample_id": str(row.get("sample_id") or row.get("sample") or ""),
+                        "report_name": (t.get("metadata") or {}).get("report_name", ""),
+                    },
+                }
+            )
+
+    index = LocalHybridIndex(INDEX_DIR)
+    if rag_chunks:
+        index.build(rag_chunks)
+    log_event(db, "index", f"Index rebuilt from imported JSON ({len(rag_chunks)} chunks)", report.id)
+
+    report.status = "ready"
+    db.commit()
+    return {"report_id": report.id, "imported_tables": len(normalized_tables), "rag_chunks": len(rag_chunks), "status": "ready"}
 
 
 @router.get("/reports")

@@ -2,12 +2,20 @@
 
 This is a deployable web app starter with two connected modules:
 
-1. **Extraction Module** (PDF -> targeted SCAL table JSON)
-2. **Chat/RAG Module** (answers from extracted JSON/chunks only)
+1. **Extraction Module** (new PDF full extraction + JSON import)
+2. **Chat/RAG Module** (answers from extracted JSON/chunks only via local LLM)
 
 ## Hard Rule Enforced
 
 The chat service **never reads raw PDFs**. It only queries indexed chunks produced from extracted table JSON.
+
+## Updated Workflow
+
+1. Upload new PDF -> default full extraction (page-level JSON records)
+2. Or import existing extraction JSON (single-page or multi-page)
+3. Build/refresh RAG index from extracted JSON
+4. Ask questions in chat; optional use-case prompt uses second local LLM pass
+5. Answer returns source traceability (`file_name`, `page_number`, `table_id`)
 
 ## Features
 
@@ -17,6 +25,8 @@ The chat service **never reads raw PDFs**. It only queries indexed chunks produc
   - relative permeability
   - porosity/permeability
 - 1 table = 1 JSON object with metadata fields
+- Existing JSON import for previously extracted reports
+- Default full extraction for new PDFs, use-case filtering at chat-time over indexed JSON
 - Post-processing:
   - normalize column names
   - merge duplicate columns
@@ -25,6 +35,7 @@ The chat service **never reads raw PDFs**. It only queries indexed chunks produc
   - RAG-ready chunks
 - Hybrid retrieval (keyword + local vector TF-IDF)
 - Source traceability in answers (`file_name`, `page_number`, `table_id`)
+- Local LLM-driven RAG answer generation (offline)
 - Timestamped processing/indexing logs with clear history button
 - Export to JSON, Excel, Word
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
@@ -13,7 +15,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="SCAL Extraction + Offline RAG", version="0.1.0")
     Base.metadata.create_all(bind=engine)
 
-    app.mount("/static", StaticFiles(directory="scal_webapp/backend/static"), name="static")
+    static_dir = Path(__file__).resolve().parent / "static"
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
     app.include_router(ui_router)
     app.include_router(extraction_router)
     app.include_router(chat_router)

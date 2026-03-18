@@ -75,6 +75,14 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo Ensuring CUDA-enabled PyTorch for local LLM...
+python -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
+python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision torchaudio
+if errorlevel 1 (
+  echo Failed installing CUDA PyTorch.
+  echo Local LLM may not work until torch CUDA install succeeds.
+)
+
 python -m pip install -e "scal_webapp"
 if errorlevel 1 (
   echo Failed installing local scal_webapp package.

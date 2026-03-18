@@ -3,100 +3,110 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SCAL Extraction + Offline RAG</title>
+    <title>olmOCR SCAL Web Console</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <header>
-      <h1>SCAL Extraction + Offline RAG</h1>
-      <p>Offline, open-source workflow: PDF -> table JSON -> indexed chat</p>
+    <header class="topbar">
+      <div class="titleblock">
+        <h1>olmOCR SCAL Extraction Console</h1>
+        <p>Offline workflow: PDF -> extracted JSON -> local LLM RAG chat</p>
+      </div>
+      <div class="top-actions">
+        <label for="mode">Mode</label>
+        <select id="mode">
+          <option value="layman">Layman</option>
+          <option value="operator">Operator</option>
+        </select>
+        <button id="refreshReports">Refresh Reports</button>
+      </div>
     </header>
 
-    <main>
-      <section class="card">
-        <div class="row">
-          <label>Mode:</label>
-          <select id="mode">
-            <option value="layman">Layman</option>
-            <option value="operator">Operator</option>
-          </select>
-        </div>
-
-        <div class="row">
-          <label>Upload PDF:</label>
-          <input id="pdfFile" type="file" accept="application/pdf" />
-        </div>
-
-        <div class="row">
-          <label>Use-case:</label>
-          <select id="useCase">
-            <option value="capillary_pressure">Capillary Pressure</option>
-            <option value="relative_permeability">Relative Permeability</option>
-            <option value="porosity_permeability">Porosity/Permeability</option>
-          </select>
-        </div>
-
-        <div id="operatorPanel" class="operator hidden">
-          <h3>Operator Controls</h3>
+    <main class="workspace">
+      <aside class="left-panel">
+        <section class="card">
+          <h2>Files</h2>
+          <div class="row"><label>PDF:</label><input id="pdfFile" type="file" accept="application/pdf" /></div>
+          <div class="row"><label>Existing JSON:</label><input id="jsonFile" type="file" accept="application/json" /></div>
           <div class="row">
-            <label>Page Range:</label>
-            <input id="pageRange" placeholder="e.g. 1-5,8,10" />
+            <button id="runExtraction">Extract New PDF</button>
+            <button id="importJson">Import JSON</button>
           </div>
+        </section>
+
+        <section class="card">
+          <h2>Layman Controls</h2>
           <div class="row">
-            <label>Extraction Types:</label>
-            <input id="types" value="capillary_pressure,relative_permeability,porosity_permeability" />
-          </div>
-          <div class="row">
-            <label>Prompt Profile:</label>
-            <select id="promptProfile">
-              <option value="default">Default</option>
-              <option value="strict_table">Strict Table</option>
-              <option value="numeric_focus">Numeric Focus</option>
+            <label>Use-case</label>
+            <select id="useCase">
+              <option value="capillary_pressure">Capillary pressure</option>
+              <option value="relative_permeability">Relative permeability</option>
+              <option value="porosity_permeability">Porosity/permeability</option>
             </select>
           </div>
-          <div class="row">
-            <label>Model:</label>
-            <input id="modelName" value="offline_heuristic" />
+          <p class="hint">New PDF extraction uses default full extraction prompt. Use-case logic applies during chat over indexed JSON.</p>
+        </section>
+
+        <section id="operatorPanel" class="card hidden">
+          <h2>Operator Panel</h2>
+          <div class="row"><label>Page Range</label><input id="pageRange" placeholder="1-5,8,10" /></div>
+          <div class="row"><label>Extraction Types</label><input id="types" value="capillary_pressure,relative_permeability,porosity_permeability" /></div>
+          <div class="row"><label>Prompt Profile</label><input id="promptProfile" value="default" /></div>
+          <div class="row"><label>Extractor Model</label><input id="modelName" value="offline_heuristic" /></div>
+          <div class="row"><input id="normalize" type="checkbox" checked /><span>Normalize/merge columns</span></div>
+          <div class="row"><input id="buildIndex" type="checkbox" checked /><span>Rebuild RAG index</span></div>
+          <div class="row"><button id="loadLlmBtn">Load Local LLMs</button></div>
+        </section>
+
+        <section class="card">
+          <h2>Reports</h2>
+          <div id="reports" class="report-list"></div>
+        </section>
+      </aside>
+
+      <section class="right-panel">
+        <nav class="tabs">
+          <button class="tab active" data-tab="chatTab">Chat / RAG</button>
+          <button class="tab" data-tab="resultTab">Extraction Results</button>
+          <button class="tab" data-tab="logsTab">Debug Logs</button>
+        </nav>
+
+        <section id="chatTab" class="tab-panel active">
+          <div class="card">
+            <h2>Chat with Extracted JSON (Local LLM)</h2>
+            <div class="row">
+              <input id="question" placeholder="Ask about capillary pressure, rel perm, porosity/permeability..." />
+              <button id="askBtn">Ask</button>
+            </div>
+            <div class="row">
+              <input id="filterFile" placeholder="filter file_name" />
+              <input id="filterType" placeholder="filter extraction_type" />
+              <input id="filterSample" placeholder="filter sample_id" />
+            </div>
+            <div class="row">
+              <textarea id="useCasePrompt" placeholder="Optional use-case prompt (handled by second local LLM) e.g. Summarize only capillary pressure trend for sample 2-015 with citations."></textarea>
+            </div>
+            <pre id="chatOut"></pre>
           </div>
-          <div class="row">
-            <label>Post-process:</label>
-            <input id="normalize" type="checkbox" checked /> Normalize columns
-            <input id="buildIndex" type="checkbox" checked /> Build index
+        </section>
+
+        <section id="resultTab" class="tab-panel">
+          <div class="card">
+            <h2>Result Preview</h2>
+            <pre id="resultOut">No extraction run yet.</pre>
           </div>
-        </div>
+        </section>
 
-        <div class="row">
-          <button id="runExtraction">Run Extraction</button>
-          <button id="refreshReports">Refresh Reports</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Reports</h2>
-        <div id="reports"></div>
-      </section>
-
-      <section class="card">
-        <h2>Chat / RAG (JSON-only Source of Truth)</h2>
-        <div class="row">
-          <input id="question" placeholder="Ask about extracted SCAL data..." />
-          <button id="askBtn">Ask</button>
-        </div>
-        <div class="row">
-          <input id="filterFile" placeholder="Filter file_name" />
-          <input id="filterType" placeholder="Filter extraction_type" />
-          <input id="filterSample" placeholder="Filter sample_id" />
-        </div>
-        <pre id="chatOut"></pre>
-      </section>
-
-      <section class="card" id="debugCard">
-        <h2>Debug Logs</h2>
-        <div class="row">
-          <button id="refreshLogs">Refresh Logs</button>
-          <button id="clearLogs">Clear History</button>
-        </div>
-        <pre id="logs"></pre>
+        <section id="logsTab" class="tab-panel">
+          <div class="card">
+            <h2>Processing Logs</h2>
+            <div class="row">
+              <button id="refreshLogs">Refresh Logs</button>
+              <button id="clearLogs">Clear History</button>
+            </div>
+            <pre id="logs"></pre>
+          </div>
+        </section>
       </section>
     </main>
 
