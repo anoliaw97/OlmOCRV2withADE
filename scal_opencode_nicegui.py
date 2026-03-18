@@ -648,7 +648,7 @@ with ui.row().classes("w-full items-start"):
     # Right evidence/export/debug panel
     with ui.card().classes("w-1/4 oc-shell"):
         ui.label("Results / Source Panel").classes("text-subtitle1")
-        evidence_json = ui.textarea("Retrieved chunks JSON", value="", readonly=True).classes("w-full")
+        evidence_json = ui.textarea("Retrieved chunks JSON", value="").props("readonly").classes("w-full")
 
         table_render_holder = ui.column().classes("w-full")
 
@@ -781,7 +781,7 @@ with ui.row().classes("w-full items-start"):
 
         ui.separator()
         ui.label("Logs").classes("text-subtitle2")
-        log_box = ui.textarea("", value="", readonly=True).classes("w-full")
+        log_box = ui.textarea("", value="").props("readonly").classes("w-full")
 
         def log(message: str):
             line = f"[{ts()}] {message}"
