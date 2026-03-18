@@ -53,13 +53,13 @@ function show(el, visible = true) {
    Tab switching (main tabs)
 ══════════════════════════════════════════ */
 function initTabs() {
+  // Main tabs (Chat / Viewer only)
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.onclick = () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
       btn.classList.add('active');
       $('tab-' + btn.dataset.tab).classList.remove('hidden');
-      if (btn.dataset.tab === 'logs') refreshLogs();
     };
   });
   // Viewer sub-tabs
@@ -288,12 +288,12 @@ function resetPrompt() {
 /* ══════════════════════════════════════════
    Chat
 ══════════════════════════════════════════ */
-function addChatMsg(role, text) {
+function addChatMsg(role, text, extraHtml = '') {
   const box = $('chatBox');
   const wrap = document.createElement('div');
   wrap.className = `msg-wrap msg-${role}`;
   const roleLabel = { user:'YOU', assistant:'ASSISTANT', system:'SYSTEM' }[role] || role.toUpperCase();
-  wrap.innerHTML = `<div class="msg-role">${roleLabel}</div><div class="msg-body">${esc(text).replace(/\n/g,'<br>')}</div>`;
+  wrap.innerHTML = `<div class="msg-role">${roleLabel}</div><div class="msg-body">${esc(text).replace(/\n/g,'<br>')}${extraHtml}</div>`;
   box.appendChild(wrap);
   box.scrollTop = box.scrollHeight;
 }
@@ -323,9 +323,9 @@ async function askChat() {
       }),
     });
     S.lastHits = d.raw_hits || [];
-    addChatMsg('assistant', d.answer || '(no answer)');
+    const tableHtml = buildInlineTables(d.tables || [], d.raw_hits || []);
+    addChatMsg('assistant', d.answer || '(no answer)', tableHtml);
     renderReasoning(d.reasoning || []);
-    renderRetrievedTables(d.tables || []);
   } catch (e) {
     addChatMsg('system', `Error: ${e.message}`);
   } finally {
@@ -337,7 +337,6 @@ async function askChat() {
 function clearChat() {
   $('chatBox').innerHTML = '';
   $('reasoningList').innerHTML = '';
-  $('tablesView').innerHTML = '<div class="placeholder-text">Tables from the last chat answer will appear here</div>';
 }
 
 /* ══════════════════════════════════════════
@@ -355,22 +354,44 @@ function renderReasoning(items) {
   ).join('');
 }
 
-function renderRetrievedTables(tables) {
-  const box = $('tablesView');
-  if (!tables.length) {
-    box.innerHTML = '<div class="placeholder-text">No parsed tables in last retrieval.</div>';
-    return;
-  }
-  box.innerHTML = tables.slice(0,5).map((t,i) => {
+/* Build inline table HTML to embed in a chat bubble.
+   Prefers raw_html from the hit (preserves original OCR formatting including
+   <sup>, merged cells, etc.), falls back to cols/rows JSON. */
+function buildInlineTables(tables, rawHits) {
+  // Collect raw_html blocks from hits that have them
+  const htmlBlocks = [];
+  (rawHits || []).forEach((h, hi) => {
+    const m = h.meta || {};
+    if (m.raw_html) {
+      const safe = m.raw_html.replace(/<script[\s\S]*?<\/script>/gi, '');
+      htmlBlocks.push({ html: safe, file: m.file_name || '', page: m.page_number, id: m.table_id || '' });
+    }
+  });
+
+  // Also use parsed tables (for hits without raw_html)
+  const seenIds = new Set(htmlBlocks.map(b => b.id));
+  (tables || []).forEach((t) => {
+    if (seenIds.has(t.table_id)) return; // already have raw HTML for this
     const cols = t.columns || [];
-    const rows = (t.rows || []).slice(0, 30);
-    const thead = cols.map(c => `<th>${esc(c)}</th>`).join('');
-    const tbody = rows.map(r => '<tr>' + cols.map(c => `<td>${esc(r[c]??'')}</td>`).join('') + '</tr>').join('');
-    return `<div class="rtable-wrap">
-      <div class="rtable-meta">[${i+1}] ${esc(t.file_name||'')} · p${t.page_number} · ${esc(t.table_id||'')}</div>
-      <table class="rtable"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>
-    </div>`;
-  }).join('');
+    const rows = (t.rows || []).slice(0, 50);
+    if (!cols.length && !rows.length) return;
+    const thead = `<tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr>`;
+    const tbody = rows.map(r => `<tr>${cols.map(c => `<td>${esc(r[c] ?? '')}</td>`).join('')}</tr>`).join('');
+    const html = `<table>${thead}${tbody}</table>`;
+    htmlBlocks.push({ html, file: t.file_name || '', page: t.page_number, id: t.table_id || '' });
+  });
+
+  if (!htmlBlocks.length) return '';
+
+  return '<div class="chat-tables">' + htmlBlocks.map((b, i) =>
+    `<div class="chat-table-block">
+      <div class="chat-table-label">
+        📊 Table ${i + 1}
+        <span class="ct-source">${esc(b.file)} · p${b.page}${b.id ? ' · ' + esc(b.id) : ''}</span>
+      </div>
+      <div class="chat-table-scroll">${b.html}</div>
+    </div>`
+  ).join('') + '</div>';
 }
 
 /* ══════════════════════════════════════════
@@ -608,11 +629,8 @@ async function init() {
   await pollState();
   await refreshLogs();
 
-  setInterval(() => { pollState(); }, 1500);
-  setInterval(() => {
-    const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
-    if (activeTab === 'logs') refreshLogs();
-  }, 2000);
+  // Logs are always visible in the right panel — poll every 2 s
+  setInterval(() => { pollState(); refreshLogs(); }, 2000);
 }
 
 init();

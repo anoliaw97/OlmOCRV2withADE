@@ -37,7 +37,6 @@
   <!-- ══════════ LEFT SIDEBAR ══════════ -->
   <aside class="sidebar">
 
-    <!-- Folder row -->
     <div class="sidebar-section">
       <div class="section-label">Data Root Folder</div>
       <div class="folder-row">
@@ -48,14 +47,12 @@
       <button class="btn-full" id="refreshDocsBtn">↻ Refresh Documents</button>
     </div>
 
-    <!-- Document picker -->
     <div class="sidebar-section">
       <div class="section-label">Document</div>
       <select id="docSelect" class="full-select" size="5"></select>
       <div id="coverageInfo" class="coverage-chip"></div>
     </div>
 
-    <!-- Index -->
     <div class="sidebar-section">
       <div class="section-label">RAG Index</div>
       <div class="index-scope-row">
@@ -65,7 +62,6 @@
       <button class="btn-full btn-accent" id="buildIndexBtn">⚡ Build / Rebuild Index</button>
     </div>
 
-    <!-- Prompt -->
     <div class="sidebar-section">
       <div class="section-label">Extraction Prompt</div>
       <div class="row-2">
@@ -79,7 +75,6 @@
       <textarea id="promptText" class="prompt-area" rows="4"></textarea>
     </div>
 
-    <!-- Extraction -->
     <div class="sidebar-section">
       <div class="section-label">PDF Extraction <span class="badge badge-opt">Optional</span></div>
       <div class="extract-card">
@@ -104,7 +99,6 @@
       </div>
     </div>
 
-    <!-- Output folder -->
     <div class="sidebar-section">
       <div class="section-label">Output Folder <span class="badge badge-opt">Optional</span></div>
       <div class="folder-row">
@@ -118,11 +112,10 @@
   <!-- ══════════ CENTER: TABBED MAIN AREA ══════════ -->
   <main class="main-area">
 
-    <!-- Tab nav -->
+    <!-- Tab nav — only Chat + Viewer now -->
     <div class="tab-nav">
       <button class="tab-btn active" data-tab="chat">💬 Chat</button>
       <button class="tab-btn" data-tab="viewer">📄 Document Viewer</button>
-      <button class="tab-btn" data-tab="logs">📋 Logs</button>
     </div>
 
     <!-- ── CHAT TAB ── -->
@@ -158,13 +151,11 @@
     <div id="tab-viewer" class="tab-pane hidden">
       <div class="viewer-layout">
 
-        <!-- Left: page list -->
         <div class="page-list-panel">
           <div class="panel-head">Pages</div>
           <div id="pageList" class="page-list"></div>
         </div>
 
-        <!-- Right: viewer tabs -->
         <div class="viewer-content">
           <div class="viewer-tabs">
             <button class="vtab-btn active" data-vtab="pdf">PDF Preview</button>
@@ -192,27 +183,9 @@
       </div>
     </div>
 
-    <!-- ── LOGS TAB ── -->
-    <div id="tab-logs" class="tab-pane hidden">
-      <div class="logs-header">
-        <div class="log-kind-tabs">
-          <button class="lkbtn active" data-kind="status">Status</button>
-          <button class="lkbtn" data-kind="debug">Debug</button>
-          <button class="lkbtn" data-kind="error">Error</button>
-        </div>
-        <div class="logs-actions">
-          <label class="tiny-label">
-            <input type="checkbox" id="autoScrollLogs" checked /> Auto-scroll
-          </label>
-          <button class="btn-xs btn-muted" id="clearLogsBtn">🗑 Clear</button>
-        </div>
-      </div>
-      <div id="logsView" class="logs-view"></div>
-    </div>
-
   </main>
 
-  <!-- ══════════ RIGHT PANEL: Progress + Reasoning + Tables ══════════ -->
+  <!-- ══════════ RIGHT PANEL ══════════ -->
   <aside class="right-panel">
 
     <!-- Progress -->
@@ -230,18 +203,29 @@
       </div>
     </div>
 
-    <!-- Reasoning -->
+    <!-- Retrieval Reasoning (source hits) -->
     <div class="rp-section rp-reasoning">
-      <div class="rp-head">Retrieval Reasoning</div>
+      <div class="rp-head">Retrieval Sources</div>
       <div id="reasoningList" class="reasoning-list"></div>
     </div>
 
-    <!-- Rendered tables from last retrieval -->
-    <div class="rp-section rp-tables">
-      <div class="rp-head">Retrieved Tables</div>
-      <div id="tablesView" class="retrieved-tables">
-        <div class="placeholder-text">Tables from the last chat answer will appear here</div>
+    <!-- Logs — live, below progress -->
+    <div class="rp-section rp-logs">
+      <div class="rp-head-row">
+        <div class="rp-head" style="margin-bottom:0">Logs</div>
+        <div class="log-kind-tabs">
+          <button class="lkbtn active" data-kind="status">Status</button>
+          <button class="lkbtn" data-kind="debug">Debug</button>
+          <button class="lkbtn" data-kind="error">Error</button>
+        </div>
+        <div class="rp-log-actions">
+          <label class="tiny-label" style="display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="autoScrollLogs" checked /> Scroll
+          </label>
+          <button class="btn-xs btn-muted" id="clearLogsBtn">🗑</button>
+        </div>
       </div>
+      <div id="logsView" class="logs-view rp-logs-view"></div>
     </div>
 
   </aside>
