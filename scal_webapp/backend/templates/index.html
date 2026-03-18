@@ -38,16 +38,8 @@
         </section>
 
         <section class="card">
-          <h2>Layman Controls</h2>
-          <div class="row">
-            <label>Use-case</label>
-            <select id="useCase">
-              <option value="capillary_pressure">Capillary pressure</option>
-              <option value="relative_permeability">Relative permeability</option>
-              <option value="porosity_permeability">Porosity/permeability</option>
-            </select>
-          </div>
-          <p class="hint">New PDF extraction uses default full extraction prompt. Use-case logic applies during chat over indexed JSON.</p>
+          <h2>Extraction Prompt</h2>
+          <p class="hint">New PDF extraction uses the default olmOCR prompt. You can edit it before extraction.</p>
           <div class="row">
             <label>Default Prompt</label>
             <textarea id="defaultPrompt"></textarea>
@@ -91,7 +83,14 @@
               <input id="filterSample" placeholder="filter sample_id" />
             </div>
             <div class="row">
-              <textarea id="useCasePrompt" placeholder="Optional use-case prompt (handled by second local LLM) e.g. Summarize only capillary pressure trend for sample 2-015 with citations."></textarea>
+              <label>Saved Prompt</label>
+              <select id="savedPromptSelect"></select>
+              <button id="loadSavedPromptBtn">Load</button>
+              <input id="savePromptName" placeholder="save prompt as..." />
+              <button id="savePromptBtn">Save Prompt</button>
+            </div>
+            <div class="row">
+              <textarea id="useCasePrompt" placeholder="Prompt template for JSON query over retrieved RAG evidence. Example: extract only Sample ID, Porosity, Depth as strict JSON."></textarea>
             </div>
             <pre id="chatOut"></pre>
           </div>

@@ -8,7 +8,7 @@ async function runExtraction() {
   const mode = document.getElementById("mode").value;
   const settings = {
     mode,
-    use_case: document.getElementById("useCase").value,
+    use_case: "full_extraction",
     page_range: document.getElementById("pageRange")?.value || null,
     extraction_types: (document.getElementById("types")?.value || "")
       .split(",")
@@ -70,6 +70,46 @@ async function refreshModelStatus() {
   if (promptEl && !promptEl.value) {
     promptEl.value = data.default_prompt || "";
   }
+}
+
+async function refreshSavedPrompts() {
+  const resp = await fetch("/api/chat/prompts");
+  const data = await resp.json();
+  const prompts = data.prompts || [];
+  const select = document.getElementById("savedPromptSelect");
+  select.innerHTML = "";
+  prompts.forEach((p, idx) => {
+    const opt = document.createElement("option");
+    opt.value = String(idx);
+    opt.textContent = p.name;
+    opt.dataset.promptText = p.text;
+    select.appendChild(opt);
+  });
+}
+
+function loadSavedPromptToTextarea() {
+  const select = document.getElementById("savedPromptSelect");
+  const idx = Number(select.value || 0);
+  const opt = select.options[idx];
+  if (!opt) return;
+  document.getElementById("useCasePrompt").value = opt.dataset.promptText || "";
+}
+
+async function saveCurrentPrompt() {
+  const name = (document.getElementById("savePromptName").value || "").trim();
+  const text = (document.getElementById("useCasePrompt").value || "").trim();
+  if (!name || !text) {
+    alert("Prompt name and prompt text are required.");
+    return;
+  }
+  const resp = await fetch("/api/chat/prompts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, text }),
+  });
+  const data = await resp.json();
+  document.getElementById("resultOut").textContent = JSON.stringify(data, null, 2);
+  await refreshSavedPrompts();
 }
 
 async function refreshReports() {
@@ -143,6 +183,8 @@ document.getElementById("loadLlmTopBtn").addEventListener("click", loadLlms);
 document.getElementById("loadVlmBtn").addEventListener("click", loadVlm);
 document.getElementById("refreshReports").addEventListener("click", refreshReports);
 document.getElementById("askBtn").addEventListener("click", askQuestion);
+document.getElementById("loadSavedPromptBtn").addEventListener("click", loadSavedPromptToTextarea);
+document.getElementById("savePromptBtn").addEventListener("click", saveCurrentPrompt);
 document.getElementById("refreshLogs").addEventListener("click", refreshLogs);
 document.getElementById("clearLogs").addEventListener("click", clearLogs);
 document.getElementById("mode").addEventListener("change", toggleMode);
@@ -152,3 +194,4 @@ toggleMode();
 refreshReports();
 refreshLogs();
 refreshModelStatus();
+refreshSavedPrompts();

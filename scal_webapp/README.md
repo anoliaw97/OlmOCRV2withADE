@@ -27,6 +27,7 @@ The chat service **never reads raw PDFs**. It only queries indexed chunks produc
 - 1 table = 1 JSON object with metadata fields
 - Existing JSON import for previously extracted reports
 - Default full extraction for new PDFs, use-case filtering at chat-time over indexed JSON
+- Saved prompt library for chat-side JSON querying (load/save prompt templates)
 - Post-processing:
   - normalize column names
   - merge duplicate columns

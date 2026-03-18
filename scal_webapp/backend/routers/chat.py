@@ -10,6 +10,7 @@ from ..models import ProcessingLog
 from ..schemas import QueryRequest
 from ..services.indexer import LocalHybridIndex
 from ..services.local_llm import get_rag_llm, get_usecase_llm
+from ..services.prompt_library import list_prompts, save_prompt
 from ..services.rag import synthesize_answer
 
 
@@ -98,3 +99,18 @@ def clear_logs(db: Session = Depends(get_db)):
     db.query(ProcessingLog).delete()
     db.commit()
     return {"ok": True}
+
+
+@router.get("/prompts")
+def get_saved_prompts():
+    return {"prompts": list_prompts()}
+
+
+@router.post("/prompts")
+def save_chat_prompt(payload: dict):
+    name = (payload or {}).get("name", "").strip()
+    text = (payload or {}).get("text", "").strip()
+    if not name or not text:
+        return {"ok": False, "error": "Both name and text are required"}
+    prompts = save_prompt(name, text)
+    return {"ok": True, "prompts": prompts}
