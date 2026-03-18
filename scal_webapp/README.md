@@ -162,6 +162,24 @@ This launches at `http://localhost:8088` and includes:
 - RAG rebuild/indexing panel
 - optional OLMOCR PDF extraction panel with missing-page extraction
 
+## Latest Modern Stack UI (FastAPI + Vanilla SPA)
+
+A fully local, easy-to-deploy modern web app with two progress bars and categorized logs:
+
+```bash
+run_scal_modern_web_conda.bat
+```
+
+Open: `http://localhost:8090`
+
+Highlights:
+- chat-first interface inspired by OpenCode/Open WebUI
+- two moving progress bars (indexing + extraction) with percentage and stage detail
+- categorized logs: status / debug / error
+- reasoning panel from retrieval traces
+- rendered HTML table panel from extracted JSON content
+- export to Excel / Word from retrieved results
+
 ## Package and install anywhere
 
 Build wheel package on a source machine:

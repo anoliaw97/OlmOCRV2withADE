@@ -14,3 +14,4 @@ gradio
 nicegui
 scikit-learn
 joblib
+beautifulsoup4

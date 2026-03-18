@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SCAL Modern Local App</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>SCAL Modern Local App</h1>
+        <p>Chat-first local RAG on extracted JSON data</p>
+      </div>
+      <div class="top-actions">
+        <button id="loadVlmBtn">Load VLM</button>
+        <button id="loadLlmBtn">Load LLM</button>
+        <span id="modelState">VLM: not loaded | LLM: not loaded</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel left">
+        <h2>RAG / Data</h2>
+        <label>Data Root</label>
+        <input id="dataRoot" type="text" />
+        <button id="refreshDocsBtn">Refresh Docs</button>
+
+        <label>Document</label>
+        <select id="docSelect"></select>
+        <div id="coverageInfo" class="mono"></div>
+
+        <button id="buildIndexBtn">Build / Rebuild Index</button>
+
+        <h3>Prompt Templates</h3>
+        <select id="promptSelect"></select>
+        <textarea id="promptText"></textarea>
+        <input id="promptName" placeholder="Save prompt as" />
+        <button id="savePromptBtn">Save Prompt</button>
+
+        <h3>Optional PDF Extraction</h3>
+        <input id="pdfFile" type="file" accept="application/pdf" />
+        <button id="checkPdfBtn">Check Missing Pages</button>
+        <button id="startExtractBtn">Extract Missing Pages</button>
+        <textarea id="extractPrompt" placeholder="OLMOCR default prompt"></textarea>
+        <div id="extractCheckOut" class="mono"></div>
+      </aside>
+
+      <section class="panel center">
+        <h2>Chat</h2>
+        <div class="filters">
+          <input id="fFile" placeholder="file_name" />
+          <input id="fReport" placeholder="report_name" />
+          <input id="fPage" placeholder="page_number" />
+          <input id="fTable" placeholder="table_id" />
+          <input id="fType" placeholder="extraction_type" />
+          <input id="fSample" placeholder="sample_id" />
+        </div>
+        <div id="chatBox" class="chat-box"></div>
+        <textarea id="chatInput" placeholder="Ask about extracted SCAL data..."></textarea>
+        <div class="chat-actions">
+          <button id="sendBtn">Send</button>
+          <button id="clearChatBtn">Clear History</button>
+        </div>
+      </section>
+
+      <aside class="panel right">
+        <h2>Progress</h2>
+        <div class="progress-card">
+          <label>Indexing Pipeline</label>
+          <div class="bar"><div id="barIndex"></div></div>
+          <div id="indexDetail" class="mono">Idle</div>
+        </div>
+        <div class="progress-card">
+          <label>Extraction Pipeline</label>
+          <div class="bar"><div id="barExtract"></div></div>
+          <div id="extractDetail" class="mono">Idle</div>
+        </div>
+
+        <h2>Reasoning</h2>
+        <pre id="reasoningLog"></pre>
+
+        <h2>Rendered Tables</h2>
+        <div id="tablesView"></div>
+
+        <div class="export-row">
+          <button id="exportExcelBtn">Export Excel</button>
+          <button id="exportWordBtn">Export Word</button>
+        </div>
+
+        <h2>Logs</h2>
+        <div class="log-tabs">
+          <button data-kind="status" class="active">Status</button>
+          <button data-kind="debug">Debug</button>
+          <button data-kind="error">Error</button>
+          <button id="clearLogsBtn">Clear</button>
+        </div>
+        <pre id="logsView"></pre>
+      </aside>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
