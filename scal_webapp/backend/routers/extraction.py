@@ -18,6 +18,7 @@ from ..services.indexer import LocalHybridIndex
 from ..services.logger import log_event
 from ..services.postprocess import build_rag_chunks, normalize_tables
 from ..services.web_olmocr_runtime import default_olmocr_prompt, get_vlm
+from olmocr.data.renderpdf import render_pdf_to_base64png
 
 
 router = APIRouter(prefix="/api/extraction", tags=["extraction"])
@@ -146,10 +147,21 @@ async def run_extraction(
     report.status = "ready"
     db.commit()
 
+    total_input_tokens = 0
+    total_output_tokens = 0
+    for t in tables:
+        meta = getattr(t, "metadata", {}) or {}
+        total_input_tokens += int(meta.get("input_tokens", 0) or 0)
+        total_output_tokens += int(meta.get("output_tokens", 0) or 0)
+
     return {
         "report_id": report.id,
         "tables": len(tables),
         "rag_chunks": len(rag_chunks),
+        "pages_extracted": len(tables),
+        "input_tokens": total_input_tokens,
+        "output_tokens": total_output_tokens,
+        "total_tokens": total_input_tokens + total_output_tokens,
         "status": "ready",
     }
 
@@ -334,6 +346,54 @@ def get_report_tables(report_id: int, db: Session = Depends(get_db)):
         }
         for r in rows
     ]
+
+
+@router.get("/report/{report_id}/pages")
+def get_report_pages(report_id: int, db: Session = Depends(get_db)):
+    rows = (
+        db.query(ExtractedTable)
+        .filter(ExtractedTable.report_id == report_id)
+        .order_by(ExtractedTable.page_number.asc())
+        .all()
+    )
+    pages = []
+    for r in rows:
+        text = ""
+        if isinstance(r.rows_json, list) and r.rows_json and isinstance(r.rows_json[0], dict):
+            text = str(r.rows_json[0].get("page_text", ""))
+        meta = r.metadata_json or {}
+        pages.append(
+            {
+                "page_number": r.page_number,
+                "table_id": r.table_id,
+                "extraction_type": r.extraction_type,
+                "raw_response": text,
+                "input_tokens": int(meta.get("input_tokens", 0) or 0),
+                "output_tokens": int(meta.get("output_tokens", 0) or 0),
+                "total_tokens": int(meta.get("total_tokens", 0) or 0),
+            }
+        )
+    return {"report_id": report_id, "pages": pages}
+
+
+@router.get("/report/{report_id}/thumbnail/{page_number}")
+def get_page_thumbnail(report_id: int, page_number: int, db: Session = Depends(get_db)):
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    pdf_path = UPLOAD_DIR / report.file_name
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Source PDF not found in uploads")
+
+    try:
+        img_b64 = render_pdf_to_base64png(str(pdf_path), page_number, target_longest_image_dim=360)
+        return {
+            "report_id": report_id,
+            "page_number": page_number,
+            "image_data_url": f"data:image/png;base64,{img_b64}",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Thumbnail render failed: {e}")
 
 
 @router.get("/report/{report_id}/export/{fmt}")

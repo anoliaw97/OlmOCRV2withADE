@@ -99,7 +99,28 @@
         <section id="resultTab" class="tab-panel">
           <div class="card">
             <h2>Result Preview</h2>
+            <div class="row">
+              <label>Progress</label>
+              <div class="progress-wrap"><div id="extractProgress" class="progress-bar"></div></div>
+              <span id="progressText" class="hint">Idle</span>
+            </div>
+            <div class="row token-row">
+              <span>Input Tokens: <b id="tokIn">0</b></span>
+              <span>Output Tokens: <b id="tokOut">0</b></span>
+              <span>Total Tokens: <b id="tokTotal">0</b></span>
+            </div>
             <pre id="resultOut">No extraction run yet.</pre>
+
+            <h3>Page Thumbnails</h3>
+            <div id="thumbStrip" class="thumb-strip"></div>
+
+            <h3>Per-page Raw Response</h3>
+            <div class="row">
+              <button id="prevPageBtn">◀ Prev</button>
+              <span id="pageNavLabel" class="hint">Page: 0 / 0</span>
+              <button id="nextPageBtn">Next ▶</button>
+            </div>
+            <pre id="pageRawOut">No page selected.</pre>
           </div>
         </section>
 

@@ -121,6 +121,65 @@ pre {
 .report-list { font-size: 13px; }
 .report-item { padding: 6px 0; border-bottom: 1px dashed #d2d9e7; }
 
+.progress-wrap {
+  width: 320px;
+  height: 12px;
+  border-radius: 999px;
+  background: #dce5f5;
+  border: 1px solid #c6d3ea;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #0f6cbd, #2d8be0);
+  transition: width 0.25s ease;
+}
+
+.token-row span {
+  margin-right: 12px;
+  font-size: 13px;
+}
+
+.thumb-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 0;
+  margin-bottom: 8px;
+}
+
+.thumb-card {
+  min-width: 120px;
+  max-width: 120px;
+  border: 1px solid #cfd8ea;
+  border-radius: 8px;
+  padding: 4px;
+  background: #f9fbff;
+  cursor: pointer;
+}
+
+.thumb-card.active {
+  border-color: #0f6cbd;
+  box-shadow: 0 0 0 2px rgba(15, 108, 189, 0.18);
+}
+
+.thumb-card img {
+  width: 100%;
+  border-radius: 6px;
+  display: block;
+}
+
+.thumb-meta {
+  font-size: 11px;
+  color: #3c4f73;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .hidden { display: none !important; }
 
 @media (max-width: 1050px) {
