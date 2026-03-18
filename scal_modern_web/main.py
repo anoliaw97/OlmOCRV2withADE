@@ -422,14 +422,26 @@ def extraction_job(
         reader = PdfReader(str(pdf_path))
         total = len(reader.pages)
 
-        # Build candidate page list from user range, then subtract already-extracted
+        # Build candidate page list from user range, then subtract already-extracted.
+        # Use the PDF's own stem for the lookup so a new/unrecognised file shows
+        # all pages as missing rather than falsely reporting them as done.
         _from = max(1, page_from)
         _to = min(total, page_to) if page_to > 0 else total
         pages = list(range(_from, _to + 1))
 
-        if doc_name and doc_name in R.docs:
-            existing = {p for p, flags in R.docs[doc_name].items() if "md" in flags or "json" in flags}
-            pages = [p for p in pages if p not in existing]
+        # Check by PDF stem in R.docs AND by scanning output_dir on disk
+        existing: set[int] = set()
+        if stem in R.docs:
+            existing |= {p for p, flags in R.docs[stem].items()
+                         if "md" in flags or "json" in flags}
+        # Also scan output dir for _pageN files matching the stem
+        for ext in ("md", "json"):
+            for f in out_dir.glob(f"{stem}_page*.{ext}"):
+                m = re.match(rf"^{re.escape(stem)}_page(\d+)\.(?:md|json)$",
+                              f.name, flags=re.IGNORECASE)
+                if m:
+                    existing.add(int(m.group(1)))
+        pages = [p for p in pages if p not in existing]
 
         if not pages:
             set_progress("extract", 100, "completed", "All pages in range already extracted")
@@ -874,17 +886,46 @@ def api_export_word(payload: dict):
 
 # ── PDF Extraction ────────────────────────────────────────────────────────────
 
-def _pdf_check(pdf_path: Path, doc_name: str) -> dict:
+def _pdf_check(pdf_path: Path, doc_name: str, output_dir: str = "",
+               stem_override: str = "") -> dict:
     reader = PdfReader(str(pdf_path))
     total = len(reader.pages)
+
+    # Use the real filename stem (may differ from the temp path stem for uploads)
+    pdf_stem = stem_override or pdf_path.stem
+
+    # Search both the configured output_dir and DATA_ROOT for already-extracted pages
+    search_roots = [DATA_ROOT]
+    if output_dir:
+        out = Path(output_dir)
+        if out.exists() and out != DATA_ROOT:
+            search_roots.insert(0, out)
+
     extracted: set[int] = set()
-    if doc_name and doc_name in R.docs:
-        extracted = {p for p, flags in R.docs[doc_name].items() if "md" in flags or "json" in flags}
+
+    # 1. Check R.docs by PDF stem (most reliable when already scanned)
+    if pdf_stem in R.docs:
+        extracted |= {p for p, flags in R.docs[pdf_stem].items()
+                      if "md" in flags or "json" in flags}
+
+    # 2. Also scan roots directly for _pageN.md / _pageN.json files matching the stem
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for ext in ("md", "json"):
+            for f in root.glob(f"{pdf_stem}_page*.{ext}"):
+                m = re.match(rf"^{re.escape(pdf_stem)}_page(\d+)\.(?:md|json)$",
+                              f.name, flags=re.IGNORECASE)
+                if m:
+                    extracted.add(int(m.group(1)))
+
     missing = [p for p in range(1, total + 1) if p not in extracted]
     return {
         "total_pdf_pages": total,
         "already_extracted": len(missing) == 0,
         "missing_pages": missing,
+        "extracted_pages": sorted(extracted),
+        "pdf_stem": pdf_stem,
     }
 
 
@@ -893,24 +934,24 @@ async def api_extract_check(
     file: UploadFile = File(None),
     pdf_path: str = Form(""),
     doc_name: str = Form(""),
+    output_dir: str = Form(""),
 ):
     if file and file.filename:
+        real_stem = Path(file.filename).stem
         data = await file.read()
         with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(data)
             tmp_path = Path(tmp.name)
         try:
-            return _pdf_check(tmp_path, doc_name)
+            return _pdf_check(tmp_path, doc_name, output_dir, stem_override=real_stem)
         finally:
-            try:
-                tmp_path.unlink()
-            except Exception:
-                pass
+            try: tmp_path.unlink()
+            except Exception: pass
     elif pdf_path:
         p = Path(pdf_path)
         if not p.exists():
             raise HTTPException(status_code=400, detail=f"File not found: {pdf_path}")
-        return _pdf_check(p, doc_name)
+        return _pdf_check(p, doc_name, output_dir)
     else:
         raise HTTPException(status_code=400, detail="Provide file upload or pdf_path")
 

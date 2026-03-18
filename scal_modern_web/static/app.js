@@ -525,12 +525,15 @@ async function checkPdf() {
   try {
     const f = new FormData();
     f.append('doc_name', docName);
+    f.append('output_dir', $('outputDir').value.trim());
     if (pdfInput.files.length) f.append('file', pdfInput.files[0]);
     else f.append('pdf_path', pathVal);
     const d = await apiFetch('/api/extract/check', { method: 'POST', body: f });
     $('extractCheckOut').textContent = [
+      `File: ${d.pdf_stem || ''}`,
       `Total PDF pages: ${d.total_pdf_pages}`,
-      `Already extracted: ${d.already_extracted ? 'Yes ✓' : 'No'}`,
+      `Already extracted: ${d.already_extracted ? 'Yes ✓ (all pages found)' : 'No — new file or partial'}`,
+      `Extracted pages: ${d.extracted_pages && d.extracted_pages.length ? d.extracted_pages.join(', ') : 'none'}`,
       `Missing pages: ${d.missing_pages.length ? d.missing_pages.join(', ') : 'none'}`,
     ].join('\n');
     show('extractCheckOut', true);
