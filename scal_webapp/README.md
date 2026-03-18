@@ -133,6 +133,20 @@ Features in this mode:
 - extraction completeness checker (detect missing extracted pages)
 - saved prompt templates for JSON querying
 
+## Recommended Python web UI (Gradio)
+
+If Streamlit is unstable in your environment, use Gradio instead:
+
+```bash
+run_scal_opencode_gradio_conda.bat
+```
+
+This launches at `http://localhost:7860` and provides:
+- OpenCode-style chat interface
+- offline RAG on existing extracted data folder
+- saved prompt templates
+- missing-page detection for already-extracted files
+
 ## Package and install anywhere
 
 Build wheel package on a source machine:

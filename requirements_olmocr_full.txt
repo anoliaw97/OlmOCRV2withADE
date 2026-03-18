@@ -10,5 +10,6 @@ compressed-tensors
 openai
 langextract
 streamlit
+gradio
 scikit-learn
 joblib
