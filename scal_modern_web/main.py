@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
 import threading
 import traceback
 from collections import deque
@@ -36,28 +38,6 @@ INDEX_DIR = ROOT / "scal_modern_index"
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR = ROOT / "scal_modern_exports"
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-PROMPT_FILE = ROOT / "scal_modern_prompts.json"
-
-DEFAULT_PROMPTS = [
-    {
-        "name": "Extract certain columns only",
-        "text": (
-            "Return only Sample ID, Porosity, Depth from retrieved evidence as valid JSON. "
-            "Preserve row order and use NULL for missing fields. No extra text."
-        ),
-    },
-    {
-        "name": "Extract table based on keyword",
-        "text": (
-            "Find table containing [keyword] in retrieved evidence and return full table as JSON. "
-            "If not found return {\"no_table\": true}."
-        ),
-    },
-    {
-        "name": "Graph extraction",
-        "text": "From retrieved graph/table evidence return numeric structured JSON only.",
-    },
-]
 
 
 def now() -> str:
@@ -95,6 +75,7 @@ class Runtime:
         self._llm_lock = threading.Lock()
 
         self.vlm = None
+        self.extract_stop = threading.Event()  # set to request stop
 
 
 R = Runtime()
@@ -275,25 +256,6 @@ def load_index(namespace: str):
     return joblib.load(paths[0]), joblib.load(paths[1]), joblib.load(paths[2]), joblib.load(paths[3])
 
 
-def ensure_prompts():
-    if not PROMPT_FILE.exists():
-        PROMPT_FILE.write_text(json.dumps(DEFAULT_PROMPTS, indent=2), encoding="utf-8")
-
-
-def load_prompts() -> list[dict[str, str]]:
-    ensure_prompts()
-    try:
-        data = json.loads(PROMPT_FILE.read_text(encoding="utf-8"))
-        if isinstance(data, list):
-            return data
-    except Exception:
-        pass
-    return DEFAULT_PROMPTS
-
-
-def save_prompts(prompts: list[dict[str, str]]):
-    PROMPT_FILE.write_text(json.dumps(prompts, indent=2, ensure_ascii=False), encoding="utf-8")
-
 
 def set_progress(kind: str, percent: int, stage: str, detail: str = ""):
     if kind not in R.progress:
@@ -410,47 +372,72 @@ def load_vlm():
     R.vlm_loaded = True
 
 
-def extraction_job(pdf_path: Path, stem: str, prompt: str, doc_name: str | None):
+def extraction_job(
+    pdf_path: Path,
+    stem: str,
+    prompt: str,
+    doc_name: str | None,
+    output_dir: Path | None,
+    page_from: int,
+    page_to: int,
+    is_tmp: bool = False,
+):
+    R.extract_stop.clear()
+    out_dir = output_dir or DATA_ROOT
     try:
         R.progress["extract"]["running"] = True
         set_progress("extract", 5, "starting", "Preparing extraction")
         log("status", f"Extraction started for {pdf_path.name}")
 
         if not R.vlm_loaded or R.vlm is None:
-            raise RuntimeError("VLM not loaded")
+            raise RuntimeError("VLM not loaded — click Load VLM first")
 
         reader = PdfReader(str(pdf_path))
         total = len(reader.pages)
-        pages = list(range(1, total + 1))
+
+        # Build candidate page list from user range, then subtract already-extracted
+        _from = max(1, page_from)
+        _to = min(total, page_to) if page_to > 0 else total
+        pages = list(range(_from, _to + 1))
+
         if doc_name and doc_name in R.docs:
             existing = {p for p, flags in R.docs[doc_name].items() if "md" in flags or "json" in flags}
             pages = [p for p in pages if p not in existing]
+
         if not pages:
-            set_progress("extract", 100, "completed", "Already fully extracted")
-            log("status", "No missing pages to extract")
+            set_progress("extract", 100, "completed", "All pages in range already extracted")
+            log("status", "No missing pages to extract in selected range")
             return
 
+        log("status", f"Extracting {len(pages)} page(s) (range {_from}-{_to}) of {total} total")
+        extracted_count = 0
         for i, p in enumerate(pages, start=1):
+            if R.extract_stop.is_set():
+                set_progress("extract", int((i - 1) / max(1, len(pages)) * 100), "stopped", "Stopped by user")
+                log("status", f"Extraction stopped after {extracted_count} page(s)")
+                return
             pct = 10 + int((i - 1) / max(1, len(pages)) * 80)
             set_progress("extract", pct, "extracting", f"Page {p}/{total}")
             res = R.vlm.extract_page(str(pdf_path), p, prompt=prompt)
-            (DATA_ROOT / f"{stem}_page{p}.json").write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
-            (DATA_ROOT / f"{stem}_page{p}.md").write_text(str(res.get("raw_response", "")), encoding="utf-8")
+            (out_dir / f"{stem}_page{p}.json").write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
+            (out_dir / f"{stem}_page{p}.md").write_text(str(res.get("raw_response", "")), encoding="utf-8")
+            extracted_count += 1
 
-        R.docs = scan_docs(DATA_ROOT)
-        set_progress("extract", 100, "completed", f"Extracted {len(pages)} pages")
-        log("status", f"Extraction completed ({len(pages)} pages)")
+        R.docs = scan_docs(out_dir)
+        set_progress("extract", 100, "completed", f"Extracted {extracted_count} page(s)")
+        log("status", f"Extraction completed ({extracted_count} page(s))")
     except Exception as e:
         log("error", f"Extraction failed: {e}")
         log("debug", traceback.format_exc())
         set_progress("extract", 100, "failed", str(e))
     finally:
         R.progress["extract"]["running"] = False
-        try:
-            if pdf_path.exists():
-                pdf_path.unlink()
-        except Exception:
-            pass
+        if is_tmp:
+            try:
+                if pdf_path.exists():
+                    pdf_path.unlink()
+            except Exception:
+                pass
 
 
 def export_excel(hits: list[dict[str, Any]]) -> Path:
@@ -519,14 +506,51 @@ class ChatReq(BaseModel):
     doc_name: str
     question: str
     prompt_template: str = ""
-    filter_file_name: str | None = None
-    filter_report_name: str | None = None
-    filter_page_number: str | None = None
-    filter_table_id: str | None = None
     filter_extraction_type: str | None = None
-    filter_sample_id: str | None = None
     top_k: int = 8
 
+
+# ── Native folder / file browse (server-side tkinter dialog) ──────────────────
+
+def _run_tkdialog(kind: str, accept: str = "") -> str:
+    """Open a native OS dialog via tkinter in a subprocess so it doesn't block the server."""
+    script = (
+        "import tkinter,tkinter.filedialog; "
+        "r=tkinter.Tk(); r.withdraw(); "
+    )
+    if kind == "folder":
+        script += "print(tkinter.filedialog.askdirectory() or '')"
+    else:
+        filetypes = ""
+        if ".pdf" in accept:
+            filetypes = "((PDF files,*.pdf),(All files,*.*))"
+        else:
+            filetypes = "((All files,*.*))"
+        script += f"print(tkinter.filedialog.askopenfilename(filetypes={filetypes}) or '')"
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True, timeout=120,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return ""
+
+
+@app.post("/api/browse/folder")
+def api_browse_folder():
+    path = _run_tkdialog("folder")
+    return {"path": path}
+
+
+@app.post("/api/browse/file")
+def api_browse_file(payload: dict = {}):
+    accept = payload.get("accept", "") if payload else ""
+    path = _run_tkdialog("file", accept)
+    return {"path": path}
+
+
+# ── Documents & index ─────────────────────────────────────────────────────────
 
 @app.get("/api/docs")
 def api_docs(root: str | None = None):
@@ -550,6 +574,8 @@ def api_build_index(doc_name: str = Form(...)):
     t.start()
     return {"ok": True, "message": f"Index build started for {doc_name}"}
 
+
+# ── State & logs ──────────────────────────────────────────────────────────────
 
 @app.get("/api/state")
 def api_state():
@@ -583,25 +609,7 @@ def api_clear_logs(kind: str = Form("all")):
     return {"ok": True}
 
 
-@app.get("/api/prompts")
-def api_get_prompts():
-    return {"prompts": load_prompts()}
-
-
-@app.post("/api/prompts/save")
-def api_save_prompt(name: str = Form(...), text: str = Form(...)):
-    prompts = load_prompts()
-    found = False
-    for p in prompts:
-        if p.get("name") == name:
-            p["text"] = text
-            found = True
-            break
-    if not found:
-        prompts.append({"name": name, "text": text})
-    save_prompts(prompts)
-    return {"ok": True, "prompts": prompts}
-
+# ── Models ────────────────────────────────────────────────────────────────────
 
 @app.post("/api/models/load-llm")
 def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-3B-Instruct")):
@@ -625,17 +633,13 @@ def api_load_vlm():
         return {"ok": False, "error": str(e)}
 
 
+# ── Chat ──────────────────────────────────────────────────────────────────────
+
 @app.post("/api/chat")
 def api_chat(req: ChatReq):
-    filters = {
-        "file_name": req.filter_file_name,
-        "report_name": req.filter_report_name,
-        "page_number": req.filter_page_number,
-        "table_id": req.filter_table_id,
-        "extraction_type": req.filter_extraction_type,
-        "sample_id": req.filter_sample_id,
-    }
+    filters = {"extraction_type": req.filter_extraction_type}
     hits = search(req.question, req.doc_name, filters, top_k=req.top_k)
+
     reasoning = []
     for i, h in enumerate(hits, start=1):
         m = h["meta"]
@@ -652,7 +656,7 @@ def api_chat(req: ChatReq):
         )
 
     if not hits:
-        answer = "No relevant chunks found."
+        answer = "No relevant chunks found. Build the index first, or broaden the extraction type filter."
     else:
         ctx = []
         for i, h in enumerate(hits, start=1):
@@ -690,65 +694,110 @@ def api_chat(req: ChatReq):
     return {
         "answer": answer,
         "reasoning": reasoning,
-        "sources": [r for r in reasoning],
+        "sources": reasoning,
         "tables": tables,
         "raw_hits": hits,
     }
 
 
+# ── Export ────────────────────────────────────────────────────────────────────
+
 @app.post("/api/export/excel")
 def api_export_excel(payload: dict):
-    hits = payload.get("hits", [])
-    path = export_excel(hits)
+    path = export_excel(payload.get("hits", []))
     return {"ok": True, "path": str(path)}
 
 
 @app.post("/api/export/word")
 def api_export_word(payload: dict):
-    hits = payload.get("hits", [])
-    path = export_word(hits)
+    path = export_word(payload.get("hits", []))
     return {"ok": True, "path": str(path)}
 
 
+# ── PDF Extraction ────────────────────────────────────────────────────────────
+
+def _pdf_check(pdf_path: Path, doc_name: str) -> dict:
+    reader = PdfReader(str(pdf_path))
+    total = len(reader.pages)
+    extracted: set[int] = set()
+    if doc_name and doc_name in R.docs:
+        extracted = {p for p, flags in R.docs[doc_name].items() if "md" in flags or "json" in flags}
+    missing = [p for p in range(1, total + 1) if p not in extracted]
+    return {
+        "total_pdf_pages": total,
+        "already_extracted": len(missing) == 0,
+        "missing_pages": missing,
+    }
+
+
 @app.post("/api/extract/check")
-async def api_extract_check(file: UploadFile = File(...), doc_name: str = Form("")):
-    data = await file.read()
-    with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(data)
-        tmp_path = Path(tmp.name)
-    try:
-        reader = PdfReader(str(tmp_path))
-        total = len(reader.pages)
-        extracted = set()
-        if doc_name and doc_name in R.docs:
-            extracted = {p for p, flags in R.docs[doc_name].items() if "md" in flags or "json" in flags}
-        missing = [p for p in range(1, total + 1) if p not in extracted]
-        return {
-            "total_pdf_pages": total,
-            "already_extracted": len(missing) == 0,
-            "missing_pages": missing,
-        }
-    finally:
+async def api_extract_check(
+    file: UploadFile = File(None),
+    pdf_path: str = Form(""),
+    doc_name: str = Form(""),
+):
+    if file and file.filename:
+        data = await file.read()
+        with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(data)
+            tmp_path = Path(tmp.name)
         try:
-            if tmp_path.exists():
+            return _pdf_check(tmp_path, doc_name)
+        finally:
+            try:
                 tmp_path.unlink()
-        except Exception:
-            pass
+            except Exception:
+                pass
+    elif pdf_path:
+        p = Path(pdf_path)
+        if not p.exists():
+            raise HTTPException(status_code=400, detail=f"File not found: {pdf_path}")
+        return _pdf_check(p, doc_name)
+    else:
+        raise HTTPException(status_code=400, detail="Provide file upload or pdf_path")
 
 
 @app.post("/api/extract/start")
 async def api_extract_start(
-    file: UploadFile = File(...),
+    file: UploadFile = File(None),
+    pdf_path: str = Form(""),
     prompt: str = Form(""),
     target_doc_name: str = Form(""),
+    output_dir: str = Form(""),
+    page_from: int = Form(1),
+    page_to: int = Form(0),
 ):
-    data = await file.read()
-    stem = Path(file.filename).stem
-    with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(data)
-        tmp_path = Path(tmp.name)
     if R.progress["extract"]["running"]:
         return JSONResponse({"ok": False, "message": "Extraction already running"}, status_code=409)
-    t = threading.Thread(target=extraction_job, args=(tmp_path, stem, prompt, target_doc_name or None), daemon=True)
+
+    if file and file.filename:
+        data = await file.read()
+        stem = Path(file.filename).stem
+        with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(data)
+            tmp_path = Path(tmp.name)
+        is_tmp = True
+    elif pdf_path:
+        p = Path(pdf_path)
+        if not p.exists():
+            raise HTTPException(status_code=400, detail=f"File not found: {pdf_path}")
+        stem = p.stem
+        tmp_path = p
+        is_tmp = False
+    else:
+        raise HTTPException(status_code=400, detail="Provide file upload or pdf_path")
+
+    out = Path(output_dir) if output_dir else None
+    t = threading.Thread(
+        target=extraction_job,
+        args=(tmp_path, stem, prompt, target_doc_name or None, out, page_from, page_to, is_tmp),
+        daemon=True,
+    )
     t.start()
-    return {"ok": True, "message": "Extraction started"}
+    return {"ok": True, "message": f"Extraction started ({stem})"}
+
+
+@app.post("/api/extract/stop")
+def api_extract_stop():
+    R.extract_stop.set()
+    return {"ok": True, "message": "Stop signal sent"}

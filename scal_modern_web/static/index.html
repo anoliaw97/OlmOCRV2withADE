@@ -20,50 +20,96 @@
     </header>
 
     <main class="layout">
+      <!-- ===== LEFT PANEL: RAG / Data ===== -->
       <aside class="panel left">
         <h2>RAG / Data</h2>
-        <label>Data Root</label>
-        <input id="dataRoot" type="text" />
-        <button id="refreshDocsBtn">Refresh Docs</button>
+
+        <label>Data Root Folder</label>
+        <div class="browse-row">
+          <input id="dataRoot" type="text" />
+          <button id="browseDataRootBtn" class="browse-btn" title="Browse folder">&#128193;</button>
+        </div>
+        <button id="refreshDocsBtn">Refresh Documents</button>
 
         <label>Document</label>
         <select id="docSelect"></select>
-        <div id="coverageInfo" class="mono"></div>
+        <div id="coverageInfo" class="mono coverage-box"></div>
 
         <button id="buildIndexBtn">Build / Rebuild Index</button>
 
-        <h3>Prompt Templates</h3>
-        <select id="promptSelect"></select>
-        <textarea id="promptText"></textarea>
-        <input id="promptName" placeholder="Save prompt as" />
-        <button id="savePromptBtn">Save Prompt</button>
+        <h3>Extraction Prompt</h3>
+        <div class="prompt-row">
+          <select id="promptPreset">
+            <option value="default">Default (olmOCR v4)</option>
+            <option value="table">Table Extraction</option>
+            <option value="custom">Custom</option>
+          </select>
+          <button id="resetPromptBtn" class="small-btn" title="Reset to selected preset">&#8617; Reset</button>
+        </div>
+        <textarea id="promptText" rows="5"></textarea>
 
+        <!-- ===== OPTIONAL PDF EXTRACTION (olmocr_agentic_gui style) ===== -->
         <h3>Optional PDF Extraction</h3>
-        <input id="pdfFile" type="file" accept="application/pdf" />
-        <button id="checkPdfBtn">Check Missing Pages</button>
-        <button id="startExtractBtn">Extract Missing Pages</button>
-        <textarea id="extractPrompt" placeholder="OLMOCR default prompt"></textarea>
-        <div id="extractCheckOut" class="mono"></div>
+        <div class="extract-section">
+          <div class="browse-row">
+            <input id="pdfFilePath" type="text" placeholder="PDF file path" readonly />
+            <button id="browsePdfBtn" class="browse-btn" title="Browse PDF">&#128194;</button>
+            <input id="pdfFile" type="file" accept="application/pdf" style="display:none" />
+          </div>
+
+          <div id="pdfPageInfo" class="mono" style="font-size:11px; margin-bottom:6px;"></div>
+
+          <div class="range-row">
+            <label class="range-label">From page:</label>
+            <input id="pageFrom" type="number" min="1" value="1" class="range-input" />
+            <label class="range-label">To:</label>
+            <input id="pageTo" type="number" min="1" value="" class="range-input" placeholder="last" />
+          </div>
+
+          <div class="extract-actions">
+            <button id="checkPdfBtn">Check Missing Pages</button>
+            <button id="startExtractBtn" class="btn-start">&#9654; Start Extraction</button>
+            <button id="stopExtractBtn" class="btn-stop" disabled>&#9632; Stop</button>
+          </div>
+          <div id="extractCheckOut" class="mono extract-out"></div>
+        </div>
+
+        <!-- Output folder for saved extraction results -->
+        <h3>Output Folder</h3>
+        <div class="browse-row">
+          <input id="outputDir" type="text" placeholder="Same as data root" />
+          <button id="browseOutputBtn" class="browse-btn" title="Browse folder">&#128193;</button>
+        </div>
       </aside>
 
+      <!-- ===== CENTER PANEL: Chat ===== -->
       <section class="panel center">
         <h2>Chat</h2>
-        <div class="filters">
-          <input id="fFile" placeholder="file_name" />
-          <input id="fReport" placeholder="report_name" />
-          <input id="fPage" placeholder="page_number" />
-          <input id="fTable" placeholder="table_id" />
-          <input id="fType" placeholder="extraction_type" />
-          <input id="fSample" placeholder="sample_id" />
+
+        <!-- Single useful filter: extraction type -->
+        <div class="filter-bar">
+          <label class="filter-label">Filter by type:</label>
+          <select id="fType">
+            <option value="">All types</option>
+            <option value="capillary_pressure">Capillary Pressure</option>
+            <option value="relative_permeability">Relative Permeability</option>
+            <option value="porosity_permeability">Porosity / Permeability</option>
+            <option value="general">General</option>
+          </select>
         </div>
+
         <div id="chatBox" class="chat-box"></div>
-        <textarea id="chatInput" placeholder="Ask about extracted SCAL data..."></textarea>
+
+        <textarea id="chatInput" rows="2" placeholder="Ask about extracted SCAL data..."></textarea>
         <div class="chat-actions">
           <button id="sendBtn">Send</button>
           <button id="clearChatBtn">Clear History</button>
+          <button id="exportExcelBtn">Export Excel</button>
+          <button id="exportWordBtn">Export Word</button>
         </div>
       </section>
 
+      <!-- ===== RIGHT PANEL: Progress + Reasoning + Tables + Logs ===== -->
       <aside class="panel right">
         <h2>Progress</h2>
         <div class="progress-card">
@@ -78,15 +124,10 @@
         </div>
 
         <h2>Reasoning</h2>
-        <pre id="reasoningLog"></pre>
+        <pre id="reasoningLog">(no reasoning yet)</pre>
 
         <h2>Rendered Tables</h2>
-        <div id="tablesView"></div>
-
-        <div class="export-row">
-          <button id="exportExcelBtn">Export Excel</button>
-          <button id="exportWordBtn">Export Word</button>
-        </div>
+        <div id="tablesView"><div class="mono">No tables in current retrieval.</div></div>
 
         <h2>Logs</h2>
         <div class="log-tabs">
@@ -95,7 +136,7 @@
           <button data-kind="error">Error</button>
           <button id="clearLogsBtn">Clear</button>
         </div>
-        <pre id="logsView"></pre>
+        <pre id="logsView">(empty)</pre>
       </aside>
     </main>
 
