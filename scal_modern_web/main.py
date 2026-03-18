@@ -13,8 +13,15 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
-# Executor for blocking tkinter dialogs
-_DIALOG_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+# Executor for blocking tkinter dialogs (1 thread — dialogs must be serial)
+_DIALOG_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tkdialog")
+
+# Executor for GPU inference (1 thread — serialises LLM calls, never blocks event loop)
+# Extraction runs in its own plain daemon thread (see extraction_job), not here.
+_INFERENCE_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="llm_infer")
+
+# Executor for CPU-bound RAG search (TF-IDF matrix multiply) so chat stays async
+_SEARCH_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="rag_search")
 
 import joblib
 import pandas as pd
@@ -584,17 +591,23 @@ async def api_browse_file(payload: dict = {}):
 # ── Documents & index ─────────────────────────────────────────────────────────
 
 @app.get("/api/docs")
-def api_docs(root: str | None = None):
+async def api_docs(root: str | None = None):
+    loop = asyncio.get_event_loop()
     rr = Path(root) if root else DATA_ROOT
-    R.docs = scan_docs(rr)
-    names = sorted(R.docs.keys())
-    # Build a JSON-serialisable pages_map for the viewer
-    pages_map: dict[str, dict[int, dict[str, str]]] = {}
-    for doc_name, pages in R.docs.items():
-        pages_map[doc_name] = {
-            pg: {ext: str(path) for ext, path in files.items()}
-            for pg, files in pages.items()
+
+    def _scan():
+        R.docs = scan_docs(rr)
+        names = sorted(R.docs.keys())
+        pages_map: dict[str, dict[int, dict[str, str]]] = {
+            doc_name: {
+                pg: {ext: str(path) for ext, path in files.items()}
+                for pg, files in pages.items()
+            }
+            for doc_name, pages in R.docs.items()
         }
+        return names, pages_map
+
+    names, pages_map = await loop.run_in_executor(_SEARCH_EXECUTOR, _scan)
     return {
         "data_root": str(rr),
         "documents": names,
@@ -604,27 +617,29 @@ def api_docs(root: str | None = None):
 
 
 @app.get("/api/docs/debug")
-def api_docs_debug(root: str | None = None):
+async def api_docs_debug(root: str | None = None):
     """Returns raw file listing to help diagnose why documents aren't appearing."""
+    loop = asyncio.get_event_loop()
     rr = Path(root) if root else DATA_ROOT
     if not rr.exists():
         return {"error": f"Path does not exist: {rr}", "path": str(rr)}
-    files = []
-    for p in rr.iterdir():
-        if p.is_file():
-            stem, page, ext = parse_name(p.name)
-            files.append({
-                "name": p.name,
-                "parsed_stem": stem,
-                "parsed_page": page,
-                "parsed_ext": ext,
-                "matched": stem is not None,
-            })
+
+    def _list():
+        out = []
+        for p in rr.iterdir():
+            if p.is_file():
+                stem, page, ext = parse_name(p.name)
+                out.append({"name": p.name, "parsed_stem": stem,
+                             "parsed_page": page, "parsed_ext": ext,
+                             "matched": stem is not None})
+        return out
+
+    files = await loop.run_in_executor(_SEARCH_EXECUTOR, _list)
     return {
         "path": str(rr),
         "total_files": len(files),
         "matched_files": sum(1 for f in files if f["matched"]),
-        "files": files[:50],  # first 50
+        "files": files[:50],
     }
 
 
@@ -760,10 +775,24 @@ def api_load_vlm():
 # ── Chat ──────────────────────────────────────────────────────────────────────
 
 @app.post("/api/chat")
-def api_chat(req: ChatReq):
+async def api_chat(req: ChatReq):
+    """
+    Fully async chat handler:
+    - RAG search runs in _SEARCH_EXECUTOR (CPU, non-blocking to event loop)
+    - LLM inference runs in _INFERENCE_EXECUTOR (GPU, serialised, non-blocking)
+    Both executors are independent of the extraction daemon thread, so PDF
+    extraction and chat can run simultaneously without interfering.
+    """
+    loop = asyncio.get_event_loop()
     filters = {"extraction_type": req.filter_extraction_type}
-    hits = search(req.question, req.doc_name, filters, top_k=req.top_k)
 
+    # ── 1. RAG search (CPU-bound TF-IDF) ──────────────────────────────────────
+    hits: list[dict[str, Any]] = await loop.run_in_executor(
+        _SEARCH_EXECUTOR,
+        lambda: search(req.question, req.doc_name, filters, top_k=req.top_k),
+    )
+
+    # ── 2. Build reasoning list ────────────────────────────────────────────────
     reasoning = []
     for i, h in enumerate(hits, start=1):
         m = h["meta"]
@@ -779,6 +808,7 @@ def api_chat(req: ChatReq):
             }
         )
 
+    # ── 3. LLM answer (GPU-bound, serialised) ─────────────────────────────────
     if not hits:
         answer = "No relevant chunks found. Build the index first, or broaden the extraction type filter."
     else:
@@ -795,14 +825,18 @@ def api_chat(req: ChatReq):
         system = "You are a SCAL assistant. Use only retrieved evidence and cite [1],[2]."
         user_prompt = f"Task prompt:\n{req.prompt_template}\n\nQuestion:\n{req.question}\n\nEvidence:\n{context}"
         try:
-            answer = ask_llm(system, user_prompt)
+            answer = await loop.run_in_executor(
+                _INFERENCE_EXECUTOR,
+                lambda: ask_llm(system, user_prompt),
+            )
         except Exception as e:
-            answer = f"LLM unavailable or failed: {e}\n\nFallback evidence:\n{context[:1800]}"
+            answer = f"LLM not loaded or failed: {e}\n\nFallback evidence:\n{context[:1800]}"
 
+    # ── 4. Collect tables from hits ────────────────────────────────────────────
     tables = []
     for h in hits:
         m = h["meta"]
-        if m.get("parsed_rows"):
+        if m.get("parsed_rows") or m.get("raw_html"):
             tables.append(
                 {
                     "file_name": m.get("file_name"),
@@ -930,29 +964,33 @@ def api_extract_stop():
 # ── Viewer endpoints ──────────────────────────────────────────────────────────
 
 @app.get("/api/page/raw")
-def api_page_raw(doc: str, page: int):
+async def api_page_raw(doc: str, page: int):
     """Return the raw text content (JSON or MD) for a specific page."""
     pages = R.docs.get(doc, {})
     if page not in pages:
         raise HTTPException(status_code=404, detail="Page not found")
     files = pages[page]
-    if "json" in files:
-        content = files["json"].read_text(encoding="utf-8", errors="ignore")
-        try:
-            # Pretty-print JSON
-            content = json.dumps(json.loads(content), indent=2, ensure_ascii=False)
-        except Exception:
-            pass
-        return {"kind": "json", "content": content}
-    elif "md" in files:
-        content = files["md"].read_text(encoding="utf-8", errors="ignore")
-        return {"kind": "md", "content": content}
-    return {"kind": "none", "content": "(no extracted file for this page)"}
+
+    def _read():
+        if "json" in files:
+            content = files["json"].read_text(encoding="utf-8", errors="ignore")
+            try:
+                content = json.dumps(json.loads(content), indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+            return {"kind": "json", "content": content}
+        elif "md" in files:
+            content = files["md"].read_text(encoding="utf-8", errors="ignore")
+            return {"kind": "md", "content": content}
+        return {"kind": "none", "content": "(no extracted file for this page)"}
+
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_SEARCH_EXECUTOR, _read)
 
 
 @app.get("/api/page/pdf")
 def api_page_pdf(doc: str, page: int):
-    """Serve the raw page PDF file for preview."""
+    """Serve the raw page PDF file for preview (FileResponse is already async-friendly)."""
     pages = R.docs.get(doc, {})
     if page not in pages:
         raise HTTPException(status_code=404, detail="Page not found")
@@ -963,29 +1001,29 @@ def api_page_pdf(doc: str, page: int):
 
 
 @app.get("/api/page/parse")
-def api_page_parse(doc: str, page: int):
+async def api_page_parse(doc: str, page: int):
     """Parse HTML tables from the extracted content of a page."""
     pages = R.docs.get(doc, {})
     if page not in pages:
         raise HTTPException(status_code=404, detail="Page not found")
     files = pages[page]
-    raw = ""
-    if "json" in files:
-        try:
-            raw = flatten_json(json.loads(files["json"].read_text(encoding="utf-8", errors="ignore")))
-        except Exception:
-            raw = files["json"].read_text(encoding="utf-8", errors="ignore")
-    elif "md" in files:
-        raw = files["md"].read_text(encoding="utf-8", errors="ignore")
 
-    html_tables = extract_html_tables(raw)
-    result = []
-    for h in html_tables:
-        cols, rows = parse_html_table(h)
-        result.append({
-            "raw_html": h,
-            "columns": cols,
-            "rows": rows,
-            "row_count": len(rows),
-        })
-    return {"page": page, "tables": result, "table_count": len(result)}
+    def _parse():
+        raw = ""
+        if "json" in files:
+            try:
+                raw = flatten_json(json.loads(files["json"].read_text(encoding="utf-8", errors="ignore")))
+            except Exception:
+                raw = files["json"].read_text(encoding="utf-8", errors="ignore")
+        elif "md" in files:
+            raw = files["md"].read_text(encoding="utf-8", errors="ignore")
+        html_tables = extract_html_tables(raw)
+        result = []
+        for h in html_tables:
+            cols, rows = parse_html_table(h)
+            result.append({"raw_html": h, "columns": cols, "rows": rows, "row_count": len(rows)})
+        return result
+
+    loop = asyncio.get_event_loop()
+    tables = await loop.run_in_executor(_SEARCH_EXECUTOR, _parse)
+    return {"page": page, "tables": tables, "table_count": len(tables)}

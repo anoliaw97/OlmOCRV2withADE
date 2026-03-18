@@ -33,6 +33,9 @@ python -m pip install fastapi uvicorn[standard] pydantic pypdf scikit-learn jobl
 
 echo Starting modern web app...
 echo Open http://localhost:8090
-python -m uvicorn scal_modern_web.main:app --host 0.0.0.0 --port 8090
+rem --workers 1  : single process (shares in-memory Runtime state)
+rem --loop uvloop: faster async event loop (falls back to asyncio on Windows)
+rem Extraction runs in a daemon thread; chat uses dedicated executor pools.
+python -m uvicorn scal_modern_web.main:app --host 0.0.0.0 --port 8090 --workers 1
 
 endlocal
