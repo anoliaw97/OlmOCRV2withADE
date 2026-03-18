@@ -9,3 +9,6 @@ accelerate
 compressed-tensors
 openai
 langextract
+streamlit
+scikit-learn
+joblib

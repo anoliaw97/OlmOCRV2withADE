@@ -119,6 +119,20 @@ Windows batch launcher:
 run_scal_webapp.bat
 ```
 
+## Alternative Python-based web UI (OpenCode-style chat)
+
+If you prefer a pure Python web app interface, use the Streamlit app:
+
+```bash
+run_scal_opencode_streamlit_conda.bat
+```
+
+Features in this mode:
+- chat-style interface similar to OpenCode
+- offline RAG over already extracted `.md/.json` pages
+- extraction completeness checker (detect missing extracted pages)
+- saved prompt templates for JSON querying
+
 ## Package and install anywhere
 
 Build wheel package on a source machine:
