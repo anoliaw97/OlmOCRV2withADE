@@ -1,0 +1,86 @@
+:root {
+  --bg: #f7f8fb;
+  --card: #ffffff;
+  --text: #152035;
+  --muted: #50617c;
+  --accent: #006c67;
+  --border: #d8deea;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: linear-gradient(135deg, #eef4ff 0%, #f9fbff 60%, #edf8f1 100%);
+  color: var(--text);
+}
+
+header {
+  padding: 16px 20px;
+  background: #0f2240;
+  color: #fff;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+header p {
+  margin: 6px 0 0;
+  color: #c9d7ff;
+}
+
+main {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 12px rgba(10, 22, 45, 0.06);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+input,
+select,
+button {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(0.95);
+}
+
+pre {
+  background: #0f1b2a;
+  color: #d8e5ff;
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.hidden {
+  display: none;
+}

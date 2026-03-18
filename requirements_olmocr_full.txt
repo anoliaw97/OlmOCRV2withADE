@@ -1,0 +1,11 @@
+-r scal_webapp/requirements.txt
+
+# Core local GUI + OCR tooling
+pillow
+pdf2image
+transformers==4.57.3
+huggingface-hub>=0.34.0,<1.0
+accelerate
+compressed-tensors
+openai
+langextract

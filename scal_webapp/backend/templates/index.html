@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SCAL Extraction + Offline RAG</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>SCAL Extraction + Offline RAG</h1>
+      <p>Offline, open-source workflow: PDF -> table JSON -> indexed chat</p>
+    </header>
+
+    <main>
+      <section class="card">
+        <div class="row">
+          <label>Mode:</label>
+          <select id="mode">
+            <option value="layman">Layman</option>
+            <option value="operator">Operator</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label>Upload PDF:</label>
+          <input id="pdfFile" type="file" accept="application/pdf" />
+        </div>
+
+        <div class="row">
+          <label>Use-case:</label>
+          <select id="useCase">
+            <option value="capillary_pressure">Capillary Pressure</option>
+            <option value="relative_permeability">Relative Permeability</option>
+            <option value="porosity_permeability">Porosity/Permeability</option>
+          </select>
+        </div>
+
+        <div id="operatorPanel" class="operator hidden">
+          <h3>Operator Controls</h3>
+          <div class="row">
+            <label>Page Range:</label>
+            <input id="pageRange" placeholder="e.g. 1-5,8,10" />
+          </div>
+          <div class="row">
+            <label>Extraction Types:</label>
+            <input id="types" value="capillary_pressure,relative_permeability,porosity_permeability" />
+          </div>
+          <div class="row">
+            <label>Prompt Profile:</label>
+            <select id="promptProfile">
+              <option value="default">Default</option>
+              <option value="strict_table">Strict Table</option>
+              <option value="numeric_focus">Numeric Focus</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>Model:</label>
+            <input id="modelName" value="offline_heuristic" />
+          </div>
+          <div class="row">
+            <label>Post-process:</label>
+            <input id="normalize" type="checkbox" checked /> Normalize columns
+            <input id="buildIndex" type="checkbox" checked /> Build index
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="runExtraction">Run Extraction</button>
+          <button id="refreshReports">Refresh Reports</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Reports</h2>
+        <div id="reports"></div>
+      </section>
+
+      <section class="card">
+        <h2>Chat / RAG (JSON-only Source of Truth)</h2>
+        <div class="row">
+          <input id="question" placeholder="Ask about extracted SCAL data..." />
+          <button id="askBtn">Ask</button>
+        </div>
+        <div class="row">
+          <input id="filterFile" placeholder="Filter file_name" />
+          <input id="filterType" placeholder="Filter extraction_type" />
+          <input id="filterSample" placeholder="Filter sample_id" />
+        </div>
+        <pre id="chatOut"></pre>
+      </section>
+
+      <section class="card" id="debugCard">
+        <h2>Debug Logs</h2>
+        <div class="row">
+          <button id="refreshLogs">Refresh Logs</button>
+          <button id="clearLogs">Clear History</button>
+        </div>
+        <pre id="logs"></pre>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

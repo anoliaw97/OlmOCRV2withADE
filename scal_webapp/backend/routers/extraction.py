@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..models import ExtractedTable, RagChunk, Report
+from ..schemas import ExtractionSettings
+from ..services.exporter import export_excel, export_json, export_word
+from ..services.extractor import extract_targeted_tables
+from ..services.indexer import LocalHybridIndex
+from ..services.logger import log_event
+from ..services.postprocess import build_rag_chunks, normalize_tables
+
+
+router = APIRouter(prefix="/api/extraction", tags=["extraction"])
+
+DATA_DIR = Path("scal_webapp/data")
+UPLOAD_DIR = DATA_DIR / "uploads"
+EXPORT_DIR = DATA_DIR / "exports"
+INDEX_DIR = DATA_DIR / "index"
+for d in (UPLOAD_DIR, EXPORT_DIR, INDEX_DIR):
+    d.mkdir(parents=True, exist_ok=True)
+
+
+@router.post("/run")
+async def run_extraction(
+    file: UploadFile = File(...),
+    settings_json: str = Form("{}"),
+    db: Session = Depends(get_db),
+):
+    settings = ExtractionSettings(**json.loads(settings_json or "{}"))
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF is supported")
+
+    dest = UPLOAD_DIR / file.filename
+    content = await file.read()
+    dest.write_bytes(content)
+
+    report = Report(file_name=file.filename, report_name=Path(file.filename).stem, status="processing")
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    log_event(db, "ingest", f"Uploaded {file.filename}", report.id)
+
+    tables = extract_targeted_tables(
+        pdf_path=str(dest),
+        default_use_case=settings.use_case,
+        allowed_types=settings.extraction_types,
+        page_range=settings.page_range,
+    )
+    log_event(db, "extract", f"Detected {len(tables)} targeted tables", report.id)
+
+    if settings.normalize:
+        tables = normalize_tables(tables)
+        log_event(db, "postprocess", "Column normalization and duplicate merge complete", report.id)
+
+    # persist table JSON records
+    for t in tables:
+        db.add(
+            ExtractedTable(
+                report_id=report.id,
+                file_name=t.file_name,
+                page_number=t.page_number,
+                table_id=t.table_id,
+                extraction_type=t.extraction_type,
+                table_title=t.table_title,
+                columns_json=t.columns,
+                rows_json=t.rows,
+                units_json=t.units,
+                metadata_json=t.metadata,
+            )
+        )
+    db.commit()
+
+    # rag chunks
+    rag_chunks = build_rag_chunks(tables)
+    for c in rag_chunks:
+        m = c["metadata"]
+        db.add(
+            RagChunk(
+                report_id=report.id,
+                table_ref_id=0,
+                chunk_text=c["chunk_text"],
+                metadata_json=m,
+            )
+        )
+    db.commit()
+    log_event(db, "index_prepare", f"Prepared {len(rag_chunks)} RAG chunks", report.id)
+
+    # local hybrid index
+    if settings.build_index:
+        index = LocalHybridIndex(INDEX_DIR)
+        index.build(rag_chunks)
+        log_event(db, "index", "Local hybrid index rebuilt", report.id)
+
+    report.status = "ready"
+    db.commit()
+
+    return {
+        "report_id": report.id,
+        "tables": len(tables),
+        "rag_chunks": len(rag_chunks),
+        "status": "ready",
+    }
+
+
+@router.get("/reports")
+def list_reports(db: Session = Depends(get_db)):
+    rows = db.query(Report).order_by(Report.uploaded_at.desc()).all()
+    return [
+        {
+            "id": r.id,
+            "file_name": r.file_name,
+            "report_name": r.report_name,
+            "status": r.status,
+            "uploaded_at": r.uploaded_at.isoformat(),
+        }
+        for r in rows
+    ]
+
+
+@router.get("/report/{report_id}/tables")
+def get_report_tables(report_id: int, db: Session = Depends(get_db)):
+    rows = db.query(ExtractedTable).filter(ExtractedTable.report_id == report_id).all()
+    return [
+        {
+            "file_name": r.file_name,
+            "page_number": r.page_number,
+            "table_id": r.table_id,
+            "extraction_type": r.extraction_type,
+            "table_title": r.table_title,
+            "columns": r.columns_json,
+            "rows": r.rows_json,
+            "units": r.units_json,
+            "metadata": r.metadata_json,
+        }
+        for r in rows
+    ]
+
+
+@router.get("/report/{report_id}/export/{fmt}")
+def export_report(report_id: int, fmt: str, db: Session = Depends(get_db)):
+    rows = db.query(ExtractedTable).filter(ExtractedTable.report_id == report_id).all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="No tables for report")
+
+    tables = [
+        {
+            "file_name": r.file_name,
+            "page_number": r.page_number,
+            "table_id": r.table_id,
+            "extraction_type": r.extraction_type,
+            "table_title": r.table_title,
+            "columns": r.columns_json,
+            "rows": r.rows_json,
+            "units": r.units_json,
+            "metadata": r.metadata_json,
+        }
+        for r in rows
+    ]
+    stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+
+    if fmt == "json":
+        out = EXPORT_DIR / f"report_{report_id}_{stamp}.json"
+        export_json(out, {"report_id": report_id, "tables": tables})
+        return FileResponse(out)
+
+    ml_rows = []
+    for t in tables:
+        for r in t["rows"]:
+            rr = {
+                "file_name": t["file_name"],
+                "page_number": t["page_number"],
+                "table_id": t["table_id"],
+                "extraction_type": t["extraction_type"],
+                "table_title": t.get("table_title"),
+            }
+            rr.update(r)
+            ml_rows.append(rr)
+    ml_df = pd.DataFrame(ml_rows)
+
+    if fmt == "xlsx":
+        out = EXPORT_DIR / f"report_{report_id}_{stamp}.xlsx"
+        export_excel(out, tables, ml_df)
+        return FileResponse(out)
+
+    if fmt == "docx":
+        out = EXPORT_DIR / f"report_{report_id}_{stamp}.docx"
+        export_word(out, tables)
+        return FileResponse(out)
+
+    raise HTTPException(status_code=400, detail="Unsupported format")

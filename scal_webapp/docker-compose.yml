@@ -1,0 +1,10 @@
+services:
+  scal-webapp:
+    build:
+      context: ..
+      dockerfile: scal_webapp/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/scal_webapp/data
+    restart: unless-stopped
