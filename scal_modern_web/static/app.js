@@ -374,17 +374,27 @@ function renderRetrievedTables(tables) {
 }
 
 /* ══════════════════════════════════════════
-   Export
+   Export  (with output folder picker)
 ══════════════════════════════════════════ */
-async function doExport(type) {
+async function doExport(type, btn) {
   if (!S.lastHits.length) { addChatMsg('system', 'No results to export. Ask a question first.'); return; }
+
+  // Ask user for output folder via server-side dialog
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  let outputDir = '';
+  try {
+    const d = await apiFetch('/api/browse/folder', { method: 'POST' });
+    outputDir = d.path || '';          // empty = use default EXPORT_DIR
+  } catch (_) {}
+  if (btn) { btn.textContent = type === 'excel' ? '⬇ Excel' : '⬇ Word'; btn.disabled = false; }
+
   try {
     const d = await apiFetch(`/api/export/${type}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hits: S.lastHits }),
+      body: JSON.stringify({ hits: S.lastHits, output_dir: outputDir }),
     });
-    addChatMsg('system', `Exported to: ${d.path}`);
+    addChatMsg('system', `✓ Exported to: ${d.path}`);
   } catch (e) { addChatMsg('system', `Export error: ${e.message}`); }
 }
 
@@ -430,51 +440,53 @@ async function selectPage(docName, pg, files, el) {
     pdfWrap.innerHTML = '<div class="preview-placeholder">No PDF file for this page.</div>';
   }
 
-  // JSON/MD viewer
+  // Raw content + auto-render HTML tables
   const jsonEl = $('jsonView');
   jsonEl.textContent = 'Loading…';
+  $('htmlTablesView').innerHTML = '<div class="placeholder-text">Loading…</div>';
   try {
     const d = await apiFetch(`/api/page/raw?doc=${encodeURIComponent(docName)}&page=${pg}`);
-    jsonEl.textContent = d.content || '(empty)';
-    $('parseStatus').textContent = '';
+    const content = d.content || '';
+    jsonEl.textContent = content;
+    renderHtmlTablesFromContent(content, pg);
   } catch (e) {
     jsonEl.textContent = `Error: ${e.message}`;
-  }
-
-  // Clear HTML tab
-  $('htmlTablesView').innerHTML = '<div class="placeholder-text">Click "Parse to HTML Tables" to render</div>';
-}
-
-async function parseToHtml() {
-  if (!S.currentPage) return;
-  const { doc, page } = S.currentPage;
-  $('parseStatus').textContent = 'Parsing…';
-  try {
-    const d = await apiFetch(`/api/page/parse?doc=${encodeURIComponent(doc)}&page=${page}`);
-    const box = $('htmlTablesView');
-    if (!d.tables || !d.tables.length) {
-      box.innerHTML = '<div class="placeholder-text">No HTML tables found on this page.</div>';
-      $('parseStatus').textContent = 'No tables found';
-      return;
-    }
-    box.innerHTML = d.tables.map((t,i) => {
-      const cols = t.columns || [];
-      const rows = t.rows || [];
-      const thead = cols.map(c => `<th>${esc(c)}</th>`).join('');
-      const tbody = rows.map(r => '<tr>' + cols.map(c => `<td>${esc(r[c]??'')}</td>`).join('') + '</tr>').join('');
-      return `<div class="table-title">Table ${i+1} — ${rows.length} row(s)</div>
-        <table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
-    }).join('');
-    $('parseStatus').textContent = `${d.tables.length} table(s) parsed`;
-    // switch to html tab
-    document.querySelectorAll('.vtab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.vtab-pane').forEach(p => p.classList.add('hidden'));
-    document.querySelector('.vtab-btn[data-vtab="html"]').classList.add('active');
-    $('vtab-html').classList.remove('hidden');
-  } catch (e) {
-    $('parseStatus').textContent = `Error: ${e.message}`;
+    $('htmlTablesView').innerHTML = `<div class="placeholder-text">Error: ${esc(e.message)}</div>`;
   }
 }
+
+/* Extract and render raw <table> HTML blocks directly in the browser */
+function renderHtmlTablesFromContent(content, pg) {
+  const box = $('htmlTablesView');
+
+  // Pull all <table>…</table> blocks (including any imperfect HTML from OCR)
+  const tableRx = /<table[\s\S]*?<\/table>/gi;
+  const matches = content.match(tableRx);
+
+  if (!matches || !matches.length) {
+    box.innerHTML = '<div class="placeholder-text">No HTML tables found on this page.</div>';
+    return;
+  }
+
+  // Inject the raw HTML — browser will handle tolerant parsing
+  box.innerHTML = matches.map((html, i) => {
+    // Apply our table styles by wrapping in a styled container
+    // Sanitise: strip <script> tags just in case
+    const safe = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+    return `<div class="viewer-table-block">
+      <div class="viewer-table-label">Table ${i + 1} — page ${pg}</div>
+      <div class="viewer-table-scroll">${safe}</div>
+    </div>`;
+  }).join('');
+
+  // Auto-switch to Rendered Tables tab
+  document.querySelectorAll('.vtab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.vtab-pane').forEach(p => p.classList.add('hidden'));
+  document.querySelector('.vtab-btn[data-vtab="html"]').classList.add('active');
+  $('vtab-html').classList.remove('hidden');
+}
+
+
 
 /* ══════════════════════════════════════════
    PDF Extraction
@@ -577,14 +589,11 @@ async function init() {
   // Chat
   $('sendBtn').onclick = askChat;
   $('clearChatBtn').onclick = clearChat;
-  $('exportExcelBtn').onclick = () => doExport('excel');
-  $('exportWordBtn').onclick  = () => doExport('word');
+  $('exportExcelBtn').onclick = (e) => doExport('excel', e.currentTarget);
+  $('exportWordBtn').onclick  = (e) => doExport('word',  e.currentTarget);
   $('chatInput').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askChat(); }
   });
-
-  // Viewer
-  $('parseToHtmlBtn').onclick = parseToHtml;
 
   // Extraction
   $('checkPdfBtn').onclick    = checkPdf;

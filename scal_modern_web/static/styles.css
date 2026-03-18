@@ -726,10 +726,39 @@ table.rtable th { background: var(--surface); color: var(--text); font-weight: 6
 table.rtable td { color: var(--text2); }
 
 /* html tables (viewer) */
+.html-tables-wrap { padding: 10px; overflow: auto; height: 100%; }
 .html-tables-wrap table { border-collapse: collapse; width: 100%; font-size: 12px; margin-bottom: 12px; }
-.html-tables-wrap th { background: var(--surface); padding: 5px 8px; border: 1px solid var(--border2); color: var(--text); }
+.html-tables-wrap th { background: var(--surface); padding: 5px 8px; border: 1px solid var(--border2); color: var(--text); font-weight: 600; }
 .html-tables-wrap td { padding: 4px 8px; border: 1px solid var(--border2); color: var(--text2); }
+.html-tables-wrap sup { font-size: 9px; }
 .table-title { font-size: 11px; font-weight: 600; color: var(--text2); margin: 10px 0 4px; }
+
+/* Viewer rendered table blocks */
+.viewer-table-block { margin-bottom: 18px; }
+.viewer-table-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text3);
+  padding: 4px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.viewer-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border2);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--bg);
+}
+/* Raw table HTML injected from OCR output — style all tables inside */
+.viewer-table-scroll table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.viewer-table-scroll th { background: var(--surface); padding: 5px 8px; border: 1px solid var(--border2); color: var(--text); font-weight: 600; white-space: nowrap; }
+.viewer-table-scroll td { padding: 4px 8px; border: 1px solid var(--border2); color: var(--text2); }
+.viewer-table-scroll tr:hover td { background: rgba(59,130,246,.07); }
+.viewer-table-scroll sup { font-size: 9px; }
 
 /* ─── RESPONSIVE ─── */
 @media (max-width: 1200px) {

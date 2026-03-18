@@ -139,8 +139,8 @@
           </select>
         </div>
         <div class="chat-export-row">
-          <button class="btn-xs" id="exportExcelBtn">⬇ Excel</button>
-          <button class="btn-xs" id="exportWordBtn">⬇ Word</button>
+          <button class="btn-xs" id="exportExcelBtn" title="Export to Excel (choose output folder)">⬇ Excel</button>
+          <button class="btn-xs" id="exportWordBtn"  title="Export to Word (choose output folder)">⬇ Word</button>
           <button class="btn-xs btn-muted" id="clearChatBtn">🗑 Clear</button>
         </div>
       </div>
@@ -169,7 +169,7 @@
           <div class="viewer-tabs">
             <button class="vtab-btn active" data-vtab="pdf">PDF Preview</button>
             <button class="vtab-btn" data-vtab="json">Raw JSON/MD</button>
-            <button class="vtab-btn" data-vtab="html">Parsed Tables</button>
+            <button class="vtab-btn" data-vtab="html">Rendered Tables</button>
           </div>
 
           <div id="vtab-pdf" class="vtab-pane active">
@@ -179,16 +179,12 @@
           </div>
 
           <div id="vtab-json" class="vtab-pane hidden">
-            <div class="json-toolbar">
-              <button class="btn-xs" id="parseToHtmlBtn">⚙ Parse to HTML Tables</button>
-              <span id="parseStatus" class="tiny-label"></span>
-            </div>
             <pre id="jsonView" class="json-view">(no page selected)</pre>
           </div>
 
           <div id="vtab-html" class="vtab-pane hidden">
             <div id="htmlTablesView" class="html-tables-wrap">
-              <div class="preview-placeholder">Click "Parse to HTML Tables" on the JSON tab</div>
+              <div class="preview-placeholder">Select a page to render its tables</div>
             </div>
           </div>
         </div>

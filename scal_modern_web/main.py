@@ -460,7 +460,15 @@ def extraction_job(
                 pass
 
 
-def export_excel(hits: list[dict[str, Any]]) -> Path:
+def _resolve_export_dir(output_dir: str) -> Path:
+    if output_dir:
+        p = Path(output_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    return EXPORT_DIR
+
+
+def export_excel(hits: list[dict[str, Any]], output_dir: str = "") -> Path:
     rows = []
     for h in hits:
         m = h["meta"]
@@ -477,12 +485,13 @@ def export_excel(hits: list[dict[str, Any]]) -> Path:
                 "text": h.get("text"),
             }
         )
-    path = EXPORT_DIR / f"retrieved_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    out = _resolve_export_dir(output_dir)
+    path = out / f"retrieved_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     pd.DataFrame(rows).to_excel(path, index=False)
     return path
 
 
-def export_word(hits: list[dict[str, Any]]) -> Path:
+def export_word(hits: list[dict[str, Any]], output_dir: str = "") -> Path:
     from docx import Document
 
     doc = Document()
@@ -507,7 +516,8 @@ def export_word(hits: list[dict[str, Any]]) -> Path:
                         rr[ci].text = str(r.get(c, ""))
         else:
             doc.add_paragraph(str(h.get("text", ""))[:2000])
-    path = EXPORT_DIR / f"retrieved_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+    out = _resolve_export_dir(output_dir)
+    path = out / f"retrieved_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
     doc.save(path)
     return path
 
@@ -818,13 +828,13 @@ def api_chat(req: ChatReq):
 
 @app.post("/api/export/excel")
 def api_export_excel(payload: dict):
-    path = export_excel(payload.get("hits", []))
+    path = export_excel(payload.get("hits", []), output_dir=payload.get("output_dir", ""))
     return {"ok": True, "path": str(path)}
 
 
 @app.post("/api/export/word")
 def api_export_word(payload: dict):
-    path = export_word(payload.get("hits", []))
+    path = export_word(payload.get("hits", []), output_dir=payload.get("output_dir", ""))
     return {"ok": True, "path": str(path)}
 
 
