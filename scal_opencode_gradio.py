@@ -282,6 +282,15 @@ def chat_fn(message: str, history: list, data_root: str, doc_name: str, prompt_t
     return ans
 
 
+def chat_submit(message: str, history: list[tuple[str, str]] | None, data_root: str, doc_name: str, prompt_text: str, model_name: str):
+    history = history or []
+    if not message.strip():
+        return history, ""
+    answer = chat_fn(message, history, data_root, doc_name, prompt_text, model_name)
+    history.append((message, answer))
+    return history, ""
+
+
 def build_ui():
     with gr.Blocks(title="SCAL OpenCode Gradio (Offline)") as demo:
         gr.Markdown("# SCAL OpenCode-style Interface (Gradio, Offline)")
@@ -311,12 +320,21 @@ def build_ui():
                 save_prompt_status = gr.Textbox(label="Prompt Save Status", lines=1)
 
             with gr.Column(scale=2):
-                chatbot = gr.ChatInterface(
-                    fn=lambda message, history, dr, dn, pt, lm: chat_fn(message, history, dr, dn, pt, lm),
-                    additional_inputs=[data_root, doc_name, prompt_text, llm_model],
-                    type="messages",
-                    title="OpenCode-style Chat",
-                    description="Ask questions against indexed extracted data",
+                gr.Markdown("### OpenCode-style Chat")
+                gr.Markdown("Ask questions against indexed extracted data")
+                chatbox = gr.Chatbot(label="Chat")
+                chat_input = gr.Textbox(label="Your question", placeholder="Ask about extracted SCAL data...")
+                send_btn = gr.Button("Send")
+
+                send_btn.click(
+                    fn=chat_submit,
+                    inputs=[chat_input, chatbox, data_root, doc_name, prompt_text, llm_model],
+                    outputs=[chatbox, chat_input],
+                )
+                chat_input.submit(
+                    fn=chat_submit,
+                    inputs=[chat_input, chatbox, data_root, doc_name, prompt_text, llm_model],
+                    outputs=[chatbox, chat_input],
                 )
 
         coverage_btn.click(fn=summarize_coverage, inputs=[data_root, doc_name], outputs=[coverage_out])
