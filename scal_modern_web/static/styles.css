@@ -93,6 +93,16 @@ html, body {
 .topbtn:hover { background: var(--surface2); border-color: var(--accent); }
 .topbtn-llm { border-color: var(--accent2); background: var(--accent2); }
 .topbtn-llm:hover { background: var(--accent); }
+.top-model-select {
+  min-width: 260px;
+  max-width: 360px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 11px;
+}
 
 .spinner {
   font-size: 18px;
@@ -313,6 +323,20 @@ html, body {
   flex-direction: column;
   gap: 5px;
 }
+.pdf-dropzone {
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  background: rgba(59,130,246,.08);
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+}
+.pdf-dropzone.drag-over {
+  background: rgba(34,197,94,.12);
+  border-color: var(--green2);
+}
+.pdf-drop-main { font-size: 12px; color: var(--text); font-weight: 600; }
+.pdf-drop-sub { font-size: 10px; color: var(--text3); margin-top: 2px; }
 .row-browse { display: flex; gap: 4px; align-items: center; }
 .row-browse .folder-input { font-size: 11px; }
 
@@ -407,6 +431,35 @@ html, body {
   font-size: 12px;
 }
 .chat-export-row { display: flex; gap: 5px; }
+.chat-session-select {
+  min-width: 150px;
+  max-width: 220px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.chat-suggestions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px 2px;
+  border-bottom: 1px solid var(--border2);
+  background: var(--bg3);
+}
+.suggest-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text2);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 10px;
+  cursor: pointer;
+}
+.suggest-chip:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
 
 .chat-box {
   flex: 1;

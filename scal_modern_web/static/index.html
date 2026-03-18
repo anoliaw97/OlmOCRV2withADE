@@ -25,6 +25,7 @@
     </div>
   </div>
   <div class="topbar-right">
+    <select id="llmModelSelect" class="top-model-select" title="Choose LLM model"></select>
     <button class="topbtn" id="loadVlmBtn" title="Load Vision Model (VLM)">Load VLM</button>
     <button class="topbtn topbtn-llm" id="loadLlmBtn" title="Load Language Model (LLM)">Load LLM</button>
     <span id="loadingSpinner" class="spinner hidden">⟳</span>
@@ -78,10 +79,15 @@
     <div class="sidebar-section">
       <div class="section-label">PDF Extraction <span class="badge badge-opt">Optional</span></div>
       <div class="extract-card">
-        <div class="row-browse">
-          <input id="pdfFilePath" type="text" class="folder-input" placeholder="PDF path — browse or drag-drop" readonly />
-          <button id="browsePdfBtn" class="icon-btn" title="Browse PDF file">📂</button>
+        <div id="pdfDropzone" class="pdf-dropzone" title="Drop PDF here or click to choose">
+          <div class="pdf-drop-main">Drop PDF here or click to choose</div>
+          <div id="pdfSelectedName" class="pdf-drop-sub">No file selected</div>
           <input id="pdfFilePick" type="file" accept="application/pdf" style="display:none" />
+        </div>
+        <div class="row-browse">
+          <input id="pdfFilePath" type="text" class="folder-input" placeholder="PDF path" readonly />
+          <button id="browsePdfBtn" class="icon-btn" title="Browse PDF file">📂</button>
+          <button id="clearPdfBtn" class="icon-btn" title="Clear selected PDF">✕</button>
         </div>
         <div id="pdfPageInfo" class="info-chip hidden"></div>
         <div class="range-row">
@@ -122,6 +128,11 @@
     <div id="tab-chat" class="tab-pane active">
       <div class="chat-topbar">
         <div class="filter-row">
+          <span class="tiny-label">Scope:</span>
+          <select id="chatScope" class="filter-select">
+            <option value="selected">Selected PDF</option>
+            <option value="all">All PDFs in folder</option>
+          </select>
           <span class="tiny-label">Filter type:</span>
           <select id="fType" class="filter-select">
             <option value="">All types</option>
@@ -132,11 +143,15 @@
           </select>
         </div>
         <div class="chat-export-row">
+          <select id="sessionSelect" class="chat-session-select" title="Chat sessions"></select>
+          <button class="btn-xs" id="newSessionBtn" title="New session">＋ Session</button>
           <button class="btn-xs" id="exportExcelBtn" title="Export to Excel (choose output folder)">⬇ Excel</button>
           <button class="btn-xs" id="exportWordBtn"  title="Export to Word (choose output folder)">⬇ Word</button>
           <button class="btn-xs btn-muted" id="clearChatBtn">🗑 Clear</button>
         </div>
       </div>
+
+      <div id="chatSuggestions" class="chat-suggestions"></div>
 
       <div id="chatBox" class="chat-box"></div>
 

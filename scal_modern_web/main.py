@@ -6,6 +6,7 @@ import re
 import sys
 import threading
 import traceback
+import uuid
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -49,6 +50,55 @@ INDEX_DIR = ROOT / "scal_modern_index"
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR = ROOT / "scal_modern_exports"
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+SESSION_FILE = ROOT / "scal_modern_sessions.json"
+
+LLM_MODEL_OPTIONS = [
+    {
+        "name": "Qwen/Qwen2.5-14B-Instruct",
+        "label": "Qwen2.5-14B-Instruct (Recommended RTX A6000)",
+        "recommended": True,
+        "notes": "Strong reasoning, multilingual, good with tables/technical docs",
+    },
+    {
+        "name": "Qwen/Qwen2.5-7B-Instruct",
+        "label": "Qwen2.5-7B-Instruct (Faster fallback)",
+        "recommended": False,
+        "notes": "Lower VRAM and faster responses",
+    },
+    {
+        "name": "meta-llama/Llama-3.1-8B-Instruct",
+        "label": "Llama-3.1-8B-Instruct (Alternative)",
+        "recommended": False,
+        "notes": "Good general instruction model",
+    },
+]
+
+USE_CASE_PROMPT_SUGGESTIONS = [
+    {
+        "id": "scal_summary",
+        "label": "Summarize SCAL report highlights",
+        "question": "Summarize the key SCAL findings for this report with supporting evidence.",
+        "prompt_template": "Return concise technical summary grouped by: porosity/permeability, capillary pressure, relative permeability, key sample IDs, and anomalies. Cite sources [1],[2].",
+    },
+    {
+        "id": "extract_por_perm",
+        "label": "Extract porosity and permeability table",
+        "question": "Extract porosity and permeability values by sample as a table.",
+        "prompt_template": "From evidence, return structured table columns: Sample ID, Depth, Porosity, Air Permeability, Grain Density, Notes. Keep units exactly.",
+    },
+    {
+        "id": "extract_cap_pressure",
+        "label": "Extract capillary pressure points",
+        "question": "Extract capillary pressure vs saturation data points by sample.",
+        "prompt_template": "Return JSON array grouped by core/sample with fields: capillary_pressure_psi, liquid_saturation_pct_pv, source_table.",
+    },
+    {
+        "id": "qc_missing_values",
+        "label": "QC missing values",
+        "question": "Check for missing values, malformed rows, and inconsistent units.",
+        "prompt_template": "Perform quality checks on extracted rows and return issue list with severity, row identifier, and suggested correction.",
+    },
+]
 
 
 def now() -> str:
@@ -80,7 +130,7 @@ class Runtime:
 
         self.llm_loaded = False
         self.vlm_loaded = False
-        self.llm_model_name = "Qwen/Qwen2.5-3B-Instruct"
+        self.llm_model_name = "Qwen/Qwen2.5-14B-Instruct"
         self._llm_tok = None
         self._llm_model = None
         self._llm_lock = threading.Lock()
@@ -96,6 +146,84 @@ def log(kind: str, message: str):
     if kind not in R.logs:
         kind = "debug"
     R.logs[kind].append({"time": now(), "kind": kind, "message": message})
+
+
+def _load_sessions() -> dict[str, Any]:
+    if not SESSION_FILE.exists():
+        return {"sessions": []}
+    try:
+        data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and isinstance(data.get("sessions"), list):
+            return data
+    except Exception:
+        pass
+    return {"sessions": []}
+
+
+def _save_sessions(data: dict[str, Any]):
+    SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def list_sessions() -> list[dict[str, Any]]:
+    data = _load_sessions()
+    items = []
+    for s in data.get("sessions", []):
+        items.append(
+            {
+                "id": s.get("id", ""),
+                "title": s.get("title", "Untitled Session"),
+                "created_at": s.get("created_at", ""),
+                "updated_at": s.get("updated_at", ""),
+                "message_count": len(s.get("messages", [])),
+            }
+        )
+    items.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+    return items
+
+
+def get_session(session_id: str) -> dict[str, Any] | None:
+    data = _load_sessions()
+    for s in data.get("sessions", []):
+        if s.get("id") == session_id:
+            return s
+    return None
+
+
+def create_session(title: str = "") -> dict[str, Any]:
+    data = _load_sessions()
+    sid = str(uuid.uuid4())
+    ts = datetime.now().isoformat(timespec="seconds")
+    obj = {
+        "id": sid,
+        "title": title or f"Session {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        "created_at": ts,
+        "updated_at": ts,
+        "messages": [],
+    }
+    data["sessions"].append(obj)
+    _save_sessions(data)
+    return obj
+
+
+def append_session_messages(session_id: str, new_messages: list[dict[str, Any]]):
+    data = _load_sessions()
+    found = None
+    for s in data.get("sessions", []):
+        if s.get("id") == session_id:
+            found = s
+            break
+    if found is None:
+        found = create_session("Chat Session")
+        data = _load_sessions()
+        for s in data.get("sessions", []):
+            if s.get("id") == found.get("id"):
+                found = s
+                break
+    found.setdefault("messages", []).extend(new_messages)
+    found["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    if len(found["messages"]) > 300:
+        found["messages"] = found["messages"][-300:]
+    _save_sessions(data)
 
 
 def parse_name(file_name: str) -> tuple[str | None, int | None, str]:
@@ -319,6 +447,28 @@ def build_index_job(doc_name: str):
         R.progress["index"]["running"] = False
 
 
+def chunks_for_docs(doc_names: list[str]) -> list[dict[str, Any]]:
+    out = []
+    for name in doc_names:
+        out.extend(chunks_for_doc(name))
+    return out
+
+
+def build_global_index_job(doc_names: list[str]):
+    if not doc_names:
+        return 0
+    chunks = chunks_for_docs(doc_names)
+    if not chunks:
+        return 0
+    texts = [c["text"] for c in chunks]
+    metas = [c["meta"] for c in chunks]
+    vec = TfidfVectorizer(ngram_range=(1, 2), min_df=1)
+    mat = vec.fit_transform(texts)
+    save_index(ns("__ALL__"), vec, mat, texts, metas)
+    log("status", f"Global all-doc index updated ({len(texts)} chunks)")
+    return len(texts)
+
+
 def ensure_index_loaded(doc_name: str) -> bool:
     if R.vectorizer is not None and R.matrix is not None and R.current_doc == doc_name:
         return True
@@ -330,8 +480,43 @@ def ensure_index_loaded(doc_name: str) -> bool:
     return True
 
 
+def ensure_all_index_loaded() -> bool:
+    obj = load_index(ns("__ALL__"))
+    if obj is None:
+        return False
+    R.vectorizer, R.matrix, R.index_texts, R.index_meta = obj
+    R.current_doc = "__ALL__"
+    return True
+
+
 def search(query: str, doc_name: str, filters: dict[str, Any], top_k: int = 8) -> list[dict[str, Any]]:
-    if not ensure_index_loaded(doc_name):
+    if doc_name == "__ALL__":
+        if not ensure_all_index_loaded():
+            # Fallback: aggregate top hits from each available doc index
+            merged = []
+            for d in sorted(R.docs.keys()):
+                if not ensure_index_loaded(d):
+                    continue
+                qv = R.vectorizer.transform([query])
+                sims = linear_kernel(qv, R.matrix).flatten()
+                order = sims.argsort()[::-1]
+                for i in order[: max(8, top_k)]:
+                    score = float(sims[i])
+                    if score <= 0:
+                        continue
+                    m = R.index_meta[i]
+                    ok = True
+                    for k, v in filters.items():
+                        if v in (None, ""):
+                            continue
+                        if str(m.get(k, "")).lower() != str(v).lower():
+                            ok = False
+                            break
+                    if ok:
+                        merged.append({"score": score, "text": R.index_texts[i], "meta": m})
+            merged.sort(key=lambda x: x["score"], reverse=True)
+            return merged[:top_k]
+    elif not ensure_index_loaded(doc_name):
         return []
     qv = R.vectorizer.transform([query])
     sims = linear_kernel(qv, R.matrix).flatten()
@@ -552,7 +737,9 @@ def ui_index():
 
 
 class ChatReq(BaseModel):
-    doc_name: str
+    doc_name: str | None = None
+    scope: str = "selected"  # selected | all
+    session_id: str | None = None
     question: str
     prompt_template: str = ""
     filter_extraction_type: str | None = None
@@ -697,6 +884,11 @@ def build_all_index_job(data_root: Path):
             log("error", f"Index failed for {doc_name}: {e}")
         finally:
             R.progress["index"]["running"] = False
+    try:
+        set_progress("index", 95, "indexing", "Building global all-doc index")
+        total_chunks = build_global_index_job(names)
+    except Exception as e:
+        log("error", f"Global all-doc index build failed: {e}")
     set_progress("index", 100, "completed", f"All docs indexed — {total_chunks} total chunks")
     log("status", f"All-docs index complete: {total_chunks} chunks")
 
@@ -765,7 +957,7 @@ def _load_vlm_bg():
 
 
 @app.post("/api/models/load-llm")
-def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-3B-Instruct")):
+def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-14B-Instruct")):
     if R.llm_loaded:
         return {"ok": True, "message": "LLM already loaded"}
     if R._llm_lock.locked():
@@ -773,6 +965,11 @@ def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-3B-Instruct")):
     log("status", f"LLM load requested: {model_name}")
     threading.Thread(target=_load_llm_bg, args=(model_name,), daemon=True).start()
     return {"ok": True, "message": "LLM loading in background — watch logs / model pill"}
+
+
+@app.get("/api/models/options")
+def api_model_options():
+    return {"models": LLM_MODEL_OPTIONS, "default": R.llm_model_name}
 
 
 @app.post("/api/models/load-vlm")
@@ -797,11 +994,15 @@ async def api_chat(req: ChatReq):
     """
     loop = asyncio.get_event_loop()
     filters = {"extraction_type": req.filter_extraction_type}
+    scope = (req.scope or "selected").lower()
+    target_doc = "__ALL__" if scope == "all" else (req.doc_name or "")
+    if scope != "all" and not target_doc:
+        raise HTTPException(status_code=400, detail="Select a document or use scope=all")
 
     # ── 1. RAG search (CPU-bound TF-IDF) ──────────────────────────────────────
     hits: list[dict[str, Any]] = await loop.run_in_executor(
         _SEARCH_EXECUTOR,
-        lambda: search(req.question, req.doc_name, filters, top_k=req.top_k),
+        lambda: search(req.question, target_doc, filters, top_k=req.top_k),
     )
 
     # ── 2. Build reasoning list ────────────────────────────────────────────────
@@ -861,13 +1062,82 @@ async def api_chat(req: ChatReq):
                 }
             )
 
+    # Persist chat memory (session-based)
+    sid = req.session_id
+    if not sid:
+        s = create_session("SCAL Chat Session")
+        sid = s["id"]
+    append_session_messages(
+        sid,
+        [
+            {"role": "user", "content": req.question, "time": now()},
+            {"role": "assistant", "content": answer, "time": now(), "sources": reasoning},
+        ],
+    )
+
     return {
+        "session_id": sid,
         "answer": answer,
         "reasoning": reasoning,
         "sources": reasoning,
         "tables": tables,
         "raw_hits": hits,
     }
+
+
+@app.get("/api/chat/sessions")
+def api_chat_sessions():
+    return {"sessions": list_sessions()}
+
+
+@app.post("/api/chat/session/new")
+def api_chat_session_new(title: str = Form("")):
+    s = create_session(title)
+    return {"session": {"id": s["id"], "title": s["title"], "messages": s["messages"]}}
+
+
+@app.get("/api/chat/session/{session_id}")
+def api_chat_session_get(session_id: str):
+    s = get_session(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"session": s}
+
+
+@app.get("/api/chat/suggestions")
+def api_chat_suggestions(doc_name: str | None = None):
+    # Static use-case prompts (user-facing labels + hidden prompt templates)
+    out = list(USE_CASE_PROMPT_SUGGESTIONS)
+
+    # Dynamic suggestions from current RAG metadata
+    dynamic = []
+    docs = [doc_name] if doc_name and doc_name in R.docs else list(R.docs.keys())[:20]
+    type_counts: dict[str, int] = {}
+    for d in docs:
+        pages = R.docs.get(d, {})
+        for pg in pages.values():
+            md = pg.get("md")
+            js = pg.get("json")
+            txt = ""
+            if md and md.exists():
+                txt = md.read_text(encoding="utf-8", errors="ignore")
+            elif js and js.exists():
+                try:
+                    txt = flatten_json(json.loads(js.read_text(encoding="utf-8", errors="ignore")))
+                except Exception:
+                    txt = js.read_text(encoding="utf-8", errors="ignore")
+            t = infer_type(txt)
+            type_counts[t] = type_counts.get(t, 0) + 1
+    for t, n in sorted(type_counts.items(), key=lambda x: x[1], reverse=True)[:4]:
+        dynamic.append(
+            {
+                "id": f"dyn_{t}",
+                "label": f"Explore {t.replace('_', ' ')} ({n} pages)",
+                "question": f"Summarize key findings for {t.replace('_', ' ')} with sources.",
+                "prompt_template": "Return concise technical bullets, include key values and cite sources [1],[2].",
+            }
+        )
+    return {"suggestions": out + dynamic}
 
 
 # ── Export ────────────────────────────────────────────────────────────────────

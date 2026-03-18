@@ -18,6 +18,8 @@ const S = {
   currentPage: null,        // { doc, page, files }
   coverageMap: {},          // doc -> coverage object
   docsMap: {},              // doc -> pages map from /api/docs
+  sessionId: null,
+  suggestions: [],
 };
 
 /* ══════════════════════════════════════════
@@ -99,16 +101,48 @@ function initBrowse() {
   // Output folder browse — server dialog
   $('browseOutputBtn').onclick = (e) => browseFolder('outputDir', e.currentTarget);
 
-  // PDF file pick — instant browser native (no OS path restriction for files)
-  $('pdfFilePick').onchange = (e) => {
-    const f = e.target.files[0];
+  // PDF file pick — instant browser native (friendly dropzone + button)
+  const drop = $('pdfDropzone');
+  const pick = $('pdfFilePick');
+
+  function setPickedFile(f) {
     if (!f) return;
     $('pdfFilePath').value = f.name;
+    $('pdfSelectedName').textContent = f.name;
     $('pdfPageInfo').textContent = `Selected: ${f.name}`;
     show('pdfPageInfo', true);
     show('extractCheckOut', false);
+  }
+
+  $('pdfFilePick').onchange = (e) => {
+    const f = e.target.files[0];
+    setPickedFile(f);
   };
-  $('browsePdfBtn').onclick = () => $('pdfFilePick').click();
+  $('browsePdfBtn').onclick = () => pick.click();
+  $('clearPdfBtn').onclick = () => {
+    pick.value = '';
+    $('pdfFilePath').value = '';
+    $('pdfSelectedName').textContent = 'No file selected';
+    $('pdfPageInfo').textContent = '';
+    show('pdfPageInfo', false);
+  };
+
+  drop.onclick = () => pick.click();
+  drop.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    drop.classList.add('drag-over');
+  });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.classList.remove('drag-over');
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f || !f.name.toLowerCase().endsWith('.pdf')) return;
+    const dt = new DataTransfer();
+    dt.items.add(f);
+    pick.files = dt.files;
+    setPickedFile(f);
+  });
 }
 
 /* ══════════════════════════════════════════
@@ -189,7 +223,8 @@ async function loadModel(kind) {
 
   try {
     const path = kind === 'vlm' ? '/api/models/load-vlm' : '/api/models/load-llm';
-    const body = kind === 'llm' ? fd({ model_name: 'Qwen/Qwen2.5-3B-Instruct' }) : fd({});
+    const modelName = $('llmModelSelect')?.value || 'Qwen/Qwen2.5-14B-Instruct';
+    const body = kind === 'llm' ? fd({ model_name: modelName }) : fd({});
     const r = await apiFetch(path, { method: 'POST', body });
     if (r.ok) {
       dot.className = 'dot dot-on';
@@ -286,6 +321,102 @@ function resetPrompt() {
 }
 
 /* ══════════════════════════════════════════
+   Model/session/suggestion helpers
+══════════════════════════════════════════ */
+async function initModelOptions() {
+  try {
+    const d = await apiFetch('/api/models/options');
+    const sel = $('llmModelSelect');
+    if (!sel) return;
+    sel.innerHTML = '';
+    (d.models || []).forEach((m) => {
+      const o = document.createElement('option');
+      o.value = m.name;
+      o.textContent = m.label;
+      if (m.recommended) o.textContent += ' ★';
+      sel.appendChild(o);
+    });
+    if (d.default) sel.value = d.default;
+  } catch (_) {}
+}
+
+async function refreshSessions() {
+  try {
+    const d = await apiFetch('/api/chat/sessions');
+    const sel = $('sessionSelect');
+    if (!sel) return;
+    sel.innerHTML = '';
+    (d.sessions || []).forEach((s) => {
+      const o = document.createElement('option');
+      o.value = s.id;
+      o.textContent = `${s.title} (${s.message_count})`;
+      sel.appendChild(o);
+    });
+    if (!S.sessionId && sel.options.length) {
+      S.sessionId = sel.options[0].value;
+      sel.value = S.sessionId;
+      await loadSessionMessages(S.sessionId);
+    } else if (S.sessionId) {
+      sel.value = S.sessionId;
+    }
+  } catch (_) {}
+}
+
+async function createNewSession() {
+  try {
+    const d = await apiFetch('/api/chat/session/new', { method: 'POST', body: fd({ title: '' }) });
+    const s = d.session;
+    S.sessionId = s.id;
+    $('chatBox').innerHTML = '';
+    await refreshSessions();
+    addChatMsg('system', 'Started a new chat session.');
+  } catch (e) {
+    addChatMsg('system', `Session error: ${e.message}`);
+  }
+}
+
+async function loadSessionMessages(sessionId) {
+  if (!sessionId) return;
+  try {
+    const d = await apiFetch(`/api/chat/session/${encodeURIComponent(sessionId)}`);
+    $('chatBox').innerHTML = '';
+    (d.session?.messages || []).forEach((m) => {
+      const role = m.role === 'assistant' ? 'assistant' : (m.role === 'user' ? 'user' : 'system');
+      addChatMsg(role, m.content || '');
+    });
+  } catch (_) {}
+}
+
+async function loadChatSuggestions() {
+  try {
+    const q = S.currentDoc ? `?doc_name=${encodeURIComponent(S.currentDoc)}` : '';
+    const d = await apiFetch(`/api/chat/suggestions${q}`);
+    S.suggestions = d.suggestions || [];
+    renderSuggestionChips();
+  } catch (_) {}
+}
+
+function renderSuggestionChips() {
+  const box = $('chatSuggestions');
+  if (!box) return;
+  const items = S.suggestions || [];
+  box.innerHTML = items.map((s) =>
+    `<button class="suggest-chip" data-sid="${esc(s.id)}" title="Click to apply suggestion">${esc(s.label)}</button>`
+  ).join('');
+  box.querySelectorAll('.suggest-chip').forEach((b) => {
+    b.onclick = () => {
+      const s = items.find((x) => x.id === b.dataset.sid);
+      if (!s) return;
+      $('chatInput').value = s.question || '';
+      if (s.prompt_template) {
+        $('promptText').value = s.prompt_template;
+        $('promptPreset').value = 'custom';
+      }
+    };
+  });
+}
+
+/* ══════════════════════════════════════════
    Chat
 ══════════════════════════════════════════ */
 function addChatMsg(role, text, extraHtml = '') {
@@ -301,7 +432,11 @@ function addChatMsg(role, text, extraHtml = '') {
 async function askChat() {
   const q = $('chatInput').value.trim();
   if (!q) return;
-  if (!S.currentDoc) { addChatMsg('system', 'Select a document and build its index first.'); return; }
+  const scope = $('chatScope')?.value || 'selected';
+  if (scope === 'selected' && !S.currentDoc) {
+    addChatMsg('system', 'Select a document (or switch Scope to All PDFs).');
+    return;
+  }
 
   addChatMsg('user', q);
   $('chatInput').value = '';
@@ -315,13 +450,16 @@ async function askChat() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        doc_name: S.currentDoc,
+        doc_name: scope === 'all' ? null : S.currentDoc,
+        scope,
+        session_id: S.sessionId,
         question: q,
         prompt_template: $('promptText').value,
         filter_extraction_type: $('fType').value || null,
         top_k: 8,
       }),
     });
+    if (d.session_id) S.sessionId = d.session_id;
     S.lastHits = d.raw_hits || [];
     const tableHtml = buildInlineTables(d.tables || [], d.raw_hits || []);
     addChatMsg('assistant', d.answer || '(no answer)', tableHtml);
@@ -601,6 +739,7 @@ async function init() {
     S.currentDoc = e.target.value;
     renderCoverage(S.coverageMap[S.currentDoc]);
     buildPageList(S.currentDoc, S.docsMap?.[S.currentDoc]);
+    loadChatSuggestions();
   };
 
   // Index
@@ -610,11 +749,19 @@ async function init() {
   $('loadVlmBtn').onclick = () => loadModel('vlm');
   $('loadLlmBtn').onclick = () => loadModel('llm');
 
+  // Scope changes suggestions context
+  $('chatScope').onchange = () => loadChatSuggestions();
+
   // Chat
   $('sendBtn').onclick = askChat;
   $('clearChatBtn').onclick = clearChat;
   $('exportExcelBtn').onclick = (e) => doExport('excel', e.currentTarget);
   $('exportWordBtn').onclick  = (e) => doExport('word',  e.currentTarget);
+  $('newSessionBtn').onclick = createNewSession;
+  $('sessionSelect').onchange = async (e) => {
+    S.sessionId = e.target.value;
+    await loadSessionMessages(S.sessionId);
+  };
   $('chatInput').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askChat(); }
   });
@@ -628,7 +775,13 @@ async function init() {
   $('clearLogsBtn').onclick = clearLogs;
 
   // Boot
+  await initModelOptions();
   await refreshDocs();
+  await loadChatSuggestions();
+  await refreshSessions();
+  if (!S.sessionId) {
+    await createNewSession();
+  }
   await pollState();
   await refreshLogs();
 
