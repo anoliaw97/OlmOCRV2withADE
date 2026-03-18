@@ -1,95 +1,142 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SCAL Modern Local App</title>
-    <link rel="stylesheet" href="/static/styles.css" />
-  </head>
-  <body>
-    <header class="topbar">
-      <div>
-        <h1>SCAL Modern Local App</h1>
-        <p>Chat-first local RAG on extracted JSON data</p>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SCAL Local App</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════ TOP BAR ═══════════════════════ -->
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="logo">⬡</span>
+    <div>
+      <div class="app-title">SCAL Local App</div>
+      <div class="app-sub">Offline RAG · PDF Extraction · Local LLM</div>
+    </div>
+  </div>
+  <div class="topbar-center">
+    <div id="modelPill" class="model-pill">
+      <span id="vlmDot" class="dot dot-off"></span><span id="vlmLabel">VLM</span>
+      <span class="sep">·</span>
+      <span id="llmDot" class="dot dot-off"></span><span id="llmLabel">LLM</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="topbtn" id="loadVlmBtn" title="Load Vision Model (VLM)">Load VLM</button>
+    <button class="topbtn topbtn-llm" id="loadLlmBtn" title="Load Language Model (LLM)">Load LLM</button>
+    <span id="loadingSpinner" class="spinner hidden">⟳</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════ MAIN GRID ═══════════════════════ -->
+<div class="app-grid">
+
+  <!-- ══════════ LEFT SIDEBAR ══════════ -->
+  <aside class="sidebar">
+
+    <!-- Folder row -->
+    <div class="sidebar-section">
+      <div class="section-label">Data Root Folder</div>
+      <div class="folder-row">
+        <input id="dataRoot" type="text" class="folder-input"
+          value="C:\Users\Mining\Downloads\Fine Tunining Datasets-20260318T052420Z-1-001\Fine Tunining Datasets\train" />
+        <!-- folder input via webkitdirectory — instant, no subprocess -->
+        <label class="icon-btn" title="Browse folder">
+          📁<input id="folderPick" type="file" webkitdirectory multiple style="display:none" />
+        </label>
       </div>
-      <div class="top-actions">
-        <button id="loadVlmBtn">Load VLM</button>
-        <button id="loadLlmBtn">Load LLM</button>
-        <span id="modelState">VLM: not loaded | LLM: not loaded</span>
+      <button class="btn-full" id="refreshDocsBtn">↻ Refresh Documents</button>
+    </div>
+
+    <!-- Document picker -->
+    <div class="sidebar-section">
+      <div class="section-label">Document</div>
+      <select id="docSelect" class="full-select" size="5"></select>
+      <div id="coverageInfo" class="coverage-chip"></div>
+    </div>
+
+    <!-- Index -->
+    <div class="sidebar-section">
+      <div class="section-label">RAG Index</div>
+      <div class="index-scope-row">
+        <label class="radio-label"><input type="radio" name="indexScope" value="single" checked /> Selected doc</label>
+        <label class="radio-label"><input type="radio" name="indexScope" value="all" /> All docs in folder</label>
       </div>
-    </header>
+      <button class="btn-full btn-accent" id="buildIndexBtn">⚡ Build / Rebuild Index</button>
+    </div>
 
-    <main class="layout">
-      <!-- ===== LEFT PANEL: RAG / Data ===== -->
-      <aside class="panel left">
-        <h2>RAG / Data</h2>
+    <!-- Prompt -->
+    <div class="sidebar-section">
+      <div class="section-label">Extraction Prompt</div>
+      <div class="row-2">
+        <select id="promptPreset" class="full-select-inline">
+          <option value="default">Default (olmOCR v4)</option>
+          <option value="table">Table Extraction</option>
+          <option value="custom">Custom</option>
+        </select>
+        <button class="btn-sm" id="resetPromptBtn" title="Reset">↩</button>
+      </div>
+      <textarea id="promptText" class="prompt-area" rows="4"></textarea>
+    </div>
 
-        <label>Data Root Folder</label>
-        <div class="browse-row">
-          <input id="dataRoot" type="text" />
-          <button id="browseDataRootBtn" class="browse-btn" title="Browse folder">&#128193;</button>
+    <!-- Extraction -->
+    <div class="sidebar-section">
+      <div class="section-label">PDF Extraction <span class="badge badge-opt">Optional</span></div>
+      <div class="extract-card">
+        <div class="row-browse">
+          <input id="pdfFilePath" type="text" class="folder-input" placeholder="PDF path — browse or drag-drop" readonly />
+          <label class="icon-btn" title="Browse PDF file">
+            📂<input id="pdfFilePick" type="file" accept="application/pdf" style="display:none" />
+          </label>
         </div>
-        <button id="refreshDocsBtn">Refresh Documents</button>
-
-        <label>Document</label>
-        <select id="docSelect"></select>
-        <div id="coverageInfo" class="mono coverage-box"></div>
-
-        <button id="buildIndexBtn">Build / Rebuild Index</button>
-
-        <h3>Extraction Prompt</h3>
-        <div class="prompt-row">
-          <select id="promptPreset">
-            <option value="default">Default (olmOCR v4)</option>
-            <option value="table">Table Extraction</option>
-            <option value="custom">Custom</option>
-          </select>
-          <button id="resetPromptBtn" class="small-btn" title="Reset to selected preset">&#8617; Reset</button>
+        <div id="pdfPageInfo" class="info-chip hidden"></div>
+        <div class="range-row">
+          <label class="tiny-label">From</label>
+          <input id="pageFrom" type="number" min="1" value="1" class="num-input" />
+          <label class="tiny-label">To</label>
+          <input id="pageTo" type="number" min="1" placeholder="last" class="num-input" />
         </div>
-        <textarea id="promptText" rows="5"></textarea>
-
-        <!-- ===== OPTIONAL PDF EXTRACTION (olmocr_agentic_gui style) ===== -->
-        <h3>Optional PDF Extraction</h3>
-        <div class="extract-section">
-          <div class="browse-row">
-            <input id="pdfFilePath" type="text" placeholder="PDF file path" readonly />
-            <button id="browsePdfBtn" class="browse-btn" title="Browse PDF">&#128194;</button>
-            <input id="pdfFile" type="file" accept="application/pdf" style="display:none" />
-          </div>
-
-          <div id="pdfPageInfo" class="mono" style="font-size:11px; margin-bottom:6px;"></div>
-
-          <div class="range-row">
-            <label class="range-label">From page:</label>
-            <input id="pageFrom" type="number" min="1" value="1" class="range-input" />
-            <label class="range-label">To:</label>
-            <input id="pageTo" type="number" min="1" value="" class="range-input" placeholder="last" />
-          </div>
-
-          <div class="extract-actions">
-            <button id="checkPdfBtn">Check Missing Pages</button>
-            <button id="startExtractBtn" class="btn-start">&#9654; Start Extraction</button>
-            <button id="stopExtractBtn" class="btn-stop" disabled>&#9632; Stop</button>
-          </div>
-          <div id="extractCheckOut" class="mono extract-out"></div>
+        <div class="extract-btns">
+          <button class="btn-sm" id="checkPdfBtn">🔍 Check</button>
+          <button class="btn-sm btn-go" id="startExtractBtn">▶ Extract</button>
+          <button class="btn-sm btn-stop" id="stopExtractBtn" disabled>■ Stop</button>
         </div>
+        <div id="extractCheckOut" class="info-chip hidden"></div>
+      </div>
+    </div>
 
-        <!-- Output folder for saved extraction results -->
-        <h3>Output Folder</h3>
-        <div class="browse-row">
-          <input id="outputDir" type="text" placeholder="Same as data root" />
-          <button id="browseOutputBtn" class="browse-btn" title="Browse folder">&#128193;</button>
-        </div>
-      </aside>
+    <!-- Output folder -->
+    <div class="sidebar-section">
+      <div class="section-label">Output Folder <span class="badge badge-opt">Optional</span></div>
+      <div class="folder-row">
+        <input id="outputDir" type="text" class="folder-input" placeholder="Same as data root" />
+        <label class="icon-btn" title="Browse output folder">
+          📁<input id="outputFolderPick" type="file" webkitdirectory multiple style="display:none" />
+        </label>
+      </div>
+    </div>
 
-      <!-- ===== CENTER PANEL: Chat ===== -->
-      <section class="panel center">
-        <h2>Chat</h2>
+  </aside>
 
-        <!-- Single useful filter: extraction type -->
-        <div class="filter-bar">
-          <label class="filter-label">Filter by type:</label>
-          <select id="fType">
+  <!-- ══════════ CENTER: TABBED MAIN AREA ══════════ -->
+  <main class="main-area">
+
+    <!-- Tab nav -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="chat">💬 Chat</button>
+      <button class="tab-btn" data-tab="viewer">📄 Document Viewer</button>
+      <button class="tab-btn" data-tab="logs">📋 Logs</button>
+    </div>
+
+    <!-- ── CHAT TAB ── -->
+    <div id="tab-chat" class="tab-pane active">
+      <div class="chat-topbar">
+        <div class="filter-row">
+          <span class="tiny-label">Filter type:</span>
+          <select id="fType" class="filter-select">
             <option value="">All types</option>
             <option value="capillary_pressure">Capillary Pressure</option>
             <option value="relative_permeability">Relative Permeability</option>
@@ -97,49 +144,119 @@
             <option value="general">General</option>
           </select>
         </div>
-
-        <div id="chatBox" class="chat-box"></div>
-
-        <textarea id="chatInput" rows="2" placeholder="Ask about extracted SCAL data..."></textarea>
-        <div class="chat-actions">
-          <button id="sendBtn">Send</button>
-          <button id="clearChatBtn">Clear History</button>
-          <button id="exportExcelBtn">Export Excel</button>
-          <button id="exportWordBtn">Export Word</button>
+        <div class="chat-export-row">
+          <button class="btn-xs" id="exportExcelBtn">⬇ Excel</button>
+          <button class="btn-xs" id="exportWordBtn">⬇ Word</button>
+          <button class="btn-xs btn-muted" id="clearChatBtn">🗑 Clear</button>
         </div>
-      </section>
+      </div>
 
-      <!-- ===== RIGHT PANEL: Progress + Reasoning + Tables + Logs ===== -->
-      <aside class="panel right">
-        <h2>Progress</h2>
-        <div class="progress-card">
-          <label>Indexing Pipeline</label>
-          <div class="bar"><div id="barIndex"></div></div>
-          <div id="indexDetail" class="mono">Idle</div>
+      <div id="chatBox" class="chat-box"></div>
+
+      <div class="chat-input-area">
+        <textarea id="chatInput" class="chat-textarea" rows="2"
+          placeholder="Ask about extracted SCAL data… (Enter to send, Shift+Enter for newline)"></textarea>
+        <button class="send-btn" id="sendBtn">Send ↵</button>
+      </div>
+    </div>
+
+    <!-- ── VIEWER TAB ── -->
+    <div id="tab-viewer" class="tab-pane hidden">
+      <div class="viewer-layout">
+
+        <!-- Left: page list -->
+        <div class="page-list-panel">
+          <div class="panel-head">Pages</div>
+          <div id="pageList" class="page-list"></div>
         </div>
-        <div class="progress-card">
-          <label>Extraction Pipeline</label>
-          <div class="bar"><div id="barExtract"></div></div>
-          <div id="extractDetail" class="mono">Idle</div>
+
+        <!-- Right: viewer tabs -->
+        <div class="viewer-content">
+          <div class="viewer-tabs">
+            <button class="vtab-btn active" data-vtab="pdf">PDF Preview</button>
+            <button class="vtab-btn" data-vtab="json">Raw JSON/MD</button>
+            <button class="vtab-btn" data-vtab="html">Parsed Tables</button>
+          </div>
+
+          <div id="vtab-pdf" class="vtab-pane active">
+            <div id="pdfPreviewWrap" class="pdf-preview-wrap">
+              <div class="preview-placeholder">Select a document and page to preview</div>
+            </div>
+          </div>
+
+          <div id="vtab-json" class="vtab-pane hidden">
+            <div class="json-toolbar">
+              <button class="btn-xs" id="parseToHtmlBtn">⚙ Parse to HTML Tables</button>
+              <span id="parseStatus" class="tiny-label"></span>
+            </div>
+            <pre id="jsonView" class="json-view">(no page selected)</pre>
+          </div>
+
+          <div id="vtab-html" class="vtab-pane hidden">
+            <div id="htmlTablesView" class="html-tables-wrap">
+              <div class="preview-placeholder">Click "Parse to HTML Tables" on the JSON tab</div>
+            </div>
+          </div>
         </div>
 
-        <h2>Reasoning</h2>
-        <pre id="reasoningLog">(no reasoning yet)</pre>
+      </div>
+    </div>
 
-        <h2>Rendered Tables</h2>
-        <div id="tablesView"><div class="mono">No tables in current retrieval.</div></div>
-
-        <h2>Logs</h2>
-        <div class="log-tabs">
-          <button data-kind="status" class="active">Status</button>
-          <button data-kind="debug">Debug</button>
-          <button data-kind="error">Error</button>
-          <button id="clearLogsBtn">Clear</button>
+    <!-- ── LOGS TAB ── -->
+    <div id="tab-logs" class="tab-pane hidden">
+      <div class="logs-header">
+        <div class="log-kind-tabs">
+          <button class="lkbtn active" data-kind="status">Status</button>
+          <button class="lkbtn" data-kind="debug">Debug</button>
+          <button class="lkbtn" data-kind="error">Error</button>
         </div>
-        <pre id="logsView">(empty)</pre>
-      </aside>
-    </main>
+        <div class="logs-actions">
+          <label class="tiny-label">
+            <input type="checkbox" id="autoScrollLogs" checked /> Auto-scroll
+          </label>
+          <button class="btn-xs btn-muted" id="clearLogsBtn">🗑 Clear</button>
+        </div>
+      </div>
+      <div id="logsView" class="logs-view"></div>
+    </div>
 
-    <script src="/static/app.js"></script>
-  </body>
+  </main>
+
+  <!-- ══════════ RIGHT PANEL: Progress + Reasoning + Tables ══════════ -->
+  <aside class="right-panel">
+
+    <!-- Progress -->
+    <div class="rp-section">
+      <div class="rp-head">Progress</div>
+      <div class="progress-block">
+        <div class="prog-label">Indexing</div>
+        <div class="prog-track"><div id="barIndex" class="prog-bar"></div></div>
+        <div id="indexDetail" class="detail-text">Idle</div>
+      </div>
+      <div class="progress-block">
+        <div class="prog-label">Extraction</div>
+        <div class="prog-track"><div id="barExtract" class="prog-bar"></div></div>
+        <div id="extractDetail" class="detail-text">Idle</div>
+      </div>
+    </div>
+
+    <!-- Reasoning -->
+    <div class="rp-section rp-reasoning">
+      <div class="rp-head">Retrieval Reasoning</div>
+      <div id="reasoningList" class="reasoning-list"></div>
+    </div>
+
+    <!-- Rendered tables from last retrieval -->
+    <div class="rp-section rp-tables">
+      <div class="rp-head">Retrieved Tables</div>
+      <div id="tablesView" class="retrieved-tables">
+        <div class="placeholder-text">Tables from the last chat answer will appear here</div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
 </html>

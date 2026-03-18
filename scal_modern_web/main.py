@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
-import sys
 import threading
 import traceback
 from collections import deque
@@ -341,11 +339,17 @@ def load_llm(model_name: str):
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     with R._llm_lock:
+        log("status", f"Loading LLM {model_name} …")
         tok = AutoTokenizer.from_pretrained(model_name)
-        mdl = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16).to("cuda").eval()
+        mdl = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16,
+            device_map="auto",
+        ).eval()
         R._llm_tok, R._llm_model = tok, mdl
         R.llm_loaded = True
         R.llm_model_name = model_name
+        log("status", f"LLM ready: {model_name}")
 
 
 def ask_llm(system_prompt: str, user_prompt: str) -> str:
@@ -510,46 +514,6 @@ class ChatReq(BaseModel):
     top_k: int = 8
 
 
-# ── Native folder / file browse (server-side tkinter dialog) ──────────────────
-
-def _run_tkdialog(kind: str, accept: str = "") -> str:
-    """Open a native OS dialog via tkinter in a subprocess so it doesn't block the server."""
-    script = (
-        "import tkinter,tkinter.filedialog; "
-        "r=tkinter.Tk(); r.withdraw(); "
-    )
-    if kind == "folder":
-        script += "print(tkinter.filedialog.askdirectory() or '')"
-    else:
-        filetypes = ""
-        if ".pdf" in accept:
-            filetypes = "((PDF files,*.pdf),(All files,*.*))"
-        else:
-            filetypes = "((All files,*.*))"
-        script += f"print(tkinter.filedialog.askopenfilename(filetypes={filetypes}) or '')"
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            capture_output=True, text=True, timeout=120,
-        )
-        return result.stdout.strip()
-    except Exception:
-        return ""
-
-
-@app.post("/api/browse/folder")
-def api_browse_folder():
-    path = _run_tkdialog("folder")
-    return {"path": path}
-
-
-@app.post("/api/browse/file")
-def api_browse_file(payload: dict = {}):
-    accept = payload.get("accept", "") if payload else ""
-    path = _run_tkdialog("file", accept)
-    return {"path": path}
-
-
 # ── Documents & index ─────────────────────────────────────────────────────────
 
 @app.get("/api/docs")
@@ -557,10 +521,18 @@ def api_docs(root: str | None = None):
     rr = Path(root) if root else DATA_ROOT
     R.docs = scan_docs(rr)
     names = sorted(R.docs.keys())
+    # Build a JSON-serialisable pages_map for the viewer
+    pages_map: dict[str, dict[int, dict[str, str]]] = {}
+    for doc_name, pages in R.docs.items():
+        pages_map[doc_name] = {
+            pg: {ext: str(path) for ext, path in files.items()}
+            for pg, files in pages.items()
+        }
     return {
         "data_root": str(rr),
         "documents": names,
         "coverage": {n: coverage_for_doc(n) for n in names},
+        "pages_map": pages_map,
     }
 
 
@@ -573,6 +545,51 @@ def api_build_index(doc_name: str = Form(...)):
     t = threading.Thread(target=build_index_job, args=(doc_name,), daemon=True)
     t.start()
     return {"ok": True, "message": f"Index build started for {doc_name}"}
+
+
+def build_all_index_job(data_root: Path):
+    """Index ALL documents in the folder sequentially."""
+    docs = scan_docs(data_root)
+    names = sorted(docs.keys())
+    if not names:
+        log("error", "No documents found in folder")
+        return
+    log("status", f"Building index for all {len(names)} document(s)")
+    R.docs = docs
+    total_chunks = 0
+    for i, doc_name in enumerate(names):
+        if R.progress["index"]["running"]:
+            # Wait briefly if another build is still finishing
+            import time; time.sleep(0.2)
+        R.progress["index"]["running"] = True
+        set_progress("index", int(i / len(names) * 90), "indexing", f"({i+1}/{len(names)}) {doc_name}")
+        try:
+            chunks = chunks_for_doc(doc_name)
+            if not chunks:
+                continue
+            texts = [c["text"] for c in chunks]
+            metas = [c["meta"] for c in chunks]
+            vec = TfidfVectorizer(ngram_range=(1, 2), min_df=1)
+            mat = vec.fit_transform(texts)
+            save_index(ns(doc_name), vec, mat, texts, metas)
+            total_chunks += len(chunks)
+            log("status", f"Indexed {doc_name}: {len(chunks)} chunks")
+        except Exception as e:
+            log("error", f"Index failed for {doc_name}: {e}")
+        finally:
+            R.progress["index"]["running"] = False
+    set_progress("index", 100, "completed", f"All docs indexed — {total_chunks} total chunks")
+    log("status", f"All-docs index complete: {total_chunks} chunks")
+
+
+@app.post("/api/index/build-all")
+def api_build_all(data_root: str = Form("")):
+    if R.progress["index"]["running"]:
+        return {"ok": False, "message": "Index build already running"}
+    rr = Path(data_root) if data_root else DATA_ROOT
+    t = threading.Thread(target=build_all_index_job, args=(rr,), daemon=True)
+    t.start()
+    return {"ok": True, "message": f"All-docs index build started for {rr}"}
 
 
 # ── State & logs ──────────────────────────────────────────────────────────────
@@ -611,26 +628,41 @@ def api_clear_logs(kind: str = Form("all")):
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
-@app.post("/api/models/load-llm")
-def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-3B-Instruct")):
+def _load_llm_bg(model_name: str):
+    """Run in a daemon thread so the HTTP response returns immediately."""
     try:
         load_llm(model_name)
-        log("status", f"LLM loaded: {model_name}")
-        return {"ok": True}
     except Exception as e:
-        log("error", f"LLM load error: {e}")
-        return {"ok": False, "error": str(e)}
+        log("error", f"LLM load failed: {e}")
+        log("debug", traceback.format_exc())
+
+
+def _load_vlm_bg():
+    try:
+        load_vlm()
+    except Exception as e:
+        log("error", f"VLM load failed: {e}")
+        log("debug", traceback.format_exc())
+
+
+@app.post("/api/models/load-llm")
+def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-3B-Instruct")):
+    if R.llm_loaded:
+        return {"ok": True, "message": "LLM already loaded"}
+    if R._llm_lock.locked():
+        return {"ok": False, "message": "LLM is already loading, check logs"}
+    log("status", f"LLM load requested: {model_name}")
+    threading.Thread(target=_load_llm_bg, args=(model_name,), daemon=True).start()
+    return {"ok": True, "message": "LLM loading in background — watch logs / model pill"}
 
 
 @app.post("/api/models/load-vlm")
 def api_load_vlm():
-    try:
-        load_vlm()
-        log("status", "VLM loaded")
-        return {"ok": True}
-    except Exception as e:
-        log("error", f"VLM load error: {e}")
-        return {"ok": False, "error": str(e)}
+    if R.vlm_loaded:
+        return {"ok": True, "message": "VLM already loaded"}
+    log("status", "VLM load requested")
+    threading.Thread(target=_load_vlm_bg, daemon=True).start()
+    return {"ok": True, "message": "VLM loading in background — watch logs / model pill"}
 
 
 # ── Chat ──────────────────────────────────────────────────────────────────────
@@ -801,3 +833,67 @@ async def api_extract_start(
 def api_extract_stop():
     R.extract_stop.set()
     return {"ok": True, "message": "Stop signal sent"}
+
+
+# ── Viewer endpoints ──────────────────────────────────────────────────────────
+
+@app.get("/api/page/raw")
+def api_page_raw(doc: str, page: int):
+    """Return the raw text content (JSON or MD) for a specific page."""
+    pages = R.docs.get(doc, {})
+    if page not in pages:
+        raise HTTPException(status_code=404, detail="Page not found")
+    files = pages[page]
+    if "json" in files:
+        content = files["json"].read_text(encoding="utf-8", errors="ignore")
+        try:
+            # Pretty-print JSON
+            content = json.dumps(json.loads(content), indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+        return {"kind": "json", "content": content}
+    elif "md" in files:
+        content = files["md"].read_text(encoding="utf-8", errors="ignore")
+        return {"kind": "md", "content": content}
+    return {"kind": "none", "content": "(no extracted file for this page)"}
+
+
+@app.get("/api/page/pdf")
+def api_page_pdf(doc: str, page: int):
+    """Serve the raw page PDF file for preview."""
+    pages = R.docs.get(doc, {})
+    if page not in pages:
+        raise HTTPException(status_code=404, detail="Page not found")
+    files = pages[page]
+    if "pdf" not in files:
+        raise HTTPException(status_code=404, detail="No PDF for this page")
+    return FileResponse(str(files["pdf"]), media_type="application/pdf")
+
+
+@app.get("/api/page/parse")
+def api_page_parse(doc: str, page: int):
+    """Parse HTML tables from the extracted content of a page."""
+    pages = R.docs.get(doc, {})
+    if page not in pages:
+        raise HTTPException(status_code=404, detail="Page not found")
+    files = pages[page]
+    raw = ""
+    if "json" in files:
+        try:
+            raw = flatten_json(json.loads(files["json"].read_text(encoding="utf-8", errors="ignore")))
+        except Exception:
+            raw = files["json"].read_text(encoding="utf-8", errors="ignore")
+    elif "md" in files:
+        raw = files["md"].read_text(encoding="utf-8", errors="ignore")
+
+    html_tables = extract_html_tables(raw)
+    result = []
+    for h in html_tables:
+        cols, rows = parse_html_table(h)
+        result.append({
+            "raw_html": h,
+            "columns": cols,
+            "rows": rows,
+            "row_count": len(rows),
+        })
+    return {"page": page, "tables": result, "table_count": len(result)}
