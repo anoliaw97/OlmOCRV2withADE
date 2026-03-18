@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import ExtractedTable, RagChunk, Report
-from ..schemas import ExtractionSettings
+from ..schemas import ExtractionSettings, TableJSON
 from ..services.exporter import export_excel, export_json, export_word
-from ..services.extractor import extract_full_document_as_json_pages, extract_targeted_tables
+from ..services.extractor import extract_targeted_tables, parse_page_range
 from ..services.indexer import LocalHybridIndex
 from ..services.logger import log_event
 from ..services.postprocess import build_rag_chunks, normalize_tables
+from ..services.web_olmocr_runtime import default_olmocr_prompt, get_vlm
 
 
 router = APIRouter(prefix="/api/extraction", tags=["extraction"])
@@ -50,9 +51,10 @@ async def run_extraction(
 
     log_event(db, "ingest", f"Uploaded {file.filename}", report.id)
 
-    # Default workflow: full extraction of all page content into JSON-page records.
-    # Targeted SCAL extraction can still be enabled by mode/use_case controls.
-    if settings.mode == "operator" and settings.extraction_types:
+    # Desktop-like behavior:
+    # - Layman mode default: full extraction via loaded VLM + default olmOCR prompt
+    # - Operator mode: can run targeted parser flow
+    if settings.mode == "operator" and settings.extraction_types and settings.model_name == "offline_heuristic":
         tables = extract_targeted_tables(
             pdf_path=str(dest),
             default_use_case=settings.use_case,
@@ -61,11 +63,42 @@ async def run_extraction(
         )
         log_event(db, "extract", f"Operator targeted extraction produced {len(tables)} table JSON records", report.id)
     else:
-        tables = extract_full_document_as_json_pages(
-            pdf_path=str(dest),
-            page_range=settings.page_range,
-        )
-        log_event(db, "extract", f"Default full extraction produced {len(tables)} page JSON records", report.id)
+        # VLM extraction path (default prompt unless user overrides)
+        vlm = get_vlm()
+        if not vlm.loaded:
+            raise HTTPException(status_code=400, detail="VLM is not loaded. Click 'Load VLM' first.")
+
+        from pypdf import PdfReader
+
+        reader = PdfReader(str(dest))
+        pages = parse_page_range(len(reader.pages), settings.page_range)
+        use_prompt = settings.prompt_text or default_olmocr_prompt()
+
+        page_tables: list[dict] = []
+        for page_num in pages:
+            res = vlm.extract_page(str(dest), page_num, prompt=use_prompt)
+            page_tables.append(
+                {
+                    "file_name": file.filename,
+                    "page_number": page_num,
+                    "table_id": f"P{page_num:03d}_FULL",
+                    "extraction_type": "full_page_text",
+                    "table_title": f"olmOCR full extraction page {page_num}",
+                    "columns": ["page_text"],
+                    "rows": [{"page_text": res.get("raw_response", "")}],
+                    "units": {},
+                    "metadata": {
+                        "report_name": Path(file.filename).stem,
+                        "prompt_used": res.get("prompt_used", use_prompt),
+                        "input_tokens": res.get("input_tokens", 0),
+                        "output_tokens": res.get("output_tokens", 0),
+                        "total_tokens": res.get("total_tokens", 0),
+                    },
+                }
+            )
+
+        tables = [TableJSON(**t) for t in page_tables]
+        log_event(db, "extract", f"Default VLM full extraction produced {len(tables)} page JSON records", report.id)
 
     if settings.normalize:
         tables = normalize_tables(tables)

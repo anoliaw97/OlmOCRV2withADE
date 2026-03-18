@@ -11,6 +11,7 @@ class ExtractionSettings(BaseModel):
     page_range: str | None = None
     extraction_types: list[str] = Field(default_factory=lambda: ["capillary_pressure"])
     prompt_profile: str = "default"
+    prompt_text: str | None = None
     model_name: str = "offline_heuristic"
     normalize: bool = True
     build_index: bool = True

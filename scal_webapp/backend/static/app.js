@@ -15,6 +15,7 @@ async function runExtraction() {
       .map((x) => x.trim())
       .filter(Boolean),
     prompt_profile: document.getElementById("promptProfile")?.value || "default",
+    prompt_text: document.getElementById("defaultPrompt")?.value || null,
     model_name: document.getElementById("modelName")?.value || "offline_heuristic",
     normalize: document.getElementById("normalize")?.checked ?? true,
     build_index: document.getElementById("buildIndex")?.checked ?? true,
@@ -47,9 +48,28 @@ async function importJson() {
 }
 
 async function loadLlms() {
-  const resp = await fetch("/api/chat/load-llm", { method: "POST" });
+  const resp = await fetch("/api/models/load-llm", { method: "POST" });
   const data = await resp.json();
   document.getElementById("resultOut").textContent = JSON.stringify(data, null, 2);
+  await refreshModelStatus();
+}
+
+async function loadVlm() {
+  const resp = await fetch("/api/models/load-vlm", { method: "POST" });
+  const data = await resp.json();
+  document.getElementById("resultOut").textContent = JSON.stringify(data, null, 2);
+  await refreshModelStatus();
+}
+
+async function refreshModelStatus() {
+  const resp = await fetch("/api/models/status");
+  const data = await resp.json();
+  document.getElementById("modelStatus").textContent =
+    `VLM: ${data.vlm_loaded ? "loaded" : "not loaded"} | LLM: ${data.llm_loaded ? "loaded" : "not loaded"}`;
+  const promptEl = document.getElementById("defaultPrompt");
+  if (promptEl && !promptEl.value) {
+    promptEl.value = data.default_prompt || "";
+  }
 }
 
 async function refreshReports() {
@@ -119,6 +139,8 @@ function initTabs() {
 document.getElementById("runExtraction").addEventListener("click", runExtraction);
 document.getElementById("importJson").addEventListener("click", importJson);
 document.getElementById("loadLlmBtn").addEventListener("click", loadLlms);
+document.getElementById("loadLlmTopBtn").addEventListener("click", loadLlms);
+document.getElementById("loadVlmBtn").addEventListener("click", loadVlm);
 document.getElementById("refreshReports").addEventListener("click", refreshReports);
 document.getElementById("askBtn").addEventListener("click", askQuestion);
 document.getElementById("refreshLogs").addEventListener("click", refreshLogs);
@@ -129,3 +151,4 @@ initTabs();
 toggleMode();
 refreshReports();
 refreshLogs();
+refreshModelStatus();

@@ -13,6 +13,9 @@
         <p>Offline workflow: PDF -> extracted JSON -> local LLM RAG chat</p>
       </div>
       <div class="top-actions">
+        <span id="modelStatus" class="hint">VLM: not loaded | LLM: not loaded</span>
+        <button id="loadVlmBtn">Load VLM</button>
+        <button id="loadLlmTopBtn">Load LLM</button>
         <label for="mode">Mode</label>
         <select id="mode">
           <option value="layman">Layman</option>
@@ -45,6 +48,10 @@
             </select>
           </div>
           <p class="hint">New PDF extraction uses default full extraction prompt. Use-case logic applies during chat over indexed JSON.</p>
+          <div class="row">
+            <label>Default Prompt</label>
+            <textarea id="defaultPrompt"></textarea>
+          </div>
         </section>
 
         <section id="operatorPanel" class="card hidden">
