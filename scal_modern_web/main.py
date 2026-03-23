@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import sys
 import threading
@@ -13,6 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
+
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "120")
 
 # Executor for blocking tkinter dialogs (1 thread — dialogs must be serial)
 _DIALOG_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tkdialog")
