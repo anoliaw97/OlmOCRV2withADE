@@ -54,10 +54,22 @@ SESSION_FILE = ROOT / "scal_modern_sessions.json"
 
 LLM_MODEL_OPTIONS = [
     {
-        "name": "Qwen/Qwen2.5-14B-Instruct",
-        "label": "Qwen2.5-14B-Instruct (Recommended RTX A6000)",
+        "name": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "label": "Qwen3-30B-A3B-Instruct (Best overall RAG)",
         "recommended": True,
-        "notes": "Strong reasoning, multilingual, good with tables/technical docs",
+        "notes": "MoE long-context model (up to ~262K) with strong synthesis for document RAG",
+    },
+    {
+        "name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+        "label": "DeepSeek-R1-Distill-Qwen-32B (Best reasoning)",
+        "recommended": False,
+        "notes": "Strong analytical/multi-step reasoning for complex query answering",
+    },
+    {
+        "name": "Qwen/Qwen2.5-14B-Instruct",
+        "label": "Qwen2.5-14B-Instruct (Stable fallback)",
+        "recommended": False,
+        "notes": "Stable default for lower VRAM pressure and fast iteration",
     },
     {
         "name": "Qwen/Qwen2.5-7B-Instruct",
@@ -548,11 +560,12 @@ def load_llm(model_name: str):
 
     with R._llm_lock:
         log("status", f"Loading LLM {model_name} …")
-        tok = AutoTokenizer.from_pretrained(model_name)
+        tok = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         mdl = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16,
             device_map="auto",
+            trust_remote_code=True,
         ).eval()
         R._llm_tok, R._llm_model = tok, mdl
         R.llm_loaded = True
