@@ -332,6 +332,37 @@ def infer_type(text: str) -> str:
     return "general"
 
 
+def is_casual_chat(query: str) -> bool:
+    q = (query or "").strip().lower()
+    if not q:
+        return False
+    simple = {
+        "hi",
+        "hello",
+        "hey",
+        "yo",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "thanks",
+        "thank you",
+        "ok",
+        "okay",
+        "nice",
+        "cool",
+        "how are you",
+        "who are you",
+        "what can you do",
+    }
+    if q in simple:
+        return True
+    # Short small-talk style messages should not trigger RAG retrieval
+    tokens = re.findall(r"[a-zA-Z0-9']+", q)
+    if len(tokens) <= 3 and any(w in q for w in ["hi", "hello", "hey", "thanks", "yo"]):
+        return True
+    return False
+
+
 def chunks_for_doc(doc_name: str) -> list[dict[str, Any]]:
     pages = R.docs.get(doc_name, {})
     chunks = []
@@ -1016,6 +1047,46 @@ async def api_chat(req: ChatReq):
     target_doc = "__ALL__" if scope == "all" else (req.doc_name or "")
     if scope != "all" and not target_doc:
         raise HTTPException(status_code=400, detail="Select a document or use scope=all")
+
+    # Casual chat mode: avoid retrieving random PDF chunks for greetings/small talk
+    if is_casual_chat(req.question):
+        try:
+            loop = asyncio.get_event_loop()
+            answer = await loop.run_in_executor(
+                _INFERENCE_EXECUTOR,
+                lambda: ask_llm(
+                    "You are a friendly assistant in a SCAL document app. "
+                    "For casual chat, respond naturally and briefly. "
+                    "Do not cite PDFs unless user asks document questions.",
+                    req.question,
+                ),
+            )
+        except Exception:
+            answer = (
+                "Hi! I can chat casually, and when you're ready I can also help query your extracted SCAL PDFs. "
+                "Try asking about porosity, permeability, capillary pressure, or specific samples."
+            )
+
+        sid = req.session_id
+        if not sid:
+            s = create_session("SCAL Chat Session")
+            sid = s["id"]
+        append_session_messages(
+            sid,
+            [
+                {"role": "user", "content": req.question, "time": now()},
+                {"role": "assistant", "content": answer, "time": now(), "sources": []},
+            ],
+        )
+
+        return {
+            "session_id": sid,
+            "answer": answer,
+            "reasoning": [],
+            "sources": [],
+            "tables": [],
+            "raw_hits": [],
+        }
 
     # ── 1. RAG search (CPU-bound TF-IDF) ──────────────────────────────────────
     hits: list[dict[str, Any]] = await loop.run_in_executor(
