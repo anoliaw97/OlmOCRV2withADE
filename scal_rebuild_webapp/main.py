@@ -40,7 +40,9 @@ DATA_ROOT = Path(
 INDEX_DIR = ROOT / "scal_rebuild_index"
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
 SESSION_FILE = ROOT / "scal_rebuild_sessions.json"
+SETTINGS_FILE = ROOT / "scal_rebuild_settings.json"
 INFERENCE_API_URL = os.environ.get("SCAL_INFERENCE_API_URL", "http://127.0.0.1:8010").rstrip("/")
+OLLAMA_BASE_URL = os.environ.get("SCAL_OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 
 
 def _git_commit_short() -> str:
@@ -59,10 +61,17 @@ class Runtime:
     def __init__(self):
         self.docs: dict[str, dict[int, dict[str, Path]]] = {}
         self.current_doc = "__ALL__"
+        self.data_root = DATA_ROOT
         self.vectorizer = None
         self.matrix = None
         self.index_texts: list[str] = []
         self.index_meta: list[dict[str, Any]] = []
+
+        self.settings = {
+            "backend": "inference_api",  # inference_api | ollama
+            "ui_mode": "layman",  # layman | advanced
+            "data_root": str(DATA_ROOT),
+        }
 
         self.model = {
             "loaded": False,
@@ -70,6 +79,7 @@ class Runtime:
             "target_model": "",
             "loading": False,
             "last_error": "",
+            "backend": "inference_api",
         }
         self.progress = {
             "index": {"running": False, "percent": 0, "stage": "idle", "detail": ""},
@@ -80,11 +90,6 @@ class Runtime:
             "error": deque(maxlen=300),
         }
         self.lock = threading.Lock()
-
-
-R = Runtime()
-
-_SEARCH_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="rebuild_search")
 
 
 def now() -> str:
@@ -111,6 +116,43 @@ def _load_sessions() -> dict[str, Any]:
 
 def _save_sessions(data: dict[str, Any]):
     SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _load_settings() -> dict[str, Any]:
+    defaults = {
+        "backend": "inference_api",
+        "ui_mode": "layman",
+        "data_root": str(DATA_ROOT),
+    }
+    if not SETTINGS_FILE.exists():
+        return defaults
+    try:
+        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return defaults
+        backend = str(data.get("backend", defaults["backend"]))
+        ui_mode = str(data.get("ui_mode", defaults["ui_mode"]))
+        data_root = str(data.get("data_root", defaults["data_root"]))
+        if backend not in {"inference_api", "ollama"}:
+            backend = defaults["backend"]
+        if ui_mode not in {"layman", "advanced"}:
+            ui_mode = defaults["ui_mode"]
+        return {"backend": backend, "ui_mode": ui_mode, "data_root": data_root}
+    except Exception:
+        return defaults
+
+
+def _save_settings(data: dict[str, Any]):
+    SETTINGS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+R = Runtime()
+R.settings = _load_settings()
+R.data_root = Path(R.settings.get("data_root", str(DATA_ROOT)))
+R.model["backend"] = R.settings.get("backend", "inference_api")
+
+_SEARCH_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="rebuild_search")
+_DIALOG_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rebuild_dialog")
 
 
 def list_sessions() -> list[dict[str, Any]]:
@@ -167,6 +209,13 @@ def append_session_messages(session_id: str, new_messages: list[dict[str, Any]])
                 found = s
                 break
     found.setdefault("messages", []).extend(new_messages)
+    if str(found.get("title") or "").strip() in {"", "SCAL Chat"}:
+        for m in found.get("messages", []):
+            if str(m.get("role") or "") == "user":
+                first = str(m.get("content") or "").strip().replace("\n", " ")
+                if first:
+                    found["title"] = first[:52] + ("..." if len(first) > 52 else "")
+                break
     found["updated_at"] = datetime.now().isoformat(timespec="seconds")
     if len(found["messages"]) > 400:
         found["messages"] = found["messages"][-400:]
@@ -463,8 +512,8 @@ def search(query: str, doc_name: str, filters: dict[str, Any], top_k: int = 8) -
     return out
 
 
-def _inference_request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
-    url = f"{INFERENCE_API_URL}{path}"
+def _json_request(base_url: str, method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
+    url = f"{base_url}{path}"
     data = None
     headers = {"Accept": "application/json"}
     if payload is not None:
@@ -477,9 +526,17 @@ def _inference_request(method: str, path: str, payload: dict[str, Any] | None = 
             return json.loads(body) if body else {}
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"Inference API HTTP {e.code}: {detail or e.reason}")
+        raise RuntimeError(f"HTTP {e.code}: {detail or e.reason}")
     except Exception as e:
-        raise RuntimeError(f"Inference API unavailable at {INFERENCE_API_URL}: {e}")
+        raise RuntimeError(f"Service unavailable at {base_url}: {e}")
+
+
+def _inference_request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
+    return _json_request(INFERENCE_API_URL, method, path, payload, timeout)
+
+
+def _ollama_request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
+    return _json_request(OLLAMA_BASE_URL, method, path, payload, timeout)
 
 
 def _inference_stream_events(path: str, payload: dict[str, Any], timeout: int = 600):
@@ -507,28 +564,83 @@ def _inference_stream_events(path: str, payload: dict[str, Any], timeout: int = 
         raise RuntimeError(f"Inference API stream unavailable at {INFERENCE_API_URL}: {e}")
 
 
-def sync_model_state() -> dict[str, Any]:
+def _ollama_stream_generate(payload: dict[str, Any], timeout: int = 600):
+    url = f"{OLLAMA_BASE_URL}/api/generate"
+    data = json.dumps(payload).encode("utf-8")
+    headers = {"Accept": "application/x-ndjson", "Content-Type": "application/json"}
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
-        st = _inference_request("GET", "/v1/health", timeout=5)
-        R.model = {
-            "loaded": bool(st.get("loaded", False)),
-            "model_name": str(st.get("model_name") or ""),
-            "target_model": str(st.get("target_model") or ""),
-            "loading": bool(st.get("busy", False) or st.get("state") in {"loading", "unloading"}),
-            "last_error": str(st.get("last_error") or ""),
-        }
-        p = st.get("progress") or {}
-        R.progress["model"] = {
-            "running": R.model["loading"],
-            "percent": int(p.get("percent", 0) or 0),
-            "stage": str(p.get("stage", st.get("state", "idle"))),
-            "detail": str(p.get("detail", "")),
-        }
-        return st
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            for raw in resp:
+                line = raw.decode("utf-8", errors="ignore").strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    if isinstance(obj, dict):
+                        yield obj
+                except Exception:
+                    continue
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Ollama HTTP {e.code}: {detail or e.reason}")
+    except Exception as e:
+        raise RuntimeError(f"Ollama unavailable at {OLLAMA_BASE_URL}: {e}")
+
+
+def _sync_model_state_inference() -> dict[str, Any]:
+    st = _inference_request("GET", "/v1/health", timeout=5)
+    R.model = {
+        "loaded": bool(st.get("loaded", False)),
+        "model_name": str(st.get("model_name") or ""),
+        "target_model": str(st.get("target_model") or ""),
+        "loading": bool(st.get("busy", False) or st.get("state") in {"loading", "unloading"}),
+        "last_error": str(st.get("last_error") or ""),
+        "backend": "inference_api",
+    }
+    p = st.get("progress") or {}
+    R.progress["model"] = {
+        "running": R.model["loading"],
+        "percent": int(p.get("percent", 0) or 0),
+        "stage": str(p.get("stage", st.get("state", "idle"))),
+        "detail": str(p.get("detail", "")),
+    }
+    return st
+
+
+def _sync_model_state_ollama() -> dict[str, Any]:
+    tags = _ollama_request("GET", "/api/tags", timeout=8)
+    names = [str(m.get("name") or "") for m in tags.get("models", []) if isinstance(m, dict)]
+    current = str(R.model.get("model_name") or "")
+    loaded = bool(current and current in names)
+    R.model = {
+        "loaded": loaded,
+        "model_name": current,
+        "target_model": "",
+        "loading": False,
+        "last_error": "",
+        "backend": "ollama",
+    }
+    R.progress["model"] = {
+        "running": False,
+        "percent": 100 if loaded else 0,
+        "stage": "loaded" if loaded else "idle",
+        "detail": f"Ollama models available: {len(names)}",
+    }
+    return {"models": names}
+
+
+def sync_model_state() -> dict[str, Any]:
+    backend = str(R.settings.get("backend", "inference_api"))
+    try:
+        if backend == "ollama":
+            return _sync_model_state_ollama()
+        return _sync_model_state_inference()
     except Exception as e:
         R.model["loaded"] = False
         R.model["loading"] = False
         R.model["last_error"] = str(e)
+        R.model["backend"] = backend
         R.progress["model"].update({"running": False, "stage": "failed", "detail": str(e)})
         return {}
 
@@ -560,6 +672,16 @@ class ChatReq(BaseModel):
     top_k: int = 8
 
 
+class SettingsReq(BaseModel):
+    backend: str | None = None  # inference_api | ollama
+    ui_mode: str | None = None  # layman | advanced
+    data_root: str | None = None
+
+
+class SessionTitleReq(BaseModel):
+    title: str = ""
+
+
 app = FastAPI(title="SCAL Rebuild WebApp")
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 
@@ -574,10 +696,46 @@ def api_state():
     sync_model_state()
     return {
         "app": {"build": APP_BUILD, "started_at": APP_STARTED_AT},
+        "settings": R.settings,
         "model": R.model,
         "progress": R.progress,
         "doc_count": len(R.docs),
+        "services": {
+            "inference_api_url": INFERENCE_API_URL,
+            "ollama_url": OLLAMA_BASE_URL,
+            "legacy_ui_url": "http://127.0.0.1:8090",
+        },
     }
+
+
+@app.get("/api/settings")
+def api_settings_get():
+    return {"settings": R.settings}
+
+
+@app.post("/api/settings")
+def api_settings_set(req: SettingsReq):
+    data = dict(R.settings)
+    if req.backend is not None:
+        backend = str(req.backend).strip().lower()
+        if backend not in {"inference_api", "ollama"}:
+            raise HTTPException(status_code=400, detail="backend must be inference_api or ollama")
+        data["backend"] = backend
+    if req.ui_mode is not None:
+        ui_mode = str(req.ui_mode).strip().lower()
+        if ui_mode not in {"layman", "advanced"}:
+            raise HTTPException(status_code=400, detail="ui_mode must be layman or advanced")
+        data["ui_mode"] = ui_mode
+    if req.data_root is not None:
+        root = str(req.data_root).strip()
+        if root:
+            data["data_root"] = root
+
+    R.settings = data
+    R.data_root = Path(data.get("data_root", str(DATA_ROOT)))
+    R.model["backend"] = data.get("backend", "inference_api")
+    _save_settings(data)
+    return {"ok": True, "settings": data}
 
 
 @app.get("/api/logs")
@@ -599,9 +757,67 @@ def api_logs_clear(kind: str = Form("all")):
     return {"ok": True}
 
 
+def _tkdialog_folder() -> str:
+    import tkinter as tk
+    from tkinter import filedialog
+
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        path = filedialog.askdirectory(title="Select folder")
+    finally:
+        root.destroy()
+    return path or ""
+
+
+def _tkdialog_file(accept: str = "") -> str:
+    import tkinter as tk
+    from tkinter import filedialog
+
+    ftypes = [("All files", "*.*")]
+    if accept:
+        pats = []
+        for ext in str(accept).split(","):
+            ext = ext.strip()
+            if not ext:
+                continue
+            pats.append(f"*{ext}" if ext.startswith(".") else ext)
+        if pats:
+            ftypes = [("Accepted", " ".join(pats)), ("All files", "*.*")]
+
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        path = filedialog.askopenfilename(title="Select file", filetypes=ftypes)
+    finally:
+        root.destroy()
+    return path or ""
+
+
+@app.post("/api/browse/folder")
+async def api_browse_folder():
+    loop = asyncio.get_event_loop()
+    path = await loop.run_in_executor(_DIALOG_EXECUTOR, _tkdialog_folder)
+    return {"path": path}
+
+
+@app.post("/api/browse/file")
+async def api_browse_file(payload: dict = {}):
+    accept = str((payload or {}).get("accept") or "")
+    loop = asyncio.get_event_loop()
+    path = await loop.run_in_executor(_DIALOG_EXECUTOR, _tkdialog_file, accept)
+    return {"path": path}
+
+
 @app.get("/api/docs")
 async def api_docs(root: str | None = None):
-    rr = Path(root) if root else DATA_ROOT
+    rr = Path(root) if root else R.data_root
+    if root:
+        R.settings["data_root"] = str(rr)
+        _save_settings(R.settings)
+    R.data_root = rr
 
     def _scan():
         R.docs = scan_docs(rr)
@@ -618,32 +834,105 @@ async def api_docs(root: str | None = None):
 
 @app.get("/api/models/options")
 def api_models_options():
+    backend = str(R.settings.get("backend", "inference_api"))
     try:
+        if backend == "ollama":
+            resp = _ollama_request("GET", "/api/tags", timeout=8)
+            models = []
+            for m in resp.get("models", []):
+                if not isinstance(m, dict):
+                    continue
+                name = str(m.get("name") or "")
+                if not name:
+                    continue
+                models.append({"name": name, "label": name})
+            return {
+                "models": models,
+                "default": R.model.get("model_name", "") or (models[0]["name"] if models else ""),
+                "active": R.model.get("model_name", ""),
+                "backend": "ollama",
+            }
+
         resp = _inference_request("GET", "/v1/models", timeout=8)
         return {
             "models": resp.get("models", []),
             "default": resp.get("default", ""),
             "active": resp.get("active", ""),
+            "backend": "inference_api",
         }
     except Exception as e:
-        return {"models": [], "default": "", "active": "", "error": str(e)}
+        return {"models": [], "default": "", "active": "", "backend": backend, "error": str(e)}
+
+
+def _ollama_pull_worker(model_name: str):
+    try:
+        R.model.update({"loading": True, "target_model": model_name, "last_error": "", "backend": "ollama"})
+        set_progress("model", 5, "pulling", f"Pulling {model_name} from Ollama registry")
+        _ollama_request("POST", "/api/pull", {"name": model_name, "stream": False}, timeout=3600)
+        set_progress("model", 90, "finalizing", f"Finalizing {model_name}")
+        R.model.update({"loading": False, "target_model": "", "model_name": model_name, "loaded": True})
+        set_progress("model", 100, "completed", f"Model ready in Ollama: {model_name}")
+        log("status", f"Ollama pull completed: {model_name}")
+    except Exception as e:
+        R.model.update({"loading": False, "target_model": "", "loaded": False, "last_error": str(e)})
+        set_progress("model", 100, "failed", str(e))
+        log("error", f"Ollama pull failed: {e}")
+
+
+@app.post("/api/models/pull")
+def api_models_pull(model_name: str = Form(...)):
+    backend = str(R.settings.get("backend", "inference_api"))
+    if backend != "ollama":
+        return {"ok": False, "message": "Model pull is available only when backend=ollama"}
+    name = (model_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="model_name required")
+    if R.model.get("loading"):
+        return {"ok": False, "message": "Another model operation is running"}
+    threading.Thread(target=_ollama_pull_worker, args=(name,), daemon=True).start()
+    return {"ok": True, "message": f"Started pulling {name} via Ollama"}
 
 
 @app.post("/api/models/switch")
 def api_models_switch(model_name: str = Form(...)):
+    backend = str(R.settings.get("backend", "inference_api"))
     name = (model_name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="model_name required")
+
+    if backend == "ollama":
+        try:
+            tags = _ollama_request("GET", "/api/tags", timeout=8)
+            names = {str(m.get("name") or "") for m in tags.get("models", []) if isinstance(m, dict)}
+            if name not in names:
+                return {
+                    "ok": False,
+                    "message": f"Model {name} not found in local Ollama. Use Pull first.",
+                }
+            R.model.update({"model_name": name, "loaded": True, "loading": False, "target_model": "", "last_error": "", "backend": "ollama"})
+            set_progress("model", 100, "completed", f"Active model: {name} (Ollama)")
+            return {"ok": True, "message": f"Switched model to {name} (Ollama)", "backend": "ollama"}
+        except Exception as e:
+            R.model.update({"loaded": False, "last_error": str(e), "backend": "ollama"})
+            return {"ok": False, "message": str(e), "backend": "ollama"}
+
     try:
         resp = _inference_request("POST", "/v1/models/load", {"model_name": name}, timeout=15)
         sync_model_state()
-        return {"ok": bool(resp.get("ok", False)), "message": resp.get("message", "")}
+        return {"ok": bool(resp.get("ok", False)), "message": resp.get("message", ""), "backend": "inference_api"}
     except Exception as e:
-        return {"ok": False, "message": str(e)}
+        return {"ok": False, "message": str(e), "backend": "inference_api"}
 
 
 @app.post("/api/models/unload")
 def api_models_unload():
+    backend = str(R.settings.get("backend", "inference_api"))
+    if backend == "ollama":
+        old = R.model.get("model_name", "")
+        R.model.update({"loaded": False, "model_name": "", "target_model": "", "loading": False, "last_error": "", "backend": "ollama"})
+        set_progress("model", 0, "idle", "No active Ollama model")
+        return {"ok": True, "message": f"Ollama model context cleared ({old})"}
+
     try:
         resp = _inference_request("POST", "/v1/models/unload", {}, timeout=15)
         sync_model_state()
@@ -671,16 +960,41 @@ def api_chat_session_get(session_id: str):
     return {"session": s}
 
 
+@app.post("/api/chat/session/{session_id}/title")
+def api_chat_session_title(session_id: str, req: SessionTitleReq):
+    data = _load_sessions()
+    for s in data.get("sessions", []):
+        if s.get("id") == session_id:
+            title = str(req.title or "").strip() or "SCAL Chat"
+            s["title"] = title[:80]
+            s["updated_at"] = datetime.now().isoformat(timespec="seconds")
+            _save_sessions(data)
+            return {"ok": True, "session": s}
+    raise HTTPException(status_code=404, detail="Session not found")
+
+
+@app.delete("/api/chat/session/{session_id}")
+def api_chat_session_delete(session_id: str):
+    data = _load_sessions()
+    before = len(data.get("sessions", []))
+    data["sessions"] = [s for s in data.get("sessions", []) if s.get("id") != session_id]
+    if len(data["sessions"]) == before:
+        raise HTTPException(status_code=404, detail="Session not found")
+    _save_sessions(data)
+    return {"ok": True}
+
+
 @app.post("/api/chat/stream")
 async def api_chat_stream(req: ChatReq):
     t_total0 = datetime.now()
+    backend = str(R.settings.get("backend", "inference_api"))
     filters = {"extraction_type": req.filter_extraction_type}
     mode = (req.response_mode or "fast").lower()
     gen_cfg = llm_generation_settings(mode)
     top_k = max(1, int(req.top_k or 8))
 
     if not R.docs:
-        R.docs = scan_docs(DATA_ROOT)
+        R.docs = scan_docs(R.data_root)
 
     doc_name = (req.doc_name or "").strip()
     scope = (req.scope or "all").lower()
@@ -779,14 +1093,58 @@ async def api_chat_stream(req: ChatReq):
                 answer_parts.append(prefix)
                 yield _sse({"type": "token", "text": prefix})
 
-            for ev in _inference_stream_events("/v1/chat/stream", payload, timeout=600):
-                if ev.get("type") == "token":
-                    piece = str(ev.get("text") or "")
+            if backend == "ollama":
+                model_name = str(R.model.get("model_name") or "").strip()
+                if not model_name:
+                    tags = _ollama_request("GET", "/api/tags", timeout=8)
+                    models = [str(m.get("name") or "") for m in tags.get("models", []) if isinstance(m, dict)]
+                    if not models:
+                        raise RuntimeError("No local Ollama models found. Pull a model first.")
+                    model_name = models[0]
+                    R.model.update({"model_name": model_name, "loaded": True, "backend": "ollama"})
+
+                prompt = f"System:\n{system}\n\nUser:\n{user_prompt}"
+                opayload = {
+                    "model": model_name,
+                    "prompt": prompt,
+                    "stream": True,
+                    "options": {
+                        "num_predict": int(gen_cfg.get("max_new_tokens", 420)),
+                        "temperature": float(gen_cfg.get("temperature", 0.2)),
+                        "top_p": float(gen_cfg.get("top_p", 0.9)),
+                    },
+                }
+
+                first_token_ms = None
+                t_gen0 = datetime.now()
+                for obj in _ollama_stream_generate(opayload, timeout=1200):
+                    piece = str(obj.get("response") or "")
                     if piece:
+                        if first_token_ms is None:
+                            first_token_ms = (datetime.now() - t_gen0).total_seconds() * 1000.0
                         answer_parts.append(piece)
                         yield _sse({"type": "token", "text": piece})
-                elif ev.get("type") == "metrics":
-                    infer_metrics = ev.get("metrics") or {}
+                    if obj.get("done"):
+                        eval_count = int(obj.get("eval_count") or 0)
+                        eval_duration = float(obj.get("eval_duration") or 0)
+                        gen_ms = eval_duration / 1_000_000.0 if eval_duration > 0 else (datetime.now() - t_gen0).total_seconds() * 1000.0
+                        tok_s = (eval_count / max(eval_duration / 1_000_000_000.0, 1e-6)) if eval_duration > 0 else 0.0
+                        infer_metrics = {
+                            "generation_ms": round(gen_ms, 2),
+                            "first_token_ms": round(float(first_token_ms or gen_ms), 2),
+                            "answer_tokens": int(eval_count),
+                            "tokens_per_sec": round(tok_s, 2),
+                        }
+                        break
+            else:
+                for ev in _inference_stream_events("/v1/chat/stream", payload, timeout=600):
+                    if ev.get("type") == "token":
+                        piece = str(ev.get("text") or "")
+                        if piece:
+                            answer_parts.append(piece)
+                            yield _sse({"type": "token", "text": piece})
+                    elif ev.get("type") == "metrics":
+                        infer_metrics = ev.get("metrics") or {}
 
             answer = "".join(answer_parts).strip()
             append_session_messages(
@@ -812,6 +1170,7 @@ async def api_chat_stream(req: ChatReq):
                     "tables": tables,
                     "raw_hits": hits,
                     "metrics": {
+                        "backend": backend,
                         "response_mode": mode,
                         "model_name": R.model.get("model_name", ""),
                         "retrieval_ms": round(retrieval_ms, 2),

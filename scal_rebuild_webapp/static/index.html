@@ -8,79 +8,110 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">SCAL Rebuild <span id="buildChip" class="chip">build: -</span></div>
-    <div class="model-controls">
+    <div class="brand-wrap">
+      <div class="brand">SCAL Assistant</div>
+      <div id="buildChip" class="chip">build: -</div>
+    </div>
+
+    <div class="mode-wrap">
+      <label for="uiModeSelect" class="label-mini">Mode</label>
+      <select id="uiModeSelect">
+        <option value="layman">Layman</option>
+        <option value="advanced">Advanced</option>
+      </select>
+    </div>
+
+    <div class="model-wrap">
       <span id="modelStatus" class="pill">Model: idle</span>
-      <select id="modelSelect"></select>
-      <button id="switchModelBtn">Switch</button>
-      <button id="unloadModelBtn" class="muted">Unload</button>
+      <div class="row">
+        <label for="backendSelect" class="label-mini advanced-only">Backend</label>
+        <select id="backendSelect" class="advanced-only">
+          <option value="inference_api">Inference API</option>
+          <option value="ollama">Ollama</option>
+        </select>
+
+        <select id="modelSelect"></select>
+        <button id="switchModelBtn" class="btn-primary">Switch</button>
+        <button id="pullModelBtn" class="btn-muted advanced-only">Pull</button>
+        <button id="unloadModelBtn" class="btn-muted">Unload</button>
+      </div>
     </div>
   </header>
 
-  <div class="layout">
-    <aside class="sidebar">
-      <section>
-        <h3>Data</h3>
-        <div class="row">
-          <input id="dataRoot" type="text" placeholder="Data root" />
-          <button id="refreshDocsBtn">Refresh</button>
-        </div>
-      </section>
+  <div class="app-layout">
+    <aside class="left-panel">
+      <div class="section-head row-spread">
+        <h3>Chats</h3>
+        <button id="newSessionBtn" class="btn-primary">+ New Chat</button>
+      </div>
+      <div id="sessionsList" class="sessions-list"></div>
 
-      <section>
-        <h3>Documents</h3>
-        <div id="docsList" class="list"></div>
-      </section>
+      <div class="section-head"><h3>Data Folder</h3></div>
+      <div class="row">
+        <input id="dataRoot" type="text" placeholder="Data root folder" />
+      </div>
+      <div class="row">
+        <button id="browseDataRootBtn" class="btn-muted">Browse</button>
+        <button id="refreshDocsBtn" class="btn-muted">Refresh Docs</button>
+      </div>
 
-      <section>
-        <h3>Sessions</h3>
-        <div class="row">
-          <select id="sessionSelect"></select>
-          <button id="newSessionBtn">New</button>
-        </div>
-      </section>
+      <div class="section-head"><h3>Documents</h3></div>
+      <div id="docsList" class="docs-list"></div>
     </aside>
 
-    <main class="main">
+    <main class="chat-main">
       <div id="chatBox" class="chat-box"></div>
 
       <div class="composer">
-        <div class="row">
-          <label>Scope</label>
+        <div class="row controls-row advanced-only">
+          <label for="scopeSelect">Scope</label>
           <select id="scopeSelect">
             <option value="all" selected>All docs</option>
             <option value="selected">Selected doc</option>
           </select>
 
-          <label>Type</label>
+          <label for="fType">Type</label>
           <select id="fType">
             <option value="">All</option>
             <option value="capillary_pressure">Capillary</option>
-            <option value="relative_permeability">RelPerm</option>
+            <option value="relative_permeability">RelativePerm</option>
             <option value="porosity_permeability">PorPerm</option>
             <option value="general">General</option>
           </select>
 
-          <label>Mode</label>
+          <label for="responseMode">Response</label>
           <select id="responseMode">
             <option value="fast" selected>Fast</option>
             <option value="balanced">Balanced</option>
             <option value="deep">Deep</option>
           </select>
         </div>
-        <textarea id="chatInput" rows="3" placeholder="Ask anything (chat works even with no selected document)..."></textarea>
-        <div class="row">
-          <div id="perfHint" class="small">Last: -</div>
-          <button id="sendBtn" class="primary">Send</button>
-          <button id="clearBtn" class="muted">Clear</button>
+
+        <textarea id="chatInput" rows="3" placeholder="Ask anything... (Enter to send, Shift+Enter newline)"></textarea>
+
+        <div class="row row-spread">
+          <div id="perfHint" class="small-text">Last: -</div>
+          <div class="row">
+            <button id="clearBtn" class="btn-muted">Clear</button>
+            <button id="sendBtn" class="btn-primary">Send</button>
+          </div>
         </div>
       </div>
-
-      <section class="sources">
-        <h3>Retrieved Sources</h3>
-        <div id="sourcesList" class="list"></div>
-      </section>
     </main>
+
+    <aside class="right-panel advanced-only">
+      <div class="section-head"><h3>Retrieved Sources</h3></div>
+      <div id="sourcesList" class="sources-list"></div>
+
+      <div class="section-head row-spread">
+        <h3>Logs</h3>
+        <button id="clearLogsBtn" class="btn-muted">Clear</button>
+      </div>
+      <div id="logsList" class="logs-list"></div>
+
+      <div class="section-head"><h3>Legacy Advanced UI</h3></div>
+      <button id="openLegacyBtn" class="btn-muted">Open Previous UI (8090)</button>
+    </aside>
   </div>
 
   <script src="/static/app.js"></script>
