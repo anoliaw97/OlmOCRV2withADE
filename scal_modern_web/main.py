@@ -9,6 +9,8 @@ import threading
 import time
 import traceback
 import uuid
+import urllib.error
+import urllib.request
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -59,6 +61,7 @@ EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 SESSION_FILE = ROOT / "scal_modern_sessions.json"
 SETTINGS_FILE = ROOT / "scal_modern_settings.json"
 RESULTS_ROOT = ROOT / "results"
+INFERENCE_API_URL = os.environ.get("SCAL_INFERENCE_API_URL", "http://127.0.0.1:8010").rstrip("/")
 
 # Large model cache override (to avoid filling C: drive).
 # Kimi-K2 is very large; route its Hugging Face cache to D:.
@@ -187,6 +190,7 @@ class Runtime:
         self.llm_model_name = "Qwen/Qwen2.5-14B-Instruct"
         self.llm_target_model = ""
         self.llm_last_error = ""
+        self.last_llm_metrics = {"generation_ms": 0.0, "answer_tokens": 0, "tokens_per_sec": 0.0}
         self._llm_tok = None
         self._llm_model = None
         self._llm_lock = threading.Lock()
@@ -607,7 +611,16 @@ def ensure_index_loaded(doc_name: str) -> bool:
         return True
     obj = load_index(ns(doc_name))
     if obj is None:
-        return False
+        chunks = chunks_for_doc(doc_name)
+        if not chunks:
+            return False
+        texts = [c["text"] for c in chunks]
+        metas = [c["meta"] for c in chunks]
+        vec = TfidfVectorizer(ngram_range=(1, 2), min_df=1)
+        mat = vec.fit_transform(texts)
+        save_index(ns(doc_name), vec, mat, texts, metas)
+        obj = (vec, mat, texts, metas)
+        log("status", f"Auto-built index for {doc_name} ({len(texts)} chunks)")
     R.vectorizer, R.matrix, R.index_texts, R.index_meta = obj
     R.current_doc = doc_name
     return True
@@ -616,7 +629,16 @@ def ensure_index_loaded(doc_name: str) -> bool:
 def ensure_all_index_loaded() -> bool:
     obj = load_index(ns("__ALL__"))
     if obj is None:
-        return False
+        names = sorted(R.docs.keys())
+        if not names:
+            return False
+        n = build_global_index_job(names)
+        if n <= 0:
+            return False
+        obj = load_index(ns("__ALL__"))
+        if obj is None:
+            return False
+        log("status", f"Auto-built global index ({n} chunks)")
     R.vectorizer, R.matrix, R.index_texts, R.index_meta = obj
     R.current_doc = "__ALL__"
     return True
@@ -675,100 +697,68 @@ def search(query: str, doc_name: str, filters: dict[str, Any], top_k: int = 8) -
     return out
 
 
-def load_llm(model_name: str):
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+def _inference_request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
+    url = f"{INFERENCE_API_URL}{path}"
+    data = None
+    headers = {"Accept": "application/json"}
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8", errors="ignore")
+            return json.loads(body) if body else {}
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Inference API HTTP {e.code}: {detail or e.reason}")
+    except Exception as e:
+        raise RuntimeError(f"Inference API unavailable at {INFERENCE_API_URL}: {e}")
 
-    with R._llm_lock:
-        R.llm_target_model = model_name
-        R.llm_last_error = ""
-        R.progress["model"]["running"] = True
-        set_progress("model", 5, "starting", f"Preparing LLM load: {model_name}")
 
-        if R._llm_model is not None or R._llm_tok is not None:
-            set_progress("model", 10, "cleanup", "Releasing previous LLM from GPU memory")
-            R._llm_model = None
-            R._llm_tok = None
-            R.llm_loaded = False
-            try:
-                torch.cuda.empty_cache()
-            except Exception:
-                pass
-
-        log("status", f"Loading LLM {model_name} …")
-
-        cache_dir = MODEL_CACHE_DIRS.get(model_name)
-        if cache_dir is not None:
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            # Keep hub metadata and model shards on D: for very large models.
-            os.environ.setdefault("HF_HOME", str(cache_dir.parent.parent))
-            os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(cache_dir.parent.parent / "hub"))
-            os.environ.setdefault("TRANSFORMERS_CACHE", str(cache_dir.parent.parent / "hub"))
-            log("status", f"Using model cache dir: {cache_dir}")
-
-        if model_name.startswith("moonshotai/Kimi-K2"):
-            import transformers
-
-            raw_ver = getattr(transformers, "__version__", "0.0.0")
-            nums = [int(x) for x in re.findall(r"\d+", raw_ver)[:3]]
-            while len(nums) < 3:
-                nums.append(0)
-            if tuple(nums) < (4, 57, 1):
-                raise RuntimeError(
-                    f"Kimi-K2.5 requires transformers>=4.57.1, but found {raw_ver}. "
-                    "Please upgrade your environment first."
-                )
-
-            try:
-                import tiktoken  # noqa: F401
-            except Exception:
-                raise RuntimeError(
-                    "Kimi-K2.5 tokenizer requires tiktoken. Install with: "
-                    "pip install tiktoken"
-                )
-
-        set_progress("model", 20, "downloading", f"Downloading tokenizer/config for {model_name}")
-        tok = AutoTokenizer.from_pretrained(
-            model_name,
-            trust_remote_code=True,
-            cache_dir=str(cache_dir) if cache_dir is not None else None,
-        )
-        set_progress("model", 45, "downloading", f"Downloading/loading model weights for {model_name}")
-        mdl = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16,
-            device_map="auto",
-            trust_remote_code=True,
-            cache_dir=str(cache_dir) if cache_dir is not None else None,
-        ).eval()
-        set_progress("model", 90, "finalizing", "Finalizing model load")
-        R._llm_tok, R._llm_model = tok, mdl
-        R.llm_loaded = True
-        R.llm_model_name = model_name
+def sync_llm_state_from_inference() -> dict[str, Any]:
+    try:
+        st = _inference_request("GET", "/v1/health", timeout=5)
+        R.llm_loaded = bool(st.get("loaded", False))
+        R.llm_model_name = str(st.get("model_name") or R.llm_model_name)
+        R.llm_target_model = str(st.get("target_model") or "")
+        R.llm_last_error = str(st.get("last_error") or "")
+        p = st.get("progress") or {}
+        R.progress["model"] = {
+            "running": bool(st.get("busy", False) or st.get("state") in {"loading", "unloading"}),
+            "percent": int(p.get("percent", 0) or 0),
+            "stage": str(p.get("stage", st.get("state", "idle"))),
+            "detail": str(p.get("detail", "")),
+        }
+        return st
+    except Exception as e:
+        R.llm_loaded = False
         R.llm_target_model = ""
-        set_progress("model", 100, "completed", f"LLM ready: {model_name}")
-        R.progress["model"]["running"] = False
-        log("status", f"LLM ready: {model_name}")
+        R.llm_last_error = str(e)
+        R.progress["model"].update({"running": False, "stage": "failed", "detail": str(e)})
+        return {}
+
+
+def load_llm(model_name: str):
+    R.llm_target_model = model_name
+    R.llm_last_error = ""
+    R.progress["model"]["running"] = True
+    set_progress("model", 5, "starting", f"Requesting model load: {model_name}")
+    resp = _inference_request("POST", "/v1/models/load", {"model_name": model_name}, timeout=15)
+    if not resp.get("ok", False):
+        raise RuntimeError(str(resp.get("message") or "Model load request rejected"))
+    sync_llm_state_from_inference()
+    return resp
 
 
 def unload_llm():
-    import torch
-
-    with R._llm_lock:
-        R.llm_target_model = ""
-        R.llm_last_error = ""
-        R.progress["model"]["running"] = True
-        set_progress("model", 10, "unloading", "Releasing active LLM")
-        R._llm_model = None
-        R._llm_tok = None
-        R.llm_loaded = False
-        try:
-            torch.cuda.empty_cache()
-        except Exception:
-            pass
-        set_progress("model", 100, "completed", "LLM unloaded")
-        R.progress["model"]["running"] = False
-        log("status", "LLM unloaded")
+    R.progress["model"]["running"] = True
+    set_progress("model", 10, "unloading", "Requesting model unload")
+    resp = _inference_request("POST", "/v1/models/unload", {}, timeout=15)
+    if not resp.get("ok", False):
+        raise RuntimeError(str(resp.get("message") or "Model unload request rejected"))
+    sync_llm_state_from_inference()
+    return resp
 
 
 def ask_llm(
@@ -779,21 +769,22 @@ def ask_llm(
     top_p: float = 0.9,
     do_sample: bool = True,
 ) -> str:
-    import torch
-
-    if not R.llm_loaded or R._llm_tok is None or R._llm_model is None:
-        raise RuntimeError("LLM not loaded")
-    msgs = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
-    inp = R._llm_tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to("cuda", dtype=torch.long)
-    with torch.no_grad():
-        out = R._llm_model.generate(
-            inp,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            do_sample=do_sample,
-            top_p=top_p,
-        )
-    return R._llm_tok.decode(out[0][inp.shape[1] :], skip_special_tokens=True).strip()
+    payload = {
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+        "max_new_tokens": int(max_new_tokens),
+        "temperature": float(temperature),
+        "top_p": float(top_p),
+        "do_sample": bool(do_sample),
+    }
+    resp = _inference_request("POST", "/v1/chat/completions", payload, timeout=600)
+    metrics = resp.get("metrics") or {}
+    R.last_llm_metrics = {
+        "generation_ms": float(metrics.get("generation_ms", 0) or 0),
+        "answer_tokens": int(metrics.get("answer_tokens", 0) or 0),
+        "tokens_per_sec": float(metrics.get("tokens_per_sec", 0) or 0),
+    }
+    return str(resp.get("answer") or "")
 
 
 def llm_generation_settings(mode: str) -> dict[str, Any]:
@@ -809,11 +800,6 @@ def approx_token_count(text: str) -> int:
     t = text or ""
     if not t:
         return 0
-    try:
-        if R._llm_tok is not None:
-            return int(len(R._llm_tok.encode(t)))
-    except Exception:
-        pass
     return len(re.findall(r"\w+|[^\w\s]", t, flags=re.UNICODE))
 
 
@@ -1846,6 +1832,7 @@ def api_build_all(data_root: str = Form("")):
 
 @app.get("/api/state")
 def api_state():
+    sync_llm_state_from_inference()
     return {
         "progress": R.progress,
         "advanced_mode": R.advanced_mode,
@@ -1856,7 +1843,7 @@ def api_state():
             "llm_model": R.llm_model_name,
             "llm_target_model": R.llm_target_model,
             "llm_last_error": R.llm_last_error,
-            "llm_loading": R._llm_lock.locked(),
+            "llm_loading": bool(R.progress.get("model", {}).get("running", False)),
             "vlm_loaded": R.vlm_loaded,
         },
     }
@@ -1923,48 +1910,63 @@ def _load_vlm_bg():
 @app.post("/api/models/load-llm")
 def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-14B-Instruct")):
     model_name = (model_name or "Qwen/Qwen2.5-14B-Instruct").strip()
+    sync_llm_state_from_inference()
     if R.llm_loaded and R.llm_model_name == model_name:
         return {"ok": True, "message": "LLM already loaded"}
-    if R._llm_lock.locked():
-        return {"ok": False, "message": "LLM is already loading, check logs"}
-    if R.llm_loaded and R.llm_model_name != model_name:
-        log("status", f"LLM switch requested: {R.llm_model_name} -> {model_name}")
-    else:
-        log("status", f"LLM load requested: {model_name}")
-    threading.Thread(target=_load_llm_bg, args=(model_name,), daemon=True).start()
-    return {"ok": True, "message": "LLM loading in background — watch logs / model pill"}
+    try:
+        resp = load_llm(model_name)
+        msg = str(resp.get("message") or f"LLM loading started: {model_name}")
+        log("status", msg)
+        return {"ok": True, "message": msg}
+    except Exception as e:
+        R.llm_last_error = str(e)
+        log("error", f"LLM load request failed: {e}")
+        return {"ok": False, "message": str(e)}
 
 
 @app.post("/api/models/switch-llm")
 def api_switch_llm(model_name: str = Form("Qwen/Qwen2.5-14B-Instruct")):
     model_name = (model_name or "Qwen/Qwen2.5-14B-Instruct").strip()
-    if R._llm_lock.locked():
-        active = R.llm_target_model or R.llm_model_name
-        return {"ok": False, "message": f"LLM operation in progress ({active})"}
+    sync_llm_state_from_inference()
     if R.llm_loaded and R.llm_model_name == model_name:
         return {"ok": True, "message": "LLM already active"}
-    log("status", f"LLM switch requested -> {model_name}")
-    threading.Thread(target=_load_llm_bg, args=(model_name,), daemon=True).start()
-    return {"ok": True, "message": f"Switching LLM to {model_name}"}
+    try:
+        resp = load_llm(model_name)
+        msg = str(resp.get("message") or f"Switching LLM to {model_name}")
+        log("status", msg)
+        return {"ok": True, "message": msg}
+    except Exception as e:
+        R.llm_last_error = str(e)
+        log("error", f"LLM switch request failed: {e}")
+        return {"ok": False, "message": str(e)}
 
 
 @app.post("/api/models/unload-llm")
 def api_unload_llm():
-    if R._llm_lock.locked():
-        return {"ok": False, "message": "LLM load/unload already running"}
-    if not R.llm_loaded and R._llm_model is None and R._llm_tok is None:
+    sync_llm_state_from_inference()
+    if not R.llm_loaded:
         return {"ok": True, "message": "LLM already unloaded"}
     try:
-        unload_llm()
+        resp = unload_llm()
+        msg = str(resp.get("message") or "LLM unloaded")
+        log("status", msg)
+        return {"ok": True, "message": msg}
     except Exception as e:
         log("error", f"LLM unload failed: {e}")
         return {"ok": False, "message": f"LLM unload failed: {e}"}
-    return {"ok": True, "message": "LLM unloaded"}
 
 
 @app.get("/api/models/options")
 def api_model_options():
-    return {"models": LLM_MODEL_OPTIONS, "default": R.llm_model_name}
+    try:
+        resp = _inference_request("GET", "/v1/models", timeout=8)
+        return {
+            "models": resp.get("models", LLM_MODEL_OPTIONS),
+            "default": resp.get("default", R.llm_model_name),
+            "active": resp.get("active", ""),
+        }
+    except Exception:
+        return {"models": LLM_MODEL_OPTIONS, "default": R.llm_model_name, "active": ""}
 
 
 @app.post("/api/models/load-vlm")
@@ -2029,7 +2031,8 @@ def api_model_benchmark_stop():
 
 @app.post("/api/benchmarks/models/run")
 def api_model_benchmark_run(req: ModelBenchmarkReq):
-    if R._llm_lock.locked() or R.benchmark.get("running"):
+    sync_llm_state_from_inference()
+    if R.progress.get("model", {}).get("running") or R.benchmark.get("running"):
         return {"ok": False, "message": "Model operation already running"}
     payload = req.model_dump()
     t = threading.Thread(target=_run_model_benchmark_worker, args=(payload,), daemon=True)

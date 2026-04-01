@@ -28,20 +28,15 @@ if errorlevel 1 (
 
 echo Installing/updating dependencies...
 python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r requirements_olmocr_full.txt
-python -m pip install fastapi uvicorn[standard] pydantic pypdf scikit-learn joblib pandas openpyxl python-docx beautifulsoup4 hf_transfer
+python -m pip install fastapi uvicorn[standard] pydantic transformers torch hf_transfer
 
 echo Configuring Hugging Face download settings...
 set "HF_HUB_DISABLE_XET=1"
 set "HF_HUB_ENABLE_HF_TRANSFER=1"
 set "HF_HUB_DOWNLOAD_TIMEOUT=120"
-set "SCAL_INFERENCE_API_URL=http://127.0.0.1:8010"
 
-echo Starting modern web app...
-echo Open http://localhost:8090
-rem --workers 1  : single process (shares in-memory Runtime state)
-rem --loop uvloop: faster async event loop (falls back to asyncio on Windows)
-rem Extraction runs in a daemon thread; chat uses dedicated executor pools.
-python -m uvicorn scal_modern_web.main:app --host 0.0.0.0 --port 8090 --workers 1
+echo Starting local inference API...
+echo Open http://127.0.0.1:8010/v1/health
+python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --workers 1
 
 endlocal
