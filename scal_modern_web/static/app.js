@@ -654,10 +654,6 @@ async function askChat() {
   const scope = $('chatScope')?.value || 'selected';
   const responseMode = $('responseMode')?.value || 'balanced';
   const topK = responseMode === 'fast' ? 5 : (responseMode === 'deep' ? 10 : 8);
-  if (scope === 'selected' && !S.currentDoc) {
-    addChatMsg('system', 'Select a document (or switch Scope to All PDFs).');
-    return;
-  }
 
   addChatMsg('user', q);
   $('chatInput').value = '';
@@ -675,7 +671,7 @@ async function askChat() {
   }, 120);
 
   try {
-    const d = await apiFetch('/api/chat', {
+    const resp = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -689,13 +685,52 @@ async function askChat() {
         response_mode: responseMode,
       }),
     });
+    if (!resp.ok || !resp.body) {
+      throw new Error(`Chat stream failed: HTTP ${resp.status}`);
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let streamed = '';
+    let donePayload = null;
+
+    const body = pending.querySelector('.msg-body');
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      while (true) {
+        const sep = buf.indexOf('\n\n');
+        if (sep === -1) break;
+        const rawEvent = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        const lines = rawEvent.split('\n');
+        const dataLines = lines.filter((ln) => ln.startsWith('data:')).map((ln) => ln.slice(5).trim());
+        if (!dataLines.length) continue;
+        const payload = dataLines.join('\n');
+        let ev = null;
+        try { ev = JSON.parse(payload); } catch (_) { ev = null; }
+        if (!ev) continue;
+        if (ev.type === 'token') {
+          streamed += ev.text || '';
+          if (body) body.innerHTML = esc(streamed).replace(/\n/g, '<br>');
+        } else if (ev.type === 'done') {
+          donePayload = ev;
+        } else if (ev.type === 'error') {
+          throw new Error(ev.message || 'stream error');
+        }
+      }
+    }
+
+    const d = donePayload || {};
+    if (!d.answer) d.answer = streamed || '(no answer)';
     if (d.session_id) S.sessionId = d.session_id;
     S.lastHits = d.raw_hits || [];
     const tableHtml = buildInlineTables(d.tables || [], d.raw_hits || []);
     const perfHtml = renderPerfBadges(d.metrics || {});
     pending.className = 'msg-wrap msg-assistant';
-    const body = pending.querySelector('.msg-body');
-    if (body) body.innerHTML = `${esc(d.answer || '(no answer)').replace(/\n/g,'<br>')}${tableHtml}${perfHtml}`;
+    if (body) body.innerHTML = `${esc(d.answer).replace(/\n/g,'<br>')}${tableHtml}${perfHtml}`;
     const m = d.metrics || {};
     if ($('chatPerfHint') && m.total_ms != null) {
       $('chatPerfHint').textContent = `Last: ${(Number(m.total_ms)/1000).toFixed(2)}s · tok/s ${m.tokens_per_sec ?? 0}`;

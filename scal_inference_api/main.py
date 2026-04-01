@@ -5,11 +5,13 @@ import re
 import threading
 import time
 import traceback
+import json
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
 
 
 APP_TITLE = "SCAL Local Inference API"
@@ -33,6 +35,7 @@ LLM_MODEL_OPTIONS = [
 class Runtime:
     def __init__(self):
         self._lock = threading.Lock()
+        self._gen_lock = threading.Lock()
         self._tok = None
         self._model = None
         self.loaded = False
@@ -181,7 +184,7 @@ def api_health():
         "target_model": R.target_model,
         "last_error": R.last_error,
         "progress": R.progress,
-        "busy": R._lock.locked(),
+        "busy": R._lock.locked() or R._gen_lock.locked(),
     }
 
 
@@ -224,16 +227,17 @@ def api_chat(req: ChatReq):
         {"role": "user", "content": req.user_prompt},
     ]
     t0 = time.perf_counter()
-    inp = R._tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to("cuda", dtype=torch.long)
-    with torch.no_grad():
-        out = R._model.generate(
-            inp,
-            max_new_tokens=int(req.max_new_tokens),
-            temperature=float(req.temperature),
-            do_sample=bool(req.do_sample),
-            top_p=float(req.top_p),
-        )
-    answer = R._tok.decode(out[0][inp.shape[1] :], skip_special_tokens=True).strip()
+    with R._gen_lock:
+        inp = R._tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to("cuda", dtype=torch.long)
+        with torch.no_grad():
+            out = R._model.generate(
+                inp,
+                max_new_tokens=int(req.max_new_tokens),
+                temperature=float(req.temperature),
+                do_sample=bool(req.do_sample),
+                top_p=float(req.top_p),
+            )
+        answer = R._tok.decode(out[0][inp.shape[1] :], skip_special_tokens=True).strip()
     dt = (time.perf_counter() - t0) * 1000.0
     out_tokens = len(R._tok.encode(answer)) if answer else 0
     R.last_metrics = {
@@ -247,6 +251,68 @@ def api_chat(req: ChatReq):
         "answer": answer,
         "metrics": R.last_metrics,
     }
+
+
+@app.post("/v1/chat/stream")
+def api_chat_stream(req: ChatReq):
+    import torch
+    from transformers import TextIteratorStreamer
+
+    if not R.loaded or R._tok is None or R._model is None:
+        raise HTTPException(status_code=400, detail="No model loaded")
+
+    def event_stream():
+        msgs = [
+            {"role": "system", "content": req.system_prompt},
+            {"role": "user", "content": req.user_prompt},
+        ]
+        with R._gen_lock:
+            inp = R._tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to("cuda", dtype=torch.long)
+            streamer = TextIteratorStreamer(R._tok, skip_prompt=True, skip_special_tokens=True)
+            kwargs = {
+                "input_ids": inp,
+                "max_new_tokens": int(req.max_new_tokens),
+                "temperature": float(req.temperature),
+                "do_sample": bool(req.do_sample),
+                "top_p": float(req.top_p),
+                "streamer": streamer,
+            }
+
+            answer_parts: list[str] = []
+
+            def _producer():
+                try:
+                    with torch.no_grad():
+                        R._model.generate(**kwargs)
+                except Exception:
+                    pass
+
+            t0 = time.perf_counter()
+            first_token_ms = None
+            threading.Thread(target=_producer, daemon=True).start()
+
+            for piece in streamer:
+                if piece:
+                    if first_token_ms is None:
+                        first_token_ms = (time.perf_counter() - t0) * 1000.0
+                    answer_parts.append(piece)
+                    payload = {"type": "token", "text": piece}
+                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+            answer = "".join(answer_parts).strip()
+            total_ms = (time.perf_counter() - t0) * 1000.0
+            out_tokens = len(R._tok.encode(answer)) if answer else 0
+            metrics = {
+                "generation_ms": round(total_ms, 2),
+                "first_token_ms": round(float(first_token_ms or total_ms), 2),
+                "answer_tokens": int(out_tokens),
+                "tokens_per_sec": round((out_tokens / max(total_ms / 1000.0, 1e-6)), 2),
+            }
+            R.last_metrics = metrics
+            yield f"data: {json.dumps({'type': 'metrics', 'metrics': metrics}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.get("/v1/metrics")

@@ -35,7 +35,7 @@ _SEARCH_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="rag_sea
 import joblib
 import pandas as pd
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pypdf import PdfReader
@@ -714,6 +714,33 @@ def _inference_request(method: str, path: str, payload: dict[str, Any] | None = 
         raise RuntimeError(f"Inference API HTTP {e.code}: {detail or e.reason}")
     except Exception as e:
         raise RuntimeError(f"Inference API unavailable at {INFERENCE_API_URL}: {e}")
+
+
+def _inference_stream_events(path: str, payload: dict[str, Any], timeout: int = 600):
+    url = f"{INFERENCE_API_URL}{path}"
+    data = json.dumps(payload).encode("utf-8")
+    headers = {"Accept": "text/event-stream", "Content-Type": "application/json"}
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            for raw in resp:
+                line = raw.decode("utf-8", errors="ignore").strip()
+                if not line.startswith("data:"):
+                    continue
+                data_line = line[5:].strip()
+                if not data_line:
+                    continue
+                if data_line == "[DONE]":
+                    break
+                try:
+                    yield json.loads(data_line)
+                except Exception:
+                    continue
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Inference API HTTP {e.code}: {detail or e.reason}")
+    except Exception as e:
+        raise RuntimeError(f"Inference API stream unavailable at {INFERENCE_API_URL}: {e}")
 
 
 def sync_llm_state_from_inference() -> dict[str, Any]:
@@ -2060,8 +2087,19 @@ async def api_chat(req: ChatReq):
     response_mode = (req.response_mode or "balanced").lower()
     gen_cfg = llm_generation_settings(response_mode)
     target_doc = "__ALL__" if scope == "all" else (req.doc_name or "")
+
+    # If no selected doc is provided, gracefully fall back to all-doc scope
+    # so normal chat still works without forcing user selection.
     if scope != "all" and not target_doc:
-        raise HTTPException(status_code=400, detail="Select a document or use scope=all")
+        scope = "all"
+        target_doc = "__ALL__"
+
+    # Lazy doc refresh so chat can still work after restart
+    if target_doc == "__ALL__" and not R.docs:
+        try:
+            R.docs = scan_docs(DATA_ROOT)
+        except Exception:
+            R.docs = {}
 
     # Casual chat mode: avoid retrieving random PDF chunks for greetings/small talk
     if is_casual_chat(req.question):
@@ -2144,7 +2182,27 @@ async def api_chat(req: ChatReq):
 
     # ── 3. LLM answer (GPU-bound, serialised) ─────────────────────────────────
     if not hits:
-        answer = "No relevant chunks found. Build the index first, or broaden the extraction type filter."
+        # No retrieval evidence: fall back to normal chat answer instead of blocking.
+        # This keeps chat usable when no docs are loaded/indexed.
+        system = (
+            "You are a helpful assistant in a SCAL app. "
+            "If no document evidence is available, answer generally and clearly state "
+            "that the response is not grounded in retrieved files."
+        )
+        user_prompt = req.question
+        try:
+            t_g0 = time.perf_counter()
+            answer = await loop.run_in_executor(
+                _INFERENCE_EXECUTOR,
+                lambda: ask_llm(system, user_prompt, **gen_cfg),
+            )
+            generation_ms = (time.perf_counter() - t_g0) * 1000.0
+            answer = (
+                "(No retrieved document context found; general model response)\n\n"
+                + answer
+            )
+        except Exception as e:
+            answer = f"No retrieved chunks, and model fallback failed: {e}"
     else:
         ctx = []
         for i, h in enumerate(hits, start=1):
@@ -2222,6 +2280,170 @@ async def api_chat(req: ChatReq):
             "max_new_tokens": int(gen_cfg.get("max_new_tokens", 0)),
         },
     }
+
+
+@app.post("/api/chat/stream")
+async def api_chat_stream(req: ChatReq):
+    t_total0 = time.perf_counter()
+    retrieval_ms = 0.0
+    loop = asyncio.get_event_loop()
+    filters = {"extraction_type": req.filter_extraction_type}
+    scope = (req.scope or "selected").lower()
+    response_mode = (req.response_mode or "balanced").lower()
+    gen_cfg = llm_generation_settings(response_mode)
+    target_doc = "__ALL__" if scope == "all" else (req.doc_name or "")
+    if scope != "all" and not target_doc:
+        target_doc = "__ALL__"
+    if target_doc == "__ALL__" and not R.docs:
+        try:
+            R.docs = scan_docs(DATA_ROOT)
+        except Exception:
+            R.docs = {}
+
+    t_r0 = time.perf_counter()
+    hits: list[dict[str, Any]] = []
+    if not is_casual_chat(req.question):
+        hits = await loop.run_in_executor(
+            _SEARCH_EXECUTOR,
+            lambda: search(req.question, target_doc, filters, top_k=req.top_k),
+        )
+    retrieval_ms = (time.perf_counter() - t_r0) * 1000.0
+
+    reasoning = []
+    for i, h in enumerate(hits, start=1):
+        m = h["meta"]
+        reasoning.append(
+            {
+                "rank": i,
+                "score": round(h["score"], 4),
+                "file_name": m.get("file_name"),
+                "page_number": m.get("page_number"),
+                "table_id": m.get("table_id"),
+                "extraction_type": m.get("extraction_type"),
+                "snippet": str(h.get("text", ""))[:300],
+            }
+        )
+
+    tables = []
+    for h in hits:
+        m = h["meta"]
+        if m.get("parsed_rows") or m.get("raw_html"):
+            tables.append(
+                {
+                    "file_name": m.get("file_name"),
+                    "report_name": m.get("report_name"),
+                    "page_number": m.get("page_number"),
+                    "table_id": m.get("table_id"),
+                    "raw_html": m.get("raw_html"),
+                    "columns": m.get("parsed_columns"),
+                    "rows": m.get("parsed_rows"),
+                }
+            )
+
+    if is_casual_chat(req.question):
+        system = (
+            "You are a friendly assistant in a SCAL document app. "
+            "For casual chat, respond naturally and briefly. "
+            "Do not cite PDFs unless user asks document questions."
+        )
+        user_prompt = req.question
+        no_context_prefix = ""
+    elif not hits:
+        system = (
+            "You are a helpful assistant in a SCAL app. "
+            "If no document evidence is available, answer generally and clearly state "
+            "that the response is not grounded in retrieved files."
+        )
+        user_prompt = req.question
+        no_context_prefix = "(No retrieved document context found; general model response)\n\n"
+    else:
+        ctx = []
+        for i, h in enumerate(hits, start=1):
+            m = h["meta"]
+            txt = h["text"]
+            if len(txt) > 700:
+                txt = txt[:700] + "..."
+            ctx.append(
+                f"[{i}] file={m.get('file_name')} page={m.get('page_number')} table={m.get('table_id')}\n{txt}"
+            )
+        context = "\n\n".join(ctx)
+        system = "You are a SCAL assistant. Use only retrieved evidence and cite [1],[2]."
+        user_prompt = f"Task prompt:\n{req.prompt_template}\n\nQuestion:\n{req.question}\n\nEvidence:\n{context}"
+        no_context_prefix = ""
+
+    sid = req.session_id
+    if not sid:
+        s = create_session("SCAL Chat Session")
+        sid = s["id"]
+
+    payload = {
+        "system_prompt": system,
+        "user_prompt": user_prompt,
+        "max_new_tokens": int(gen_cfg.get("max_new_tokens", 420)),
+        "temperature": float(gen_cfg.get("temperature", 0.2)),
+        "top_p": float(gen_cfg.get("top_p", 0.9)),
+        "do_sample": bool(gen_cfg.get("do_sample", True)),
+    }
+
+    def _sse(evt: dict[str, Any]) -> str:
+        return f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+
+    def streamer():
+        answer_parts: list[str] = []
+        infer_metrics: dict[str, Any] = {}
+        try:
+            if no_context_prefix:
+                answer_parts.append(no_context_prefix)
+                yield _sse({"type": "token", "text": no_context_prefix})
+
+            for ev in _inference_stream_events("/v1/chat/stream", payload, timeout=600):
+                if ev.get("type") == "token":
+                    piece = str(ev.get("text") or "")
+                    if piece:
+                        answer_parts.append(piece)
+                        yield _sse({"type": "token", "text": piece})
+                elif ev.get("type") == "metrics":
+                    infer_metrics = ev.get("metrics") or {}
+
+            answer = "".join(answer_parts).strip()
+            append_session_messages(
+                sid,
+                [
+                    {"role": "user", "content": req.question, "time": now()},
+                    {"role": "assistant", "content": answer, "time": now(), "sources": reasoning},
+                ],
+            )
+
+            generation_ms = float(infer_metrics.get("generation_ms", 0) or 0)
+            answer_tokens = int(infer_metrics.get("answer_tokens", approx_token_count(answer)) or 0)
+            tok_s = float(infer_metrics.get("tokens_per_sec", 0) or 0)
+            metrics = {
+                "response_mode": response_mode,
+                "model_name": R.llm_model_name,
+                "retrieval_ms": round(retrieval_ms, 2),
+                "generation_ms": round(generation_ms, 2),
+                "first_token_ms": round(float(infer_metrics.get("first_token_ms", generation_ms) or generation_ms), 2),
+                "total_ms": round((time.perf_counter() - t_total0) * 1000.0, 2),
+                "answer_tokens": answer_tokens,
+                "tokens_per_sec": round(tok_s, 2) if tok_s else round((answer_tokens / max(generation_ms / 1000.0, 1e-6)), 2),
+                "hits": len(hits),
+                "max_new_tokens": int(gen_cfg.get("max_new_tokens", 0)),
+            }
+            done = {
+                "type": "done",
+                "session_id": sid,
+                "answer": answer,
+                "reasoning": reasoning,
+                "sources": reasoning,
+                "tables": tables,
+                "raw_hits": hits,
+                "metrics": metrics,
+            }
+            yield _sse(done)
+        except Exception as e:
+            yield _sse({"type": "error", "message": str(e)})
+
+    return StreamingResponse(streamer(), media_type="text/event-stream")
 
 
 @app.get("/api/chat/sessions")
