@@ -60,7 +60,7 @@ SESSION_FILE = ROOT / "scal_modern_sessions.json"
 # Large model cache override (to avoid filling C: drive).
 # Kimi-K2 is very large; route its Hugging Face cache to D:.
 MODEL_CACHE_DIRS: dict[str, Path] = {
-    "moonshotai/Kimi-K2-Instruct": Path(r"D:\hf_cache\moonshotai\Kimi-K2-Instruct"),
+    "moonshotai/Kimi-K2.5": Path(r"D:\hf_cache\moonshotai\Kimi-K2.5"),
 }
 
 LLM_MODEL_OPTIONS = [
@@ -83,10 +83,10 @@ LLM_MODEL_OPTIONS = [
         "notes": "Open-weight GLM model with strong coding/tool capabilities",
     },
     {
-        "name": "moonshotai/Kimi-K2-Instruct",
-        "label": "Kimi-K2-Instruct (Very high VRAM)",
+        "name": "moonshotai/Kimi-K2.5",
+        "label": "Kimi-K2.5 (Very high VRAM)",
         "recommended": False,
-        "notes": "Open-weight MoE model; excellent quality but very heavy for single-GPU local inference",
+        "notes": "Open-weight MoE multimodal model; very heavy for single-GPU local inference",
     },
     {
         "name": "Qwen/Qwen2.5-14B-Instruct",
@@ -639,11 +639,23 @@ def load_llm(model_name: str):
             log("status", f"Using model cache dir: {cache_dir}")
 
         if model_name.startswith("moonshotai/Kimi-K2"):
+            import transformers
+
+            raw_ver = getattr(transformers, "__version__", "0.0.0")
+            nums = [int(x) for x in re.findall(r"\d+", raw_ver)[:3]]
+            while len(nums) < 3:
+                nums.append(0)
+            if tuple(nums) < (4, 57, 1):
+                raise RuntimeError(
+                    f"Kimi-K2.5 requires transformers>=4.57.1, but found {raw_ver}. "
+                    "Please upgrade your environment first."
+                )
+
             try:
                 import tiktoken  # noqa: F401
             except Exception:
                 raise RuntimeError(
-                    "Kimi tokenizer requires tiktoken. Install with: "
+                    "Kimi-K2.5 tokenizer requires tiktoken. Install with: "
                     "pip install tiktoken"
                 )
 
