@@ -265,6 +265,11 @@ async function unloadLlm() {
 async function pollState() {
   try {
     const d = await apiFetch('/api/state');
+    if (d.app && $('buildInfo')) {
+      const b = d.app.build || 'dev';
+      $('buildInfo').textContent = `build: ${b}`;
+      $('buildInfo').title = `Started: ${d.app.started_at || '-'}`;
+    }
 
     // Model pills
     const vlmOn = d.models.vlm_loaded;

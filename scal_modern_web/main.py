@@ -9,6 +9,7 @@ import threading
 import time
 import traceback
 import uuid
+import subprocess
 import urllib.error
 import urllib.request
 from collections import deque
@@ -62,6 +63,18 @@ SESSION_FILE = ROOT / "scal_modern_sessions.json"
 SETTINGS_FILE = ROOT / "scal_modern_settings.json"
 RESULTS_ROOT = ROOT / "results"
 INFERENCE_API_URL = os.environ.get("SCAL_INFERENCE_API_URL", "http://127.0.0.1:8010").rstrip("/")
+APP_STARTED_AT = datetime.now().isoformat(timespec="seconds")
+
+
+def _git_commit_short() -> str:
+    try:
+        out = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=str(ROOT), stderr=subprocess.DEVNULL)
+        return out.decode("utf-8", errors="ignore").strip() or "dev"
+    except Exception:
+        return "dev"
+
+
+APP_BUILD = os.environ.get("SCAL_BUILD", _git_commit_short())
 
 # Large model cache override (to avoid filling C: drive).
 # Kimi-K2 is very large; route its Hugging Face cache to D:.
@@ -1861,6 +1874,10 @@ def api_build_all(data_root: str = Form("")):
 def api_state():
     sync_llm_state_from_inference()
     return {
+        "app": {
+            "build": APP_BUILD,
+            "started_at": APP_STARTED_AT,
+        },
         "progress": R.progress,
         "advanced_mode": R.advanced_mode,
         "experiment": R.experiment,
