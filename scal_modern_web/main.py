@@ -771,7 +771,14 @@ def unload_llm():
         log("status", "LLM unloaded")
 
 
-def ask_llm(system_prompt: str, user_prompt: str) -> str:
+def ask_llm(
+    system_prompt: str,
+    user_prompt: str,
+    max_new_tokens: int = 420,
+    temperature: float = 0.2,
+    top_p: float = 0.9,
+    do_sample: bool = True,
+) -> str:
     import torch
 
     if not R.llm_loaded or R._llm_tok is None or R._llm_model is None:
@@ -779,8 +786,35 @@ def ask_llm(system_prompt: str, user_prompt: str) -> str:
     msgs = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
     inp = R._llm_tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to("cuda", dtype=torch.long)
     with torch.no_grad():
-        out = R._llm_model.generate(inp, max_new_tokens=700, temperature=0.2, do_sample=True, top_p=0.9)
+        out = R._llm_model.generate(
+            inp,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            do_sample=do_sample,
+            top_p=top_p,
+        )
     return R._llm_tok.decode(out[0][inp.shape[1] :], skip_special_tokens=True).strip()
+
+
+def llm_generation_settings(mode: str) -> dict[str, Any]:
+    m = (mode or "balanced").strip().lower()
+    if m == "fast":
+        return {"max_new_tokens": 220, "temperature": 0.0, "top_p": 1.0, "do_sample": False}
+    if m == "deep":
+        return {"max_new_tokens": 700, "temperature": 0.3, "top_p": 0.95, "do_sample": True}
+    return {"max_new_tokens": 420, "temperature": 0.2, "top_p": 0.9, "do_sample": True}
+
+
+def approx_token_count(text: str) -> int:
+    t = text or ""
+    if not t:
+        return 0
+    try:
+        if R._llm_tok is not None:
+            return int(len(R._llm_tok.encode(t)))
+    except Exception:
+        pass
+    return len(re.findall(r"\w+|[^\w\s]", t, flags=re.UNICODE))
 
 
 def load_vlm():
@@ -1612,6 +1646,7 @@ class ChatReq(BaseModel):
     prompt_template: str = ""
     filter_extraction_type: str | None = None
     top_k: int = 8
+    response_mode: str = "balanced"  # fast | balanced | deep
 
 
 class ExperimentReq(BaseModel):
@@ -1854,12 +1889,26 @@ def _load_llm_bg(model_name: str):
     try:
         load_llm(model_name)
     except Exception as e:
+        msg = str(e)
+        low = msg.lower()
+        hint = ""
+        if "outofmemory" in low or "cuda out of memory" in low:
+            hint = "GPU OOM: choose a smaller model or unload and retry"
+        elif "no module named" in low:
+            hint = "Missing dependency in current environment"
+        elif "no space left" in low or "disk" in low:
+            hint = "Insufficient disk space for model shards"
+        elif "401" in low or "403" in low or "gated" in low:
+            hint = "Model access/auth issue on Hugging Face"
+        elif "timeout" in low or "connection" in low:
+            hint = "Network timeout during model download"
+        final_err = f"{msg}" if not hint else f"{msg} ({hint})"
         R.llm_loaded = False
-        R.llm_last_error = str(e)
+        R.llm_last_error = final_err
         R.llm_target_model = ""
         R.progress["model"]["running"] = False
-        set_progress("model", 100, "failed", f"LLM load failed: {e}")
-        log("error", f"LLM load failed: {e}")
+        set_progress("model", 100, "failed", f"LLM load failed: {final_err}")
+        log("error", f"LLM load failed: {final_err}")
         log("debug", traceback.format_exc())
 
 
@@ -1890,7 +1939,8 @@ def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-14B-Instruct")):
 def api_switch_llm(model_name: str = Form("Qwen/Qwen2.5-14B-Instruct")):
     model_name = (model_name or "Qwen/Qwen2.5-14B-Instruct").strip()
     if R._llm_lock.locked():
-        return {"ok": False, "message": "LLM operation in progress"}
+        active = R.llm_target_model or R.llm_model_name
+        return {"ok": False, "message": f"LLM operation in progress ({active})"}
     if R.llm_loaded and R.llm_model_name == model_name:
         return {"ok": True, "message": "LLM already active"}
     log("status", f"LLM switch requested -> {model_name}")
@@ -1998,9 +2048,14 @@ async def api_chat(req: ChatReq):
     Both executors are independent of the extraction daemon thread, so PDF
     extraction and chat can run simultaneously without interfering.
     """
+    t_total0 = time.perf_counter()
+    retrieval_ms = 0.0
+    generation_ms = 0.0
     loop = asyncio.get_event_loop()
     filters = {"extraction_type": req.filter_extraction_type}
     scope = (req.scope or "selected").lower()
+    response_mode = (req.response_mode or "balanced").lower()
+    gen_cfg = llm_generation_settings(response_mode)
     target_doc = "__ALL__" if scope == "all" else (req.doc_name or "")
     if scope != "all" and not target_doc:
         raise HTTPException(status_code=400, detail="Select a document or use scope=all")
@@ -2009,6 +2064,7 @@ async def api_chat(req: ChatReq):
     if is_casual_chat(req.question):
         try:
             loop = asyncio.get_event_loop()
+            t_g0 = time.perf_counter()
             answer = await loop.run_in_executor(
                 _INFERENCE_EXECUTOR,
                 lambda: ask_llm(
@@ -2016,8 +2072,10 @@ async def api_chat(req: ChatReq):
                     "For casual chat, respond naturally and briefly. "
                     "Do not cite PDFs unless user asks document questions.",
                     req.question,
+                    **gen_cfg,
                 ),
             )
+            generation_ms = (time.perf_counter() - t_g0) * 1000.0
         except Exception:
             answer = (
                 "Hi! I can chat casually, and when you're ready I can also help query your extracted SCAL PDFs. "
@@ -2043,13 +2101,27 @@ async def api_chat(req: ChatReq):
             "sources": [],
             "tables": [],
             "raw_hits": [],
+            "metrics": {
+                "response_mode": response_mode,
+                "model_name": R.llm_model_name,
+                "retrieval_ms": round(retrieval_ms, 2),
+                "generation_ms": round(generation_ms, 2),
+                "total_ms": round((time.perf_counter() - t_total0) * 1000.0, 2),
+                "answer_tokens": approx_token_count(answer),
+                "tokens_per_sec": round((approx_token_count(answer) / max(generation_ms / 1000.0, 1e-6)), 2)
+                if generation_ms > 0
+                else 0.0,
+                "hits": 0,
+            },
         }
 
     # ── 1. RAG search (CPU-bound TF-IDF) ──────────────────────────────────────
+    t_r0 = time.perf_counter()
     hits: list[dict[str, Any]] = await loop.run_in_executor(
         _SEARCH_EXECUTOR,
         lambda: search(req.question, target_doc, filters, top_k=req.top_k),
     )
+    retrieval_ms = (time.perf_counter() - t_r0) * 1000.0
 
     # ── 2. Build reasoning list ────────────────────────────────────────────────
     reasoning = []
@@ -2084,10 +2156,12 @@ async def api_chat(req: ChatReq):
         system = "You are a SCAL assistant. Use only retrieved evidence and cite [1],[2]."
         user_prompt = f"Task prompt:\n{req.prompt_template}\n\nQuestion:\n{req.question}\n\nEvidence:\n{context}"
         try:
+            t_g0 = time.perf_counter()
             answer = await loop.run_in_executor(
                 _INFERENCE_EXECUTOR,
-                lambda: ask_llm(system, user_prompt),
+                lambda: ask_llm(system, user_prompt, **gen_cfg),
             )
+            generation_ms = (time.perf_counter() - t_g0) * 1000.0
         except Exception as e:
             answer = f"LLM not loaded or failed: {e}\n\nFallback evidence:\n{context[:1800]}"
 
@@ -2121,6 +2195,9 @@ async def api_chat(req: ChatReq):
         ],
     )
 
+    answer_tokens = approx_token_count(answer)
+    total_ms = (time.perf_counter() - t_total0) * 1000.0
+
     return {
         "session_id": sid,
         "answer": answer,
@@ -2128,6 +2205,19 @@ async def api_chat(req: ChatReq):
         "sources": reasoning,
         "tables": tables,
         "raw_hits": hits,
+        "metrics": {
+            "response_mode": response_mode,
+            "model_name": R.llm_model_name,
+            "retrieval_ms": round(retrieval_ms, 2),
+            "generation_ms": round(generation_ms, 2),
+            "total_ms": round(total_ms, 2),
+            "answer_tokens": int(answer_tokens),
+            "tokens_per_sec": round((answer_tokens / max(generation_ms / 1000.0, 1e-6)), 2)
+            if generation_ms > 0
+            else 0.0,
+            "hits": len(hits),
+            "max_new_tokens": int(gen_cfg.get("max_new_tokens", 0)),
+        },
     }
 
 

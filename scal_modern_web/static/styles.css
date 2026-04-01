@@ -487,6 +487,36 @@ html, body {
 .msg-assistant .msg-body { background: #12251a; border: 1px solid #1e3d29; }
 .msg-system .msg-body { background: var(--surface); border: 1px solid var(--border2); color: var(--text2); font-style: italic; font-size: 12px; }
 
+.msg-meta {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text3);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.msg-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  background: var(--bg3);
+  font-family: monospace;
+}
+
+.msg-pending .msg-body {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 7px;
+  animation: pulse 1s infinite;
+}
+
 .chat-input-area {
   display: flex;
   gap: 8px;
@@ -522,6 +552,13 @@ html, body {
   width: auto;
 }
 .send-btn:hover { background: var(--accent); }
+
+.chat-send-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
 
 .exp-form-wrap {
   display: flex;

@@ -149,6 +149,12 @@
             <option value="porosity_permeability">Porosity / Permeability</option>
             <option value="general">General</option>
           </select>
+          <span class="tiny-label">Response:</span>
+          <select id="responseMode" class="filter-select" title="Fast: shorter answers, Balanced: default, Deep: longer answers">
+            <option value="fast" selected>Fast</option>
+            <option value="balanced">Balanced</option>
+            <option value="deep">Deep</option>
+          </select>
         </div>
         <div class="chat-export-row">
           <select id="sessionSelect" class="chat-session-select" title="Chat sessions"></select>
@@ -166,7 +172,10 @@
       <div class="chat-input-area">
         <textarea id="chatInput" class="chat-textarea" rows="2"
           placeholder="Ask about extracted SCAL data… (Enter to send, Shift+Enter for newline)"></textarea>
-        <button class="send-btn" id="sendBtn">Send ↵</button>
+        <div class="chat-send-col">
+          <button class="send-btn" id="sendBtn">Send ↵</button>
+          <div id="chatPerfHint" class="tiny-label">Last: -</div>
+        </div>
       </div>
     </div>
 

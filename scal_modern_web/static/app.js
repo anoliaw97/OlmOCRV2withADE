@@ -232,7 +232,7 @@ async function loadModel(kind) {
     if (!r.ok) {
       dot.className = 'dot dot-off';
       lbl.textContent = kind.toUpperCase() + ' ✗';
-      addChatMsg('system', `${kind.toUpperCase()} load failed: ${r.error || 'unknown error'}`);
+      addChatMsg('system', `${kind.toUpperCase()} load failed: ${r.message || r.error || 'unknown error'}`);
     } else if (kind === 'llm') {
       addChatMsg('system', r.message || `LLM switch started for ${modelName}.`);
     }
@@ -306,7 +306,7 @@ async function pollState() {
       bM.textContent = md.percent + '% ' + md.stage;
     }
     const mdDetail = $('modelDetail');
-    if (mdDetail) mdDetail.textContent = md.detail || '';
+    if (mdDetail) mdDetail.textContent = llmErr ? `${md.detail || ''} | Last error: ${llmErr}` : (md.detail || '');
     show('loadingSpinner', llmLoading);
 
     // Experiment bar
@@ -615,20 +615,45 @@ function renderSuggestionChips() {
 /* ══════════════════════════════════════════
    Chat
 ══════════════════════════════════════════ */
-function addChatMsg(role, text, extraHtml = '') {
+function addChatMsg(role, text, extraHtml = '', metaHtml = '') {
   const box = $('chatBox');
   const wrap = document.createElement('div');
   wrap.className = `msg-wrap msg-${role}`;
   const roleLabel = { user:'YOU', assistant:'ASSISTANT', system:'SYSTEM' }[role] || role.toUpperCase();
-  wrap.innerHTML = `<div class="msg-role">${roleLabel}</div><div class="msg-body">${esc(text).replace(/\n/g,'<br>')}${extraHtml}</div>`;
+  wrap.innerHTML = `<div class="msg-role">${roleLabel}</div><div class="msg-body">${esc(text).replace(/\n/g,'<br>')}${extraHtml}${metaHtml}</div>`;
   box.appendChild(wrap);
   box.scrollTop = box.scrollHeight;
+  return wrap;
+}
+
+function renderPerfBadges(m = {}) {
+  const chips = [];
+  if (m.response_mode) chips.push(`<span class="msg-badge">mode=${esc(m.response_mode)}</span>`);
+  if (m.total_ms != null) chips.push(`<span class="msg-badge">total=${(Number(m.total_ms) / 1000).toFixed(2)}s</span>`);
+  if (m.retrieval_ms != null) chips.push(`<span class="msg-badge">retrieval=${(Number(m.retrieval_ms) / 1000).toFixed(2)}s</span>`);
+  if (m.generation_ms != null) chips.push(`<span class="msg-badge">generation=${(Number(m.generation_ms) / 1000).toFixed(2)}s</span>`);
+  if (m.answer_tokens != null) chips.push(`<span class="msg-badge">tokens=${esc(m.answer_tokens)}</span>`);
+  if (m.tokens_per_sec != null) chips.push(`<span class="msg-badge">tok/s=${esc(m.tokens_per_sec)}</span>`);
+  if (!chips.length) return '';
+  return `<div class="msg-meta">${chips.join('')}</div>`;
+}
+
+function addPendingAssistant() {
+  const box = $('chatBox');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap msg-assistant msg-pending';
+  wrap.innerHTML = `<div class="msg-role">ASSISTANT</div><div class="msg-body"><span class="typing-cursor">●</span> Thinking... <span class="msg-badge pending-elapsed">0.0s</span></div>`;
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+  return wrap;
 }
 
 async function askChat() {
   const q = $('chatInput').value.trim();
   if (!q) return;
   const scope = $('chatScope')?.value || 'selected';
+  const responseMode = $('responseMode')?.value || 'balanced';
+  const topK = responseMode === 'fast' ? 5 : (responseMode === 'deep' ? 10 : 8);
   if (scope === 'selected' && !S.currentDoc) {
     addChatMsg('system', 'Select a document (or switch Scope to All PDFs).');
     return;
@@ -641,6 +666,14 @@ async function askChat() {
   sendBtn.disabled = true;
   sendBtn.textContent = '…';
 
+  const pending = addPendingAssistant();
+  const pendingElapsedEl = pending.querySelector('.pending-elapsed');
+  const t0 = performance.now();
+  const timer = setInterval(() => {
+    const sec = ((performance.now() - t0) / 1000).toFixed(1);
+    if (pendingElapsedEl) pendingElapsedEl.textContent = `${sec}s`;
+  }, 120);
+
   try {
     const d = await apiFetch('/api/chat', {
       method: 'POST',
@@ -652,17 +685,30 @@ async function askChat() {
         question: q,
         prompt_template: $('promptText').value,
         filter_extraction_type: $('fType').value || null,
-        top_k: 8,
+        top_k: topK,
+        response_mode: responseMode,
       }),
     });
     if (d.session_id) S.sessionId = d.session_id;
     S.lastHits = d.raw_hits || [];
     const tableHtml = buildInlineTables(d.tables || [], d.raw_hits || []);
-    addChatMsg('assistant', d.answer || '(no answer)', tableHtml);
+    const perfHtml = renderPerfBadges(d.metrics || {});
+    pending.className = 'msg-wrap msg-assistant';
+    const body = pending.querySelector('.msg-body');
+    if (body) body.innerHTML = `${esc(d.answer || '(no answer)').replace(/\n/g,'<br>')}${tableHtml}${perfHtml}`;
+    const m = d.metrics || {};
+    if ($('chatPerfHint') && m.total_ms != null) {
+      $('chatPerfHint').textContent = `Last: ${(Number(m.total_ms)/1000).toFixed(2)}s · tok/s ${m.tokens_per_sec ?? 0}`;
+    }
     renderReasoning(d.reasoning || []);
   } catch (e) {
-    addChatMsg('system', `Error: ${e.message}`);
+    pending.className = 'msg-wrap msg-system';
+    const role = pending.querySelector('.msg-role');
+    if (role) role.textContent = 'SYSTEM';
+    const body = pending.querySelector('.msg-body');
+    if (body) body.innerHTML = esc(`Error: ${e.message}`).replace(/\n/g, '<br>');
   } finally {
+    clearInterval(timer);
     sendBtn.disabled = false;
     sendBtn.textContent = 'Send ↵';
   }
