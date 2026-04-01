@@ -185,6 +185,8 @@ class Runtime:
         self.llm_loaded = False
         self.vlm_loaded = False
         self.llm_model_name = "Qwen/Qwen2.5-14B-Instruct"
+        self.llm_target_model = ""
+        self.llm_last_error = ""
         self._llm_tok = None
         self._llm_model = None
         self._llm_lock = threading.Lock()
@@ -204,6 +206,19 @@ class Runtime:
             "started_at": "",
             "finished_at": "",
             "error": "",
+        }
+        self.benchmark_stop = threading.Event()
+        self.benchmark = {
+            "running": False,
+            "percent": 0,
+            "stage": "idle",
+            "detail": "",
+            "run_id": "",
+            "output_dir": "",
+            "started_at": "",
+            "finished_at": "",
+            "error": "",
+            "results": [],
         }
 
 
@@ -665,6 +680,8 @@ def load_llm(model_name: str):
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     with R._llm_lock:
+        R.llm_target_model = model_name
+        R.llm_last_error = ""
         R.progress["model"]["running"] = True
         set_progress("model", 5, "starting", f"Preparing LLM load: {model_name}")
 
@@ -728,6 +745,7 @@ def load_llm(model_name: str):
         R._llm_tok, R._llm_model = tok, mdl
         R.llm_loaded = True
         R.llm_model_name = model_name
+        R.llm_target_model = ""
         set_progress("model", 100, "completed", f"LLM ready: {model_name}")
         R.progress["model"]["running"] = False
         log("status", f"LLM ready: {model_name}")
@@ -737,6 +755,8 @@ def unload_llm():
     import torch
 
     with R._llm_lock:
+        R.llm_target_model = ""
+        R.llm_last_error = ""
         R.progress["model"]["running"] = True
         set_progress("model", 10, "unloading", "Releasing active LLM")
         R._llm_model = None
@@ -1300,6 +1320,137 @@ def _experiment_worker(payload: dict[str, Any]):
         R.experiment["running"] = False
 
 
+def _keyword_score(text: str, expected_keywords: str) -> float:
+    keys = [k.strip().lower() for k in str(expected_keywords or "").split(",") if k.strip()]
+    if not keys:
+        return 0.0
+    low = (text or "").lower()
+    hit = sum(1 for k in keys if k in low)
+    return round(hit / max(1, len(keys)), 4)
+
+
+def _run_model_benchmark_worker(payload: dict[str, Any]):
+    try:
+        R.benchmark_stop.clear()
+        run_id = str(payload.get("run_id") or datetime.now().strftime("bench_%Y%m%d_%H%M%S"))
+        output_root = Path(payload.get("output_root") or RESULTS_ROOT)
+        run_dir = output_root / "benchmarks" / _slug(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        question = str(payload.get("question") or "").strip()
+        if not question:
+            raise RuntimeError("Question is required")
+
+        models = payload.get("model_names") or [m["name"] for m in LLM_MODEL_OPTIONS if "moonshotai/Kimi" not in m["name"]]
+        simple_ctx = str(payload.get("simple_context") or "").strip()
+        detailed_ctx = str(payload.get("detailed_context") or "").strip()
+        expected = str(payload.get("expected_keywords") or "").strip()
+
+        R.benchmark.update(
+            {
+                "running": True,
+                "percent": 1,
+                "stage": "starting",
+                "detail": "Preparing model benchmark",
+                "run_id": _slug(run_id),
+                "output_dir": str(run_dir),
+                "started_at": datetime.now().isoformat(timespec="seconds"),
+                "finished_at": "",
+                "error": "",
+                "results": [],
+            }
+        )
+
+        results = []
+        total = max(1, len(models))
+        for i, model_name in enumerate(models, start=1):
+            if R.benchmark_stop.is_set():
+                raise RuntimeError("Benchmark stopped by user")
+
+            R.benchmark.update(
+                {
+                    "percent": int((i - 1) / total * 100),
+                    "stage": "loading_model",
+                    "detail": f"Loading {model_name}",
+                }
+            )
+            t_load0 = time.perf_counter()
+            load_llm(model_name)
+            load_sec = round(time.perf_counter() - t_load0, 4)
+
+            def _ask(ctx: str):
+                system = "You are a SCAL assistant. Use only provided context and answer clearly."
+                user = f"Context:\n{ctx or '(none)'}\n\nQuestion:\n{question}"
+                t0 = time.perf_counter()
+                ans = ask_llm(system, user)
+                return ans, round(time.perf_counter() - t0, 4)
+
+            R.benchmark.update({"stage": "running_simple", "detail": f"{model_name}: simple context"})
+            simple_ans, simple_lat = _ask(simple_ctx)
+            simple_score = _keyword_score(simple_ans, expected)
+
+            R.benchmark.update({"stage": "running_detailed", "detail": f"{model_name}: detailed context"})
+            detailed_ans, detailed_lat = _ask(detailed_ctx)
+            detailed_score = _keyword_score(detailed_ans, expected)
+
+            row = {
+                "model_name": model_name,
+                "load_seconds": load_sec,
+                "simple_latency": simple_lat,
+                "detailed_latency": detailed_lat,
+                "simple_keyword_score": simple_score,
+                "detailed_keyword_score": detailed_score,
+                "score_gain_detailed_minus_simple": round(detailed_score - simple_score, 4),
+                "simple_preview": simple_ans[:280],
+                "detailed_preview": detailed_ans[:280],
+            }
+            results.append(row)
+            R.benchmark["results"] = results[-10:]
+            R.benchmark["percent"] = int(i / total * 100)
+
+        df = pd.DataFrame(results)
+        df.to_csv(run_dir / "per_model_results.csv", index=False)
+        summary = df.sort_values(["detailed_keyword_score", "detailed_latency"], ascending=[False, True])
+        summary.to_csv(run_dir / "model_ranking.csv", index=False)
+        (run_dir / "benchmark_inputs.json").write_text(
+            json.dumps(
+                {
+                    "question": question,
+                    "simple_context": simple_ctx,
+                    "detailed_context": detailed_ctx,
+                    "expected_keywords": expected,
+                    "models": models,
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        R.benchmark.update(
+            {
+                "running": False,
+                "percent": 100,
+                "stage": "completed",
+                "detail": f"Benchmark done: {run_dir}",
+                "finished_at": datetime.now().isoformat(timespec="seconds"),
+                "results": results,
+            }
+        )
+    except Exception as e:
+        R.benchmark.update(
+            {
+                "running": False,
+                "percent": 100,
+                "stage": "failed",
+                "detail": str(e),
+                "error": str(e),
+                "finished_at": datetime.now().isoformat(timespec="seconds"),
+            }
+        )
+        log("error", f"Model benchmark failed: {e}")
+        log("debug", traceback.format_exc())
+
+
 
 def extraction_job(
     pdf_path: Path,
@@ -1474,6 +1625,16 @@ class ExperimentReq(BaseModel):
     model_names: list[str] = []
     prompt_types: list[str] = []
     selected_retrieval_config: str = ""
+
+
+class ModelBenchmarkReq(BaseModel):
+    question: str
+    simple_context: str = ""
+    detailed_context: str = ""
+    expected_keywords: str = ""
+    model_names: list[str] = []
+    run_id: str = ""
+    output_root: str = ""
 
 
 # ── Folder / file browse (non-blocking, runs tkinter in executor) ─────────────
@@ -1654,9 +1815,12 @@ def api_state():
         "progress": R.progress,
         "advanced_mode": R.advanced_mode,
         "experiment": R.experiment,
+        "benchmark": R.benchmark,
         "models": {
             "llm_loaded": R.llm_loaded,
             "llm_model": R.llm_model_name,
+            "llm_target_model": R.llm_target_model,
+            "llm_last_error": R.llm_last_error,
             "llm_loading": R._llm_lock.locked(),
             "vlm_loaded": R.vlm_loaded,
         },
@@ -1691,6 +1855,8 @@ def _load_llm_bg(model_name: str):
         load_llm(model_name)
     except Exception as e:
         R.llm_loaded = False
+        R.llm_last_error = str(e)
+        R.llm_target_model = ""
         R.progress["model"]["running"] = False
         set_progress("model", 100, "failed", f"LLM load failed: {e}")
         log("error", f"LLM load failed: {e}")
@@ -1718,6 +1884,18 @@ def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-14B-Instruct")):
         log("status", f"LLM load requested: {model_name}")
     threading.Thread(target=_load_llm_bg, args=(model_name,), daemon=True).start()
     return {"ok": True, "message": "LLM loading in background — watch logs / model pill"}
+
+
+@app.post("/api/models/switch-llm")
+def api_switch_llm(model_name: str = Form("Qwen/Qwen2.5-14B-Instruct")):
+    model_name = (model_name or "Qwen/Qwen2.5-14B-Instruct").strip()
+    if R._llm_lock.locked():
+        return {"ok": False, "message": "LLM operation in progress"}
+    if R.llm_loaded and R.llm_model_name == model_name:
+        return {"ok": True, "message": "LLM already active"}
+    log("status", f"LLM switch requested -> {model_name}")
+    threading.Thread(target=_load_llm_bg, args=(model_name,), daemon=True).start()
+    return {"ok": True, "message": f"Switching LLM to {model_name}"}
 
 
 @app.post("/api/models/unload-llm")
@@ -1784,6 +1962,29 @@ def api_experiment_run(req: ExperimentReq):
     t = threading.Thread(target=_experiment_worker, args=(payload,), daemon=True)
     t.start()
     return {"ok": True, "message": f"Experiment started ({mode})", "run_id": req.run_id or "auto"}
+
+
+@app.get("/api/benchmarks/models/state")
+def api_model_benchmark_state():
+    return R.benchmark
+
+
+@app.post("/api/benchmarks/models/stop")
+def api_model_benchmark_stop():
+    if not R.benchmark.get("running"):
+        return {"ok": True, "message": "No benchmark running"}
+    R.benchmark_stop.set()
+    return {"ok": True, "message": "Benchmark stop requested"}
+
+
+@app.post("/api/benchmarks/models/run")
+def api_model_benchmark_run(req: ModelBenchmarkReq):
+    if R._llm_lock.locked() or R.benchmark.get("running"):
+        return {"ok": False, "message": "Model operation already running"}
+    payload = req.model_dump()
+    t = threading.Thread(target=_run_model_benchmark_worker, args=(payload,), daemon=True)
+    t.start()
+    return {"ok": True, "message": "Model benchmark started", "run_id": req.run_id or "auto"}
 
 
 # ── Chat ──────────────────────────────────────────────────────────────────────

@@ -207,24 +207,43 @@
     </div>
 
     <div id="tab-experiments" class="tab-pane hidden">
-      <div class="chat-topbar">
-        <div class="filter-row">
-          <span class="tiny-label">Mode:</span>
-          <select id="expMode" class="filter-select">
-            <option value="full">Full pipeline</option>
-            <option value="retrieval">Study 1 only</option>
-            <option value="reasoning">Study 2 only</option>
-          </select>
-          <span class="tiny-label">Top-k:</span>
-          <input id="expTopK" type="number" min="1" value="3" class="num-input" />
-        </div>
-        <div class="chat-export-row">
-          <button class="btn-xs" id="runExperimentBtn">▶ Run</button>
-          <button class="btn-xs" id="stopExperimentBtn">■ Stop</button>
-        </div>
-      </div>
-
       <div class="exp-form-wrap">
+        <div class="section-label">Quick Model Benchmark</div>
+        <div class="tiny-label">Run same question across selected models. Compare load time, response speed, and simple vs detailed context quality.</div>
+        <textarea id="benchQuestion" class="prompt-area" rows="3" placeholder="Benchmark question (same for all models)"></textarea>
+        <textarea id="benchSimpleContext" class="prompt-area" rows="3" placeholder="Simple context (short)"></textarea>
+        <textarea id="benchDetailedContext" class="prompt-area" rows="4" placeholder="Detailed context (longer, structured)"></textarea>
+        <input id="benchExpectedKeywords" type="text" class="folder-input" placeholder="Expected keywords (comma-separated)" />
+        <div class="folder-row">
+          <input id="benchRunId" type="text" class="folder-input" placeholder="Benchmark run ID (optional)" />
+          <input id="benchOutputRoot" type="text" class="folder-input" placeholder="Output root (default: results)" />
+          <button id="browseBenchOutputBtn" class="icon-btn" title="Browse output folder">📁</button>
+        </div>
+        <div id="benchModelChecks" class="chat-suggestions"></div>
+        <div class="chat-export-row">
+          <button class="btn-xs" id="runBenchmarkBtn">▶ Run Model Benchmark</button>
+          <button class="btn-xs" id="stopBenchmarkBtn">■ Stop Benchmark</button>
+        </div>
+        <pre id="benchStatusBox" class="exp-status-box">Benchmark status will appear here.</pre>
+
+        <details>
+          <summary class="tiny-label" style="cursor:pointer; margin-top:4px;">Advanced pipeline (Study 1 + Study 2)</summary>
+          <div class="chat-topbar" style="margin-top:8px;">
+            <div class="filter-row">
+              <span class="tiny-label">Mode:</span>
+              <select id="expMode" class="filter-select">
+                <option value="full">Full pipeline</option>
+                <option value="retrieval">Study 1 only</option>
+                <option value="reasoning">Study 2 only</option>
+              </select>
+              <span class="tiny-label">Top-k:</span>
+              <input id="expTopK" type="number" min="1" value="3" class="num-input" />
+            </div>
+            <div class="chat-export-row">
+              <button class="btn-xs" id="runExperimentBtn">▶ Run</button>
+              <button class="btn-xs" id="stopExperimentBtn">■ Stop</button>
+            </div>
+          </div>
         <div class="folder-row">
           <input id="expBenchmarkPath" type="text" class="folder-input" placeholder="Benchmark CSV/JSON path" />
           <button id="browseBenchmarkBtn" class="icon-btn" title="Browse benchmark file">📂</button>
@@ -241,6 +260,7 @@
         <div id="expPromptChecks" class="chat-suggestions"></div>
         <div id="expModelChecks" class="chat-suggestions"></div>
         <pre id="expStatusBox" class="exp-status-box">Experiment status will appear here.</pre>
+        </details>
       </div>
     </div>
 

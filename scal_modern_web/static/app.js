@@ -22,6 +22,7 @@ const S = {
   suggestions: [],
   advancedMode: false,
   experimentOptions: { retrieval_configs: [], prompt_types: [], models: [] },
+  benchmarkState: { running: false },
 };
 
 /* ══════════════════════════════════════════
@@ -225,7 +226,7 @@ async function loadModel(kind) {
   show('loadingSpinner', kind === 'llm');
 
   try {
-    const path = kind === 'vlm' ? '/api/models/load-vlm' : '/api/models/load-llm';
+    const path = kind === 'vlm' ? '/api/models/load-vlm' : '/api/models/switch-llm';
     const body = kind === 'llm' ? fd({ model_name: modelName }) : fd({});
     const r = await apiFetch(path, { method: 'POST', body });
     if (!r.ok) {
@@ -233,7 +234,7 @@ async function loadModel(kind) {
       lbl.textContent = kind.toUpperCase() + ' ✗';
       addChatMsg('system', `${kind.toUpperCase()} load failed: ${r.error || 'unknown error'}`);
     } else if (kind === 'llm') {
-      addChatMsg('system', r.message || `LLM load started for ${modelName}.`);
+      addChatMsg('system', r.message || `LLM switch started for ${modelName}.`);
     }
   } catch (e) {
     dot.className = 'dot dot-off';
@@ -269,14 +270,19 @@ async function pollState() {
     const vlmOn = d.models.vlm_loaded;
     const llmOn = d.models.llm_loaded;
     const llmLoading = !!d.models.llm_loading;
+    const llmTarget = d.models.llm_target_model || '';
+    const llmErr = d.models.llm_last_error || '';
     $('vlmDot').className = 'dot ' + (vlmOn ? 'dot-on' : 'dot-off');
     $('vlmLabel').textContent = 'VLM' + (vlmOn ? ' ✓' : '');
     $('llmDot').className = 'dot ' + (llmLoading ? 'dot-busy' : (llmOn ? 'dot-on' : 'dot-off'));
     if (llmLoading) {
-      $('llmLabel').textContent = 'LLM loading…';
+      const target = llmTarget ? ` (${llmTarget.split('/').pop()})` : '';
+      $('llmLabel').textContent = 'LLM loading…' + target;
     } else {
       $('llmLabel').textContent = 'LLM' + (llmOn ? ' ✓' : '');
     }
+    $('loadLlmBtn').disabled = llmLoading;
+    $('unloadLlmBtn').disabled = llmLoading;
 
     // Index bar
     const ix = d.progress.index;
@@ -314,6 +320,11 @@ async function pollState() {
     if (exDetail) exDetail.textContent = ep.detail || '';
     if (S.advancedMode && $('expStatusBox')) {
       $('expStatusBox').textContent = JSON.stringify(ep, null, 2);
+    }
+
+    const bm = d.benchmark || { percent: 0, stage: 'idle', detail: '' };
+    if (S.advancedMode && $('benchStatusBox')) {
+      $('benchStatusBox').textContent = JSON.stringify(bm, null, 2) + (llmErr ? `\n\nModel error: ${llmErr}` : '');
     }
 
     if (!ex.running) $('stopExtractBtn').disabled = true;
@@ -438,6 +449,7 @@ function renderExperimentChecks() {
   const cfgBox = $('expConfigChecks');
   const prmBox = $('expPromptChecks');
   const mdlBox = $('expModelChecks');
+  const bmdlBox = $('benchModelChecks');
   if (!cfgBox || !prmBox || !mdlBox) return;
   const opts = S.experimentOptions || { retrieval_configs: [], prompt_types: [], models: [] };
   cfgBox.innerHTML = (opts.retrieval_configs || []).map((c) =>
@@ -449,6 +461,11 @@ function renderExperimentChecks() {
   mdlBox.innerHTML = (opts.models || []).map((m) =>
     `<label class="radio-label"><input type="checkbox" name="expModel" value="${esc(m.name)}" checked /> ${esc(m.label || m.name)}</label>`
   ).join('');
+  if (bmdlBox) {
+    bmdlBox.innerHTML = (opts.models || []).map((m) =>
+      `<label class="radio-label"><input type="checkbox" name="benchModel" value="${esc(m.name)}" checked /> ${esc(m.label || m.name)}</label>`
+    ).join('');
+  }
 }
 
 function setAdvancedModeUi(enabled) {
@@ -528,6 +545,41 @@ async function stopExperiment() {
     $('expStatusBox').textContent = d.message || 'Stop signal sent.';
   } catch (e) {
     $('expStatusBox').textContent = `Experiment stop error: ${e.message}`;
+  }
+}
+
+async function runModelBenchmark() {
+  const payload = {
+    question: $('benchQuestion').value.trim(),
+    simple_context: $('benchSimpleContext').value.trim(),
+    detailed_context: $('benchDetailedContext').value.trim(),
+    expected_keywords: $('benchExpectedKeywords').value.trim(),
+    model_names: checkedValues('benchModel'),
+    run_id: $('benchRunId').value.trim(),
+    output_root: $('benchOutputRoot').value.trim(),
+  };
+  if (!payload.question) {
+    $('benchStatusBox').textContent = 'Benchmark question is required.';
+    return;
+  }
+  try {
+    const d = await apiFetch('/api/benchmarks/models/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    $('benchStatusBox').textContent = d.message || 'Model benchmark started.';
+  } catch (e) {
+    $('benchStatusBox').textContent = `Benchmark start error: ${e.message}`;
+  }
+}
+
+async function stopModelBenchmark() {
+  try {
+    const d = await apiFetch('/api/benchmarks/models/stop', { method: 'POST', body: fd({}) });
+    $('benchStatusBox').textContent = d.message || 'Benchmark stop requested.';
+  } catch (e) {
+    $('benchStatusBox').textContent = `Benchmark stop error: ${e.message}`;
   }
 }
 
@@ -922,6 +974,8 @@ async function init() {
   // Experiments (advanced)
   $('runExperimentBtn').onclick = runExperiment;
   $('stopExperimentBtn').onclick = stopExperiment;
+  $('runBenchmarkBtn').onclick = runModelBenchmark;
+  $('stopBenchmarkBtn').onclick = stopModelBenchmark;
   $('browseBenchmarkBtn').onclick = async () => {
     try {
       const d = await apiFetch('/api/browse/file', {
@@ -936,6 +990,12 @@ async function init() {
     try {
       const d = await apiFetch('/api/browse/folder', { method: 'POST' });
       if (d.path) $('expOutputRoot').value = d.path;
+    } catch (_) {}
+  };
+  $('browseBenchOutputBtn').onclick = async () => {
+    try {
+      const d = await apiFetch('/api/browse/folder', { method: 'POST' });
+      if (d.path) $('benchOutputRoot').value = d.path;
     } catch (_) {}
   };
 
