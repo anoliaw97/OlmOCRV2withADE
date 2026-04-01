@@ -676,7 +676,7 @@ function addPendingAssistant() {
 async function askChat() {
   const q = $('chatInput').value.trim();
   if (!q) return;
-  const scope = $('chatScope')?.value || 'selected';
+  const scope = 'all';
   const responseMode = $('responseMode')?.value || 'balanced';
   const topK = responseMode === 'fast' ? 5 : (responseMode === 'deep' ? 10 : 8);
 
@@ -700,7 +700,7 @@ async function askChat() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        doc_name: scope === 'all' ? null : S.currentDoc,
+        doc_name: null,
         scope,
         session_id: S.sessionId,
         question: q,
@@ -1078,36 +1078,7 @@ async function init() {
   // Logs
   $('clearLogsBtn').onclick = clearLogs;
 
-  // Experiments (advanced)
-  $('runExperimentBtn').onclick = runExperiment;
-  $('stopExperimentBtn').onclick = stopExperiment;
-  $('runBenchmarkBtn').onclick = runModelBenchmark;
-  $('stopBenchmarkBtn').onclick = stopModelBenchmark;
-  $('browseBenchmarkBtn').onclick = async () => {
-    try {
-      const d = await apiFetch('/api/browse/file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accept: '.csv,.json' }),
-      });
-      if (d.path) $('expBenchmarkPath').value = d.path;
-    } catch (_) {}
-  };
-  $('browseExpOutputBtn').onclick = async () => {
-    try {
-      const d = await apiFetch('/api/browse/folder', { method: 'POST' });
-      if (d.path) $('expOutputRoot').value = d.path;
-    } catch (_) {}
-  };
-  $('browseBenchOutputBtn').onclick = async () => {
-    try {
-      const d = await apiFetch('/api/browse/folder', { method: 'POST' });
-      if (d.path) $('benchOutputRoot').value = d.path;
-    } catch (_) {}
-  };
-
   // Boot
-  await initAdvancedMode();
   await initModelOptions();
   await refreshDocs();
   await loadChatSuggestions();
