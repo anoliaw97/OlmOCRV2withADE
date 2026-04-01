@@ -23,6 +23,7 @@ const S = {
   advancedMode: false,
   experimentOptions: { retrieval_configs: [], prompt_types: [], models: [] },
   benchmarkState: { running: false },
+  activeModelName: '',
 };
 
 /* ══════════════════════════════════════════
@@ -277,6 +278,7 @@ async function pollState() {
     const llmLoading = !!d.models.llm_loading;
     const llmTarget = d.models.llm_target_model || '';
     const llmErr = d.models.llm_last_error || '';
+    S.activeModelName = d.models.llm_model || '';
     $('vlmDot').className = 'dot ' + (vlmOn ? 'dot-on' : 'dot-off');
     $('vlmLabel').textContent = 'VLM' + (vlmOn ? ' ✓' : '');
     $('llmDot').className = 'dot ' + (llmLoading ? 'dot-busy' : (llmOn ? 'dot-on' : 'dot-off'));
@@ -620,12 +622,30 @@ function renderSuggestionChips() {
 /* ══════════════════════════════════════════
    Chat
 ══════════════════════════════════════════ */
+function assistantLabel() {
+  const raw = (S.activeModelName || '').trim();
+  if (!raw) return 'ASSISTANT';
+  const short = raw.includes('/') ? raw.split('/').pop() : raw;
+  return short.toUpperCase();
+}
+
+function sanitizeSystemText(text) {
+  const t = String(text || '');
+  if (t.includes('Select a document (or switch Scope to All PDFs).')) {
+    return 'No document selected. Continuing in general chat mode.';
+  }
+  return t;
+}
+
 function addChatMsg(role, text, extraHtml = '', metaHtml = '') {
   const box = $('chatBox');
   const wrap = document.createElement('div');
   wrap.className = `msg-wrap msg-${role}`;
-  const roleLabel = { user:'YOU', assistant:'ASSISTANT', system:'SYSTEM' }[role] || role.toUpperCase();
-  wrap.innerHTML = `<div class="msg-role">${roleLabel}</div><div class="msg-body">${esc(text).replace(/\n/g,'<br>')}${extraHtml}${metaHtml}</div>`;
+  const roleLabel = role === 'assistant'
+    ? assistantLabel()
+    : ({ user:'YOU', system:'SYSTEM' }[role] || role.toUpperCase());
+  const safeText = role === 'system' ? sanitizeSystemText(text) : text;
+  wrap.innerHTML = `<div class="msg-role">${roleLabel}</div><div class="msg-body">${esc(safeText).replace(/\n/g,'<br>')}${extraHtml}${metaHtml}</div>`;
   box.appendChild(wrap);
   box.scrollTop = box.scrollHeight;
   return wrap;
@@ -647,7 +667,7 @@ function addPendingAssistant() {
   const box = $('chatBox');
   const wrap = document.createElement('div');
   wrap.className = 'msg-wrap msg-assistant msg-pending';
-  wrap.innerHTML = `<div class="msg-role">ASSISTANT</div><div class="msg-body"><span class="typing-cursor">●</span> Thinking... <span class="msg-badge pending-elapsed">0.0s</span></div>`;
+  wrap.innerHTML = `<div class="msg-role">${assistantLabel()}</div><div class="msg-body"><span class="typing-cursor">●</span> Thinking... <span class="msg-badge pending-elapsed">0.0s</span></div>`;
   box.appendChild(wrap);
   box.scrollTop = box.scrollHeight;
   return wrap;
@@ -746,7 +766,8 @@ async function askChat() {
     const role = pending.querySelector('.msg-role');
     if (role) role.textContent = 'SYSTEM';
     const body = pending.querySelector('.msg-body');
-    if (body) body.innerHTML = esc(`Error: ${e.message}`).replace(/\n/g, '<br>');
+    const msg = sanitizeSystemText(`Error: ${e.message}`);
+    if (body) body.innerHTML = esc(msg).replace(/\n/g, '<br>');
   } finally {
     clearInterval(timer);
     sendBtn.disabled = false;
