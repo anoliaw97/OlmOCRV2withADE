@@ -149,6 +149,7 @@ class Runtime:
         self.progress = {
             "index": {"running": False, "percent": 0, "stage": "idle", "detail": ""},
             "extract": {"running": False, "percent": 0, "stage": "idle", "detail": ""},
+            "model": {"running": False, "percent": 0, "stage": "idle", "detail": ""},
         }
 
         self.logs = {
@@ -607,17 +608,35 @@ def load_llm(model_name: str):
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     with R._llm_lock:
+        R.progress["model"]["running"] = True
+        set_progress("model", 5, "starting", f"Preparing LLM load: {model_name}")
+
+        if R._llm_model is not None or R._llm_tok is not None:
+            set_progress("model", 10, "cleanup", "Releasing previous LLM from GPU memory")
+            R._llm_model = None
+            R._llm_tok = None
+            R.llm_loaded = False
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+
         log("status", f"Loading LLM {model_name} …")
+        set_progress("model", 20, "downloading", f"Downloading tokenizer/config for {model_name}")
         tok = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        set_progress("model", 45, "downloading", f"Downloading/loading model weights for {model_name}")
         mdl = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16,
             device_map="auto",
             trust_remote_code=True,
         ).eval()
+        set_progress("model", 90, "finalizing", "Finalizing model load")
         R._llm_tok, R._llm_model = tok, mdl
         R.llm_loaded = True
         R.llm_model_name = model_name
+        set_progress("model", 100, "completed", f"LLM ready: {model_name}")
+        R.progress["model"]["running"] = False
         log("status", f"LLM ready: {model_name}")
 
 
@@ -973,6 +992,7 @@ def api_state():
         "models": {
             "llm_loaded": R.llm_loaded,
             "llm_model": R.llm_model_name,
+            "llm_loading": R._llm_lock.locked(),
             "vlm_loaded": R.vlm_loaded,
         },
     }
@@ -1005,6 +1025,9 @@ def _load_llm_bg(model_name: str):
     try:
         load_llm(model_name)
     except Exception as e:
+        R.llm_loaded = False
+        R.progress["model"]["running"] = False
+        set_progress("model", 100, "failed", f"LLM load failed: {e}")
         log("error", f"LLM load failed: {e}")
         log("debug", traceback.format_exc())
 
@@ -1019,11 +1042,15 @@ def _load_vlm_bg():
 
 @app.post("/api/models/load-llm")
 def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-14B-Instruct")):
-    if R.llm_loaded:
+    model_name = (model_name or "Qwen/Qwen2.5-14B-Instruct").strip()
+    if R.llm_loaded and R.llm_model_name == model_name:
         return {"ok": True, "message": "LLM already loaded"}
     if R._llm_lock.locked():
         return {"ok": False, "message": "LLM is already loading, check logs"}
-    log("status", f"LLM load requested: {model_name}")
+    if R.llm_loaded and R.llm_model_name != model_name:
+        log("status", f"LLM switch requested: {R.llm_model_name} -> {model_name}")
+    else:
+        log("status", f"LLM load requested: {model_name}")
     threading.Thread(target=_load_llm_bg, args=(model_name,), daemon=True).start()
     return {"ok": True, "message": "LLM loading in background — watch logs / model pill"}
 

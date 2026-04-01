@@ -218,21 +218,20 @@ async function loadModel(kind) {
   const lbl = kind === 'vlm' ? $('vlmLabel') : $('llmLabel');
   btn.disabled = true;
   dot.className = 'dot dot-busy';
-  lbl.textContent = kind.toUpperCase() + ' loading…';
-  show('loadingSpinner', true);
+  const modelName = $('llmModelSelect')?.value || 'Qwen/Qwen2.5-14B-Instruct';
+  lbl.textContent = kind === 'llm' ? `LLM loading… (${modelName.split('/').pop()})` : 'VLM loading…';
+  show('loadingSpinner', kind === 'llm');
 
   try {
     const path = kind === 'vlm' ? '/api/models/load-vlm' : '/api/models/load-llm';
-    const modelName = $('llmModelSelect')?.value || 'Qwen/Qwen2.5-14B-Instruct';
     const body = kind === 'llm' ? fd({ model_name: modelName }) : fd({});
     const r = await apiFetch(path, { method: 'POST', body });
-    if (r.ok) {
-      dot.className = 'dot dot-on';
-      lbl.textContent = kind.toUpperCase() + ' ✓';
-    } else {
+    if (!r.ok) {
       dot.className = 'dot dot-off';
       lbl.textContent = kind.toUpperCase() + ' ✗';
       addChatMsg('system', `${kind.toUpperCase()} load failed: ${r.error || 'unknown error'}`);
+    } else if (kind === 'llm') {
+      addChatMsg('system', r.message || `LLM load started for ${modelName}.`);
     }
   } catch (e) {
     dot.className = 'dot dot-off';
@@ -240,7 +239,7 @@ async function loadModel(kind) {
     addChatMsg('system', `${kind.toUpperCase()} load error: ${e.message}`);
   } finally {
     btn.disabled = false;
-    show('loadingSpinner', false);
+    if (kind !== 'llm') show('loadingSpinner', false);
   }
 }
 
@@ -254,10 +253,15 @@ async function pollState() {
     // Model pills
     const vlmOn = d.models.vlm_loaded;
     const llmOn = d.models.llm_loaded;
+    const llmLoading = !!d.models.llm_loading;
     $('vlmDot').className = 'dot ' + (vlmOn ? 'dot-on' : 'dot-off');
     $('vlmLabel').textContent = 'VLM' + (vlmOn ? ' ✓' : '');
-    $('llmDot').className = 'dot ' + (llmOn ? 'dot-on' : 'dot-off');
-    $('llmLabel').textContent = 'LLM' + (llmOn ? ' ✓' : '');
+    $('llmDot').className = 'dot ' + (llmLoading ? 'dot-busy' : (llmOn ? 'dot-on' : 'dot-off'));
+    if (llmLoading) {
+      $('llmLabel').textContent = 'LLM loading…';
+    } else {
+      $('llmLabel').textContent = 'LLM' + (llmOn ? ' ✓' : '');
+    }
 
     // Index bar
     const ix = d.progress.index;
@@ -272,6 +276,17 @@ async function pollState() {
     bE.style.width = ex.percent + '%';
     bE.textContent = ex.percent + '% ' + ex.stage;
     $('extractDetail').textContent = ex.detail || '';
+
+    // Model load bar
+    const md = d.progress.model || { percent: 0, stage: 'idle', detail: '' };
+    const bM = $('barModel');
+    if (bM) {
+      bM.style.width = md.percent + '%';
+      bM.textContent = md.percent + '% ' + md.stage;
+    }
+    const mdDetail = $('modelDetail');
+    if (mdDetail) mdDetail.textContent = md.detail || '';
+    show('loadingSpinner', llmLoading);
 
     if (!ex.running) $('stopExtractBtn').disabled = true;
   } catch (_) {}
