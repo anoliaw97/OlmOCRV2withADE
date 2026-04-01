@@ -57,6 +57,12 @@ EXPORT_DIR = ROOT / "scal_modern_exports"
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 SESSION_FILE = ROOT / "scal_modern_sessions.json"
 
+# Large model cache override (to avoid filling C: drive).
+# Kimi-K2 is very large; route its Hugging Face cache to D:.
+MODEL_CACHE_DIRS: dict[str, Path] = {
+    "moonshotai/Kimi-K2-Instruct": Path(r"D:\hf_cache\moonshotai\Kimi-K2-Instruct"),
+}
+
 LLM_MODEL_OPTIONS = [
     {
         "name": "Qwen/Qwen3-30B-A3B-Instruct-2507",
@@ -622,14 +628,38 @@ def load_llm(model_name: str):
                 pass
 
         log("status", f"Loading LLM {model_name} …")
+
+        cache_dir = MODEL_CACHE_DIRS.get(model_name)
+        if cache_dir is not None:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            # Keep hub metadata and model shards on D: for very large models.
+            os.environ.setdefault("HF_HOME", str(cache_dir.parent.parent))
+            os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(cache_dir.parent.parent / "hub"))
+            os.environ.setdefault("TRANSFORMERS_CACHE", str(cache_dir.parent.parent / "hub"))
+            log("status", f"Using model cache dir: {cache_dir}")
+
+        if model_name.startswith("moonshotai/Kimi-K2"):
+            try:
+                import tiktoken  # noqa: F401
+            except Exception:
+                raise RuntimeError(
+                    "Kimi tokenizer requires tiktoken. Install with: "
+                    "pip install tiktoken"
+                )
+
         set_progress("model", 20, "downloading", f"Downloading tokenizer/config for {model_name}")
-        tok = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        tok = AutoTokenizer.from_pretrained(
+            model_name,
+            trust_remote_code=True,
+            cache_dir=str(cache_dir) if cache_dir is not None else None,
+        )
         set_progress("model", 45, "downloading", f"Downloading/loading model weights for {model_name}")
         mdl = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16,
             device_map="auto",
             trust_remote_code=True,
+            cache_dir=str(cache_dir) if cache_dir is not None else None,
         ).eval()
         set_progress("model", 90, "finalizing", "Finalizing model load")
         R._llm_tok, R._llm_model = tok, mdl
