@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SCAL Rebuild</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">SCAL Rebuild <span id="buildChip" class="chip">build: -</span></div>
+    <div class="model-controls">
+      <span id="modelStatus" class="pill">Model: idle</span>
+      <select id="modelSelect"></select>
+      <button id="switchModelBtn">Switch</button>
+      <button id="unloadModelBtn" class="muted">Unload</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <section>
+        <h3>Data</h3>
+        <div class="row">
+          <input id="dataRoot" type="text" placeholder="Data root" />
+          <button id="refreshDocsBtn">Refresh</button>
+        </div>
+      </section>
+
+      <section>
+        <h3>Documents</h3>
+        <div id="docsList" class="list"></div>
+      </section>
+
+      <section>
+        <h3>Sessions</h3>
+        <div class="row">
+          <select id="sessionSelect"></select>
+          <button id="newSessionBtn">New</button>
+        </div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <div id="chatBox" class="chat-box"></div>
+
+      <div class="composer">
+        <div class="row">
+          <label>Scope</label>
+          <select id="scopeSelect">
+            <option value="all" selected>All docs</option>
+            <option value="selected">Selected doc</option>
+          </select>
+
+          <label>Type</label>
+          <select id="fType">
+            <option value="">All</option>
+            <option value="capillary_pressure">Capillary</option>
+            <option value="relative_permeability">RelPerm</option>
+            <option value="porosity_permeability">PorPerm</option>
+            <option value="general">General</option>
+          </select>
+
+          <label>Mode</label>
+          <select id="responseMode">
+            <option value="fast" selected>Fast</option>
+            <option value="balanced">Balanced</option>
+            <option value="deep">Deep</option>
+          </select>
+        </div>
+        <textarea id="chatInput" rows="3" placeholder="Ask anything (chat works even with no selected document)..."></textarea>
+        <div class="row">
+          <div id="perfHint" class="small">Last: -</div>
+          <button id="sendBtn" class="primary">Send</button>
+          <button id="clearBtn" class="muted">Clear</button>
+        </div>
+      </div>
+
+      <section class="sources">
+        <h3>Retrieved Sources</h3>
+        <div id="sourcesList" class="list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
