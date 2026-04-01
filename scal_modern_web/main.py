@@ -71,6 +71,18 @@ LLM_MODEL_OPTIONS = [
         "notes": "Strong analytical/multi-step reasoning for complex query answering",
     },
     {
+        "name": "zai-org/GLM-4-32B-0414",
+        "label": "GLM-4-32B-0414 (Open-source alternative)",
+        "recommended": False,
+        "notes": "Open-weight GLM model with strong coding/tool capabilities",
+    },
+    {
+        "name": "moonshotai/Kimi-K2-Instruct",
+        "label": "Kimi-K2-Instruct (Very high VRAM)",
+        "recommended": False,
+        "notes": "Open-weight MoE model; excellent quality but very heavy for single-GPU local inference",
+    },
+    {
         "name": "Qwen/Qwen2.5-14B-Instruct",
         "label": "Qwen2.5-14B-Instruct (Stable fallback)",
         "recommended": False,
