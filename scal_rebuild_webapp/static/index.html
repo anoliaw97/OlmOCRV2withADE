@@ -57,6 +57,13 @@
 
       <div class="section-head"><h3>Documents</h3></div>
       <div id="docsList" class="docs-list"></div>
+
+      <div class="section-head"><h3>RAG (Extracted JSON)</h3></div>
+      <div class="row">
+        <button id="buildRagAllBtn" class="btn-primary">Build All</button>
+        <button id="buildRagSelectedBtn" class="btn-muted">Build Selected</button>
+      </div>
+      <div id="ragStatus" class="small-text">RAG status: idle</div>
     </aside>
 
     <main class="chat-main">
@@ -107,10 +114,36 @@
         <h3>Logs</h3>
         <button id="clearLogsBtn" class="btn-muted">Clear</button>
       </div>
+      <div class="row">
+        <button id="logStatusBtn" class="btn-muted active-tab">Status</button>
+        <button id="logDebugBtn" class="btn-muted">Debug</button>
+        <button id="logErrorBtn" class="btn-muted">Error</button>
+      </div>
       <div id="logsList" class="logs-list"></div>
 
+      <div class="section-head"><h3>Preview</h3></div>
+      <div class="row">
+        <select id="previewPageSelect"></select>
+        <button id="refreshPreviewBtn" class="btn-muted">Load</button>
+      </div>
+      <div class="row">
+        <button id="tabPdfBtn" class="btn-muted active-tab">PDF</button>
+        <button id="tabJsonBtn" class="btn-muted">JSON/MD</button>
+        <button id="tabHtmlBtn" class="btn-muted">HTML</button>
+      </div>
+      <div id="previewPdfPane" class="preview-pane"><iframe id="previewPdfFrame"></iframe></div>
+      <pre id="previewJsonPane" class="preview-pane hidden"></pre>
+      <div id="previewHtmlPane" class="preview-pane hidden"></div>
+
       <div class="section-head"><h3>Legacy Advanced UI</h3></div>
-      <button id="openLegacyBtn" class="btn-muted">Open Previous UI (8090)</button>
+      <div class="row">
+        <button id="openLegacyBtn" class="btn-muted">Open in New Tab</button>
+        <button id="reloadLegacyBtn" class="btn-muted">Reload Embed</button>
+      </div>
+      <details id="legacyDetails">
+        <summary class="small-text">Show legacy VLM extraction + debug UI</summary>
+        <iframe id="legacyFrame" src="http://127.0.0.1:8090"></iframe>
+      </details>
     </aside>
   </div>
 

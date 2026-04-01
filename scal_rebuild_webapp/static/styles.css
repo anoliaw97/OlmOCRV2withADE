@@ -163,6 +163,28 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   flex-wrap: wrap;
 }
 
+.reasoning-block {
+  margin-top: 8px;
+  border-top: 1px dashed var(--line);
+  padding-top: 6px;
+}
+
+.reasoning-block summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.reasoning-item {
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.12);
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .badge {
   font-size: 10px;
   color: var(--muted);
@@ -205,6 +227,56 @@ button { cursor: pointer; }
 .row-spread { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
 .advanced-only.hidden { display: none !important; }
+
+.active-tab {
+  border-color: var(--accent);
+  color: #dceeff;
+}
+
+.preview-pane {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 220px;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--bg2);
+  padding: 6px;
+}
+
+#previewPdfFrame {
+  width: 100%;
+  min-height: 300px;
+  border: none;
+  background: #0f1420;
+}
+
+#previewJsonPane {
+  white-space: pre-wrap;
+  font-family: Consolas, "Cascadia Code", monospace;
+  font-size: 11px;
+}
+
+#previewHtmlPane table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+#previewHtmlPane td,
+#previewHtmlPane th {
+  border: 1px solid var(--line);
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+#legacyFrame {
+  width: 100%;
+  min-height: 460px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 8px;
+  background: #0f1520;
+}
 
 @media (max-width: 1200px) {
   .app-layout { grid-template-columns: 270px 1fr; }

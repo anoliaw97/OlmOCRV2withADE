@@ -1,521 +1,609 @@
-'use strict';
-
-const S = {
+const state = {
+  app: {},
+  settings: { backend: "inference_api", ui_mode: "layman", data_root: "" },
+  model: {},
+  services: {},
+  sessions: [],
+  currentSessionId: "",
+  currentDoc: "",
   docs: [],
   coverage: {},
-  currentDoc: null,
-  sessions: [],
-  sessionId: null,
-  activeModelName: '',
-  settings: {
-    backend: 'inference_api',
-    ui_mode: 'layman',
-    data_root: '',
-  },
-  services: {
-    legacy_ui_url: 'http://127.0.0.1:8090',
-  },
+  pagesMap: {},
+  logKind: "status",
+  previewTab: "pdf",
+  lastSources: [],
+  streaming: false,
 };
 
-function $(id) { return document.getElementById(id); }
+const $ = (id) => document.getElementById(id);
+
 function esc(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-async function apiFetch(path, opts = {}) {
-  const r = await fetch(path, opts);
-  const ct = r.headers.get('content-type') || '';
-  if (!ct.includes('application/json')) {
-    throw new Error((await r.text()) || `HTTP ${r.status}`);
+function fmtTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
+async function apiJson(url, options = {}) {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
   }
-  const d = await r.json();
-  if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
-  return d;
+  return res.json();
 }
 
-function fd(obj) {
-  const f = new FormData();
-  for (const [k, v] of Object.entries(obj || {})) {
-    if (v !== null && v !== undefined && v !== '') f.append(k, v);
-  }
-  return f;
-}
-
-function assistantLabel() {
-  const raw = (S.activeModelName || '').trim();
-  if (!raw) return 'ASSISTANT';
-  const short = raw.includes('/') ? raw.split('/').pop() : raw;
-  return short.toUpperCase();
-}
-
-function addMsg(role, text, extraHtml = '') {
-  const box = $('chatBox');
-  const wrap = document.createElement('div');
-  wrap.className = `msg ${role}`;
-  const label = role === 'assistant'
-    ? assistantLabel()
-    : ({ user: 'YOU', system: 'SYSTEM' }[role] || role.toUpperCase());
-  wrap.innerHTML = `<div class="role">${label}</div><div class="body">${esc(text).replace(/\n/g, '<br>')}${extraHtml}</div>`;
-  box.appendChild(wrap);
-  box.scrollTop = box.scrollHeight;
-  return wrap;
-}
-
-function addPendingAssistant() {
-  const box = $('chatBox');
-  const wrap = document.createElement('div');
-  wrap.className = 'msg assistant';
-  wrap.innerHTML = `<div class="role">${assistantLabel()}</div><div class="body">Thinking... <span class="badge pending-elapsed">0.0s</span></div>`;
-  box.appendChild(wrap);
-  box.scrollTop = box.scrollHeight;
-  return wrap;
-}
-
-function perfBadges(m = {}) {
-  const chips = [];
-  if (m.backend) chips.push(`<span class="badge">backend=${esc(m.backend)}</span>`);
-  if (m.response_mode) chips.push(`<span class="badge">mode=${esc(m.response_mode)}</span>`);
-  if (m.first_token_ms != null) chips.push(`<span class="badge">first=${(Number(m.first_token_ms) / 1000).toFixed(2)}s</span>`);
-  if (m.total_ms != null) chips.push(`<span class="badge">total=${(Number(m.total_ms) / 1000).toFixed(2)}s</span>`);
-  if (m.tokens_per_sec != null) chips.push(`<span class="badge">tok/s=${esc(m.tokens_per_sec)}</span>`);
-  if (m.hits != null) chips.push(`<span class="badge">hits=${esc(m.hits)}</span>`);
-  if (!chips.length) return '';
-  return `<div class="meta">${chips.join('')}</div>`;
-}
-
-function setUiMode(mode) {
-  const advanced = mode === 'advanced';
-  document.querySelectorAll('.advanced-only').forEach((el) => {
-    el.classList.toggle('hidden', !advanced);
+async function apiForm(url, formObj) {
+  const body = new URLSearchParams();
+  Object.entries(formObj || {}).forEach(([k, v]) => body.append(k, String(v ?? "")));
+  return apiJson(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
   });
 }
 
-async function saveSettings(partial) {
-  const d = await apiFetch('/api/settings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(partial),
-  });
-  S.settings = d.settings || S.settings;
-  $('dataRoot').value = S.settings.data_root || $('dataRoot').value;
-  $('uiModeSelect').value = S.settings.ui_mode || 'layman';
-  $('backendSelect').value = S.settings.backend || 'inference_api';
-  setUiMode(S.settings.ui_mode || 'layman');
-  return d;
+function systemMsg(text) {
+  addMessage("system", text || "");
 }
 
-function renderDocs() {
-  const box = $('docsList');
-  if (!S.docs.length) {
-    box.innerHTML = '<div class="small-text">No extracted documents found.</div>';
-    return;
-  }
-  box.innerHTML = S.docs.map((d) => {
-    const c = S.coverage[d] || {};
-    const cls = d === S.currentDoc ? 'doc-item active' : 'doc-item';
-    const missing = Array.isArray(c.missing_pages) ? c.missing_pages.length : 0;
-    return `<div class="${cls}" data-doc="${esc(d)}"><div>${esc(d)}</div><div class="doc-meta">pages=${esc(c.extracted_pages || 0)} · missing=${esc(missing)}</div></div>`;
-  }).join('');
-  box.querySelectorAll('[data-doc]').forEach((el) => {
-    el.onclick = () => {
-      S.currentDoc = el.getAttribute('data-doc');
-      renderDocs();
-    };
+function applyUiMode(mode) {
+  const isAdvanced = mode === "advanced";
+  document.querySelectorAll(".advanced-only").forEach((el) => {
+    el.classList.toggle("hidden", !isAdvanced);
   });
 }
 
-async function refreshDocs() {
-  try {
-    const root = $('dataRoot').value.trim();
-    const d = await apiFetch(`/api/docs?root=${encodeURIComponent(root)}`);
-    S.docs = d.documents || [];
-    S.coverage = d.coverage || {};
-    if (!S.currentDoc && S.docs.length) S.currentDoc = S.docs[0];
-    renderDocs();
-  } catch (e) {
-    addMsg('system', `Docs refresh failed: ${e.message}`);
-  }
+function updateModelStatus() {
+  const m = state.model || {};
+  const status = m.loading
+    ? `Model: loading ${m.target_model || ""}`
+    : m.loaded
+      ? `Model: ${m.model_name || "ready"} (${m.backend || state.settings.backend})`
+      : `Model: idle (${state.settings.backend})`;
+  $("modelStatus").textContent = status;
+}
+
+async function saveSettings(patch) {
+  const data = await apiJson("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch || {}),
+  });
+  state.settings = data.settings || state.settings;
+  applyUiMode(state.settings.ui_mode);
+  return data;
+}
+
+async function loadState() {
+  const s = await apiJson("/api/state");
+  state.app = s.app || {};
+  state.settings = s.settings || state.settings;
+  state.model = s.model || {};
+  state.services = s.services || {};
+
+  $("buildChip").textContent = `build: ${state.app.build || "-"}`;
+  $("uiModeSelect").value = state.settings.ui_mode || "layman";
+  $("backendSelect").value = state.settings.backend || "inference_api";
+  $("dataRoot").value = state.settings.data_root || "";
+  applyUiMode(state.settings.ui_mode || "layman");
+  updateModelStatus();
+
+  const legacy = $("legacyFrame");
+  if (legacy && state.services.legacy_ui_url) legacy.src = state.services.legacy_ui_url;
 }
 
 function renderSessions() {
-  const box = $('sessionsList');
-  if (!S.sessions.length) {
-    box.innerHTML = '<div class="small-text">No chats yet.</div>';
-    return;
+  const host = $("sessionsList");
+  host.innerHTML = "";
+  for (const s of state.sessions) {
+    const row = document.createElement("div");
+    row.className = `session-item ${s.id === state.currentSessionId ? "active" : ""}`;
+    row.innerHTML = `
+      <div class="row-spread">
+        <div class="session-title" title="${esc(s.title || "")}">${esc(s.title || "Session")}</div>
+        <div class="row">
+          <button class="btn-muted" data-act="rename" data-id="${esc(s.id)}">Rename</button>
+          <button class="btn-muted" data-act="delete" data-id="${esc(s.id)}">Delete</button>
+        </div>
+      </div>
+      <div class="session-meta">${esc(fmtTime(s.updated_at))} · ${Number(s.message_count || 0)} msgs</div>
+    `;
+    row.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button");
+      if (btn) return;
+      await openSession(s.id);
+    });
+    host.appendChild(row);
   }
-  box.innerHTML = S.sessions.map((s) => {
-    const cls = s.id === S.sessionId ? 'session-item active' : 'session-item';
-    return `<div class="${cls}" data-sid="${esc(s.id)}"><div class="session-title">${esc(s.title || 'SCAL Chat')}</div><div class="session-meta">${esc(s.updated_at || '')}</div><div class="row"><button class="btn-muted session-del" data-del="${esc(s.id)}">Delete</button></div></div>`;
-  }).join('');
 
-  box.querySelectorAll('[data-sid]').forEach((el) => {
-    el.onclick = async (ev) => {
-      if (ev.target.classList.contains('session-del')) return;
-      const sid = el.getAttribute('data-sid');
-      S.sessionId = sid;
-      await loadSession(sid);
-      renderSessions();
-    };
+  host.querySelectorAll("button[data-act='rename']").forEach((b) => {
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const sid = b.getAttribute("data-id") || "";
+      const cur = state.sessions.find((x) => x.id === sid);
+      const next = window.prompt("New session name", cur?.title || "SCAL Chat");
+      if (next === null) return;
+      await apiJson(`/api/chat/session/${encodeURIComponent(sid)}/title`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: next }),
+      });
+      await refreshSessions();
+    });
   });
-  box.querySelectorAll('.session-del').forEach((b) => {
-    b.onclick = async (ev) => {
-      ev.stopPropagation();
-      const sid = b.getAttribute('data-del');
-      await deleteSession(sid);
-    };
+
+  host.querySelectorAll("button[data-act='delete']").forEach((b) => {
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const sid = b.getAttribute("data-id") || "";
+      if (!window.confirm("Delete this session?")) return;
+      await apiJson(`/api/chat/session/${encodeURIComponent(sid)}`, { method: "DELETE" });
+      if (state.currentSessionId === sid) {
+        state.currentSessionId = "";
+        $("chatBox").innerHTML = "";
+      }
+      await refreshSessions();
+      if (!state.currentSessionId && state.sessions.length) {
+        await openSession(state.sessions[0].id);
+      }
+    });
   });
 }
 
 async function refreshSessions() {
-  try {
-    const d = await apiFetch('/api/chat/sessions');
-    S.sessions = d.sessions || [];
-    if (!S.sessionId && S.sessions.length) S.sessionId = S.sessions[0].id;
-    renderSessions();
-  } catch (e) {
-    addMsg('system', `Session list failed: ${e.message}`);
-  }
+  const data = await apiJson("/api/chat/sessions");
+  state.sessions = data.sessions || [];
+  renderSessions();
 }
 
-async function loadSession(sessionId) {
-  if (!sessionId) return;
-  try {
-    const d = await apiFetch(`/api/chat/session/${encodeURIComponent(sessionId)}`);
-    const msgs = d.session?.messages || [];
-    const box = $('chatBox');
-    box.innerHTML = '';
-    msgs.forEach((m) => {
-      const role = m.role === 'assistant' ? 'assistant' : (m.role === 'user' ? 'user' : 'system');
-      addMsg(role, m.content || '');
+function addMessage(role, content, extra = {}) {
+  const chat = $("chatBox");
+  const item = document.createElement("div");
+  item.className = `msg ${role}`;
+  item.innerHTML = `
+    <div class="role">${esc(role)}</div>
+    <div class="content"></div>
+    <div class="meta"></div>
+  `;
+  item.querySelector(".content").innerHTML = esc(content || "").replace(/\n/g, "<br>");
+
+  if (role === "assistant" && Array.isArray(extra.sources) && extra.sources.length) {
+    const rb = document.createElement("details");
+    rb.className = "reasoning-block";
+    rb.open = false;
+    const lines = extra.sources
+      .map((s) => {
+        const snip = esc(String(s.snippet || ""));
+        return `<div class="reasoning-item">#${s.rank} score=${s.score} file=${esc(s.file_name || "?")} page=${esc(s.page_number || "?")}<br>${snip}</div>`;
+      })
+      .join("");
+    rb.innerHTML = `<summary>Reasoning (${extra.sources.length})</summary>${lines}`;
+    item.appendChild(rb);
+  }
+
+  if (extra.metrics && role === "assistant") {
+    const m = extra.metrics;
+    const meta = item.querySelector(".meta");
+    const badges = [
+      `backend:${m.backend || ""}`,
+      `mode:${m.response_mode || ""}`,
+      `hits:${m.hits ?? "-"}`,
+      `tps:${m.tokens_per_sec ?? "-"}`,
+      `ms:${m.total_ms ?? "-"}`,
+    ];
+    meta.innerHTML = badges.map((b) => `<span class="badge">${esc(b)}</span>`).join("");
+  }
+
+  chat.appendChild(item);
+  chat.scrollTop = chat.scrollHeight;
+  return item;
+}
+
+async function openSession(sessionId) {
+  const data = await apiJson(`/api/chat/session/${encodeURIComponent(sessionId)}`);
+  state.currentSessionId = sessionId;
+  $("chatBox").innerHTML = "";
+  const msgs = data.session?.messages || [];
+  for (const m of msgs) {
+    addMessage(m.role || "assistant", m.content || "", { sources: m.sources || [] });
+  }
+  renderSessions();
+}
+
+function renderDocs() {
+  const host = $("docsList");
+  host.innerHTML = "";
+  for (const name of state.docs) {
+    const cov = state.coverage[name] || {};
+    const item = document.createElement("div");
+    item.className = `doc-item ${name === state.currentDoc ? "active" : ""}`;
+    item.innerHTML = `
+      <div class="session-title" title="${esc(name)}">${esc(name)}</div>
+      <div class="doc-meta">pdf:${cov.pdf_pages || 0} extracted:${cov.extracted_pages || 0} missing:${(cov.missing_pages || []).length}</div>
+    `;
+    item.addEventListener("click", () => {
+      state.currentDoc = name;
+      renderDocs();
+      populatePreviewPages();
+      if ($("scopeSelect").value === "selected") {
+        systemMsg(`Selected doc: ${name}`);
+      }
     });
-  } catch (e) {
-    addMsg('system', `Session load failed: ${e.message}`);
+    host.appendChild(item);
+  }
+  if (!state.currentDoc && state.docs.length) {
+    state.currentDoc = state.docs[0];
+    renderDocs();
+    populatePreviewPages();
   }
 }
 
-async function newSession() {
-  try {
-    const d = await apiFetch('/api/chat/session/new', { method: 'POST', body: fd({ title: 'SCAL Chat' }) });
-    S.sessionId = d.session?.id || null;
-    await refreshSessions();
-    $('chatBox').innerHTML = '';
-    $('sourcesList').innerHTML = '';
-  } catch (e) {
-    addMsg('system', `New chat failed: ${e.message}`);
+async function refreshDocs() {
+  const root = ($("dataRoot").value || "").trim();
+  const q = root ? `?root=${encodeURIComponent(root)}` : "";
+  const data = await apiJson(`/api/docs${q}`);
+  state.docs = data.documents || [];
+  state.coverage = data.coverage || {};
+  state.pagesMap = data.pages_map || {};
+  $("dataRoot").value = data.data_root || root;
+  renderDocs();
+}
+
+function populatePreviewPages() {
+  const sel = $("previewPageSelect");
+  sel.innerHTML = "";
+  const doc = state.currentDoc;
+  const pages = doc ? state.pagesMap[doc] || [] : [];
+  for (const p of pages) {
+    const opt = document.createElement("option");
+    opt.value = String(p.page);
+    const tags = [p.has_pdf ? "pdf" : "", p.has_json ? "json" : "", p.has_md ? "md" : ""].filter(Boolean).join("/");
+    opt.textContent = `Page ${p.page} (${tags || "none"})`;
+    sel.appendChild(opt);
   }
 }
 
-async function deleteSession(sessionId) {
-  if (!sessionId) return;
-  try {
-    await apiFetch(`/api/chat/session/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
-    if (S.sessionId === sessionId) {
-      S.sessionId = null;
-      $('chatBox').innerHTML = '';
-    }
-    await refreshSessions();
-    if (S.sessionId) await loadSession(S.sessionId);
-    else if (S.sessions.length) {
-      S.sessionId = S.sessions[0].id;
-      await loadSession(S.sessionId);
-    }
-  } catch (e) {
-    addMsg('system', `Delete chat failed: ${e.message}`);
+function switchPreviewTab(tab) {
+  state.previewTab = tab;
+  const ids = ["pdf", "json", "html"];
+  for (const t of ids) {
+    $(`tab${t[0].toUpperCase() + t.slice(1)}Btn`).classList.toggle("active-tab", t === tab);
+    $(`preview${t[0].toUpperCase() + t.slice(1)}Pane`).classList.toggle("hidden", t !== tab);
   }
 }
 
-function renderSources(items = []) {
-  const box = $('sourcesList');
-  if (!items.length) {
-    box.innerHTML = '<div class="small-text">No retrieval sources.</div>';
+async function loadPreview() {
+  const doc = state.currentDoc;
+  const page = Number($("previewPageSelect").value || 0);
+  if (!doc || !page) {
+    systemMsg("Select a document/page for preview.");
     return;
   }
-  box.innerHTML = items.map((x) => {
-    const title = `[${x.rank}] ${x.file_name || '-'} · p${x.page_number || '-'} · ${x.table_id || '-'}`;
-    return `<div class="source-item"><div>${esc(title)}</div><div class="source-meta">score=${esc(x.score)} · ${esc(x.extraction_type || 'general')}</div><div class="source-meta">${esc(x.snippet || '')}</div></div>`;
-  }).join('');
+  const data = await apiJson(`/api/page/view?doc_name=${encodeURIComponent(doc)}&page=${encodeURIComponent(page)}`);
+  const files = data.files || {};
+
+  $("previewPdfFrame").src = files.pdf_url || "about:blank";
+  $("previewJsonPane").textContent = data.raw_json || data.raw_text || "(empty)";
+  $("previewHtmlPane").innerHTML = (data.tables || []).join("\n") || "<div class='small-text'>No HTML table found on this page.</div>";
+
+  if (state.previewTab === "pdf" && !files.pdf_url) switchPreviewTab(files.json_url || files.md_url ? "json" : "html");
 }
 
-async function refreshModels() {
-  try {
-    const d = await apiFetch('/api/models/options');
-    const sel = $('modelSelect');
-    sel.innerHTML = '';
-    (d.models || []).forEach((m) => {
-      const op = document.createElement('option');
-      op.value = m.name;
-      op.textContent = m.label || m.name;
-      sel.appendChild(op);
-    });
-    const active = d.active || '';
-    const def = d.default || '';
-    if (active) sel.value = active;
-    else if (def) sel.value = def;
-  } catch (e) {
-    addMsg('system', `Model options failed: ${e.message}`);
+function renderSources(list) {
+  state.lastSources = list || [];
+  const host = $("sourcesList");
+  host.innerHTML = "";
+  for (const s of state.lastSources) {
+    const item = document.createElement("div");
+    item.className = "source-item";
+    item.innerHTML = `
+      <div>${esc(s.file_name || "?")} · page ${esc(s.page_number || "?")}</div>
+      <div class="source-meta">score ${esc(s.score ?? "-")} · ${esc(s.extraction_type || "-")}</div>
+    `;
+    host.appendChild(item);
   }
-}
-
-async function switchModel() {
-  const modelName = $('modelSelect').value;
-  if (!modelName) return;
-  try {
-    const d = await apiFetch('/api/models/switch', { method: 'POST', body: fd({ model_name: modelName }) });
-    addMsg('system', d.message || `Switch requested: ${modelName}`);
-  } catch (e) {
-    addMsg('system', `Switch failed: ${e.message}`);
-  }
-}
-
-async function pullModel() {
-  const modelName = $('modelSelect').value;
-  if (!modelName) return;
-  try {
-    const d = await apiFetch('/api/models/pull', { method: 'POST', body: fd({ model_name: modelName }) });
-    addMsg('system', d.message || `Pull started: ${modelName}`);
-  } catch (e) {
-    addMsg('system', `Pull failed: ${e.message}`);
-  }
-}
-
-async function unloadModel() {
-  try {
-    const d = await apiFetch('/api/models/unload', { method: 'POST', body: fd({}) });
-    addMsg('system', d.message || 'Unload requested.');
-  } catch (e) {
-    addMsg('system', `Unload failed: ${e.message}`);
-  }
-}
-
-async function browseDataRoot() {
-  try {
-    const d = await apiFetch('/api/browse/folder', { method: 'POST' });
-    if (!d.path) return;
-    $('dataRoot').value = d.path;
-    await saveSettings({ data_root: d.path });
-    await refreshDocs();
-  } catch (e) {
-    addMsg('system', `Browse failed: ${e.message}`);
-  }
-}
-
-async function pollState() {
-  try {
-    const d = await apiFetch('/api/state');
-    if (d.app) {
-      $('buildChip').textContent = `build: ${d.app.build || 'dev'}`;
-      $('buildChip').title = `Started: ${d.app.started_at || '-'}`;
-    }
-    if (d.settings) {
-      S.settings = d.settings;
-      $('uiModeSelect').value = S.settings.ui_mode || 'layman';
-      $('backendSelect').value = S.settings.backend || 'inference_api';
-      setUiMode(S.settings.ui_mode || 'layman');
-    }
-    if (d.services) S.services = d.services;
-
-    const m = d.model || {};
-    S.activeModelName = m.model_name || '';
-    const stateText = m.loading
-      ? `loading ${m.target_model || ''}`
-      : (m.loaded ? (m.model_name || 'loaded') : 'idle');
-    $('modelStatus').textContent = `Model: ${stateText}`;
-    $('modelStatus').style.color = m.last_error ? 'var(--warn)' : (m.loaded ? 'var(--good)' : 'var(--muted)');
-    $('modelStatus').title = m.last_error || '';
-  } catch (_) {}
 }
 
 async function refreshLogs() {
-  if (S.settings.ui_mode !== 'advanced') return;
-  try {
-    const d = await apiFetch('/api/logs?kind=status&limit=120');
-    const box = $('logsList');
-    const items = d.items || [];
-    if (!items.length) {
-      box.innerHTML = '<div class="small-text">No logs.</div>';
-      return;
-    }
-    box.innerHTML = items.map((x) => `<div class="log-item"><div class="source-meta">${esc(x.time || '')}</div><div>${esc(x.msg || '')}</div></div>`).join('');
-  } catch (_) {}
-}
-
-async function clearLogs() {
-  try {
-    await apiFetch('/api/logs/clear', { method: 'POST', body: fd({ kind: 'all' }) });
-    await refreshLogs();
-  } catch (e) {
-    addMsg('system', `Clear logs failed: ${e.message}`);
+  const data = await apiJson(`/api/logs?kind=${encodeURIComponent(state.logKind)}&limit=200`);
+  const host = $("logsList");
+  host.innerHTML = "";
+  for (const x of data.items || []) {
+    const item = document.createElement("div");
+    item.className = "log-item";
+    item.innerHTML = `<div class="source-meta">${esc(x.time || "")}</div><div>${esc(x.msg || "")}</div>`;
+    host.appendChild(item);
   }
+  host.scrollTop = host.scrollHeight;
 }
 
-async function askChat() {
-  const q = $('chatInput').value.trim();
-  if (!q) return;
+async function refreshModels() {
+  const data = await apiJson("/api/models/options");
+  const select = $("modelSelect");
+  select.innerHTML = "";
+  for (const m of data.models || []) {
+    const o = document.createElement("option");
+    o.value = m.name;
+    o.textContent = m.label || m.name;
+    select.appendChild(o);
+  }
+  const pick = data.active || data.default || "";
+  if (pick) select.value = pick;
+}
 
-  const scope = (S.settings.ui_mode === 'advanced') ? ($('scopeSelect').value || 'all') : 'all';
-  const fType = (S.settings.ui_mode === 'advanced') ? ($('fType').value || null) : null;
-  const responseMode = (S.settings.ui_mode === 'advanced') ? ($('responseMode').value || 'fast') : 'fast';
-  const topK = responseMode === 'fast' ? 5 : (responseMode === 'deep' ? 10 : 8);
-  const docName = (scope === 'selected' && S.currentDoc) ? S.currentDoc : null;
+async function runChatStream(payload) {
+  const res = await fetch("/api/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(await res.text() || `HTTP ${res.status}`);
+  }
 
-  addMsg('user', q);
-  $('chatInput').value = '';
+  const assistantItem = addMessage("assistant", "");
+  const contentEl = assistantItem.querySelector(".content");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let doneEvent = null;
 
-  const pending = addPendingAssistant();
-  const elapsed = pending.querySelector('.pending-elapsed');
-  const t0 = performance.now();
-  const timer = setInterval(() => {
-    if (elapsed) elapsed.textContent = `${((performance.now() - t0) / 1000).toFixed(1)}s`;
-  }, 120);
-
-  const sendBtn = $('sendBtn');
-  sendBtn.disabled = true;
-
-  try {
-    const resp = await fetch('/api/chat/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        question: q,
-        session_id: S.sessionId,
-        doc_name: docName,
-        scope,
-        filter_extraction_type: fType,
-        response_mode: responseMode,
-        prompt_template: '',
-        top_k: topK,
-      }),
-    });
-    if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    let streamed = '';
-    let donePayload = null;
-    const body = pending.querySelector('.body');
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      while (true) {
-        const sep = buf.indexOf('\n\n');
-        if (sep < 0) break;
-        const eventRaw = buf.slice(0, sep);
-        buf = buf.slice(sep + 2);
-
-        const dataLines = eventRaw.split('\n').filter((ln) => ln.startsWith('data:')).map((ln) => ln.slice(5).trim());
-        if (!dataLines.length) continue;
-        const payload = dataLines.join('\n');
-        let ev = null;
-        try { ev = JSON.parse(payload); } catch (_) { ev = null; }
-        if (!ev) continue;
-
-        if (ev.type === 'token') {
-          streamed += ev.text || '';
-          if (body) body.innerHTML = esc(streamed).replace(/\n/g, '<br>');
-        } else if (ev.type === 'done') {
-          donePayload = ev;
-        } else if (ev.type === 'error') {
-          throw new Error(ev.message || 'stream failed');
-        }
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const chunks = buf.split("\n\n");
+    buf = chunks.pop() || "";
+    for (const c of chunks) {
+      const lines = c.split("\n").filter((x) => x.startsWith("data:"));
+      if (!lines.length) continue;
+      const raw = lines.map((x) => x.slice(5).trim()).join("\n");
+      if (!raw) continue;
+      let ev;
+      try {
+        ev = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      if (ev.type === "token") {
+        contentEl.innerHTML += esc(ev.text || "").replace(/\n/g, "<br>");
+        $("chatBox").scrollTop = $("chatBox").scrollHeight;
+      } else if (ev.type === "done") {
+        doneEvent = ev;
+      } else if (ev.type === "error") {
+        throw new Error(ev.message || "Stream failed");
       }
     }
+  }
 
-    const d = donePayload || {};
-    if (!d.answer) d.answer = streamed || '(no answer)';
-    if (d.session_id) S.sessionId = d.session_id;
-
-    pending.className = 'msg assistant';
-    if (body) body.innerHTML = `${esc(d.answer).replace(/\n/g, '<br>')}${perfBadges(d.metrics || {})}`;
-
-    renderSources(d.reasoning || []);
-    if (d.metrics && d.metrics.total_ms != null) {
-      $('perfHint').textContent = `Last: ${(Number(d.metrics.total_ms) / 1000).toFixed(2)}s · tok/s ${d.metrics.tokens_per_sec ?? 0}`;
+  if (doneEvent) {
+    const finalContent = doneEvent.answer || "";
+    contentEl.innerHTML = esc(finalContent).replace(/\n/g, "<br>");
+    if (Array.isArray(doneEvent.sources) && doneEvent.sources.length) {
+      const rb = document.createElement("details");
+      rb.className = "reasoning-block";
+      rb.open = false;
+      rb.innerHTML = `<summary>Reasoning (${doneEvent.sources.length})</summary>`;
+      for (const s of doneEvent.sources) {
+        const line = document.createElement("div");
+        line.className = "reasoning-item";
+        line.innerHTML = `#${esc(s.rank)} score=${esc(s.score)} file=${esc(s.file_name || "?")} page=${esc(s.page_number || "?")}<br>${esc(s.snippet || "")}`;
+        rb.appendChild(line);
+      }
+      assistantItem.appendChild(rb);
     }
-
-    await refreshSessions();
-    renderSessions();
-  } catch (e) {
-    pending.className = 'msg system';
-    const role = pending.querySelector('.role');
-    if (role) role.textContent = 'SYSTEM';
-    const body = pending.querySelector('.body');
-    if (body) body.innerHTML = esc(`Error: ${e.message}`).replace(/\n/g, '<br>');
-  } finally {
-    clearInterval(timer);
-    sendBtn.disabled = false;
+    if (doneEvent.metrics) {
+      const m = doneEvent.metrics;
+      assistantItem.querySelector(".meta").innerHTML = [
+        `backend:${m.backend || ""}`,
+        `mode:${m.response_mode || ""}`,
+        `hits:${m.hits ?? "-"}`,
+        `tps:${m.tokens_per_sec ?? "-"}`,
+        `ms:${m.total_ms ?? "-"}`,
+      ].map((x) => `<span class='badge'>${esc(x)}</span>`).join("");
+      $("perfHint").textContent = `Last: ${m.total_ms || "-"} ms | hits ${m.hits || 0} | ${m.tokens_per_sec || "-"} tok/s`;
+    }
+    if (doneEvent.session_id) state.currentSessionId = doneEvent.session_id;
+    renderSources(doneEvent.sources || []);
   }
 }
 
-function clearChatView() {
-  $('chatBox').innerHTML = '';
-  renderSources([]);
+async function sendChat() {
+  if (state.streaming) return;
+  const q = ($("chatInput").value || "").trim();
+  if (!q) return;
+
+  if (!state.currentSessionId) {
+    const s = await apiForm("/api/chat/session/new", { title: "SCAL Chat" });
+    state.currentSessionId = s.session?.id || "";
+  }
+
+  const payload = {
+    question: q,
+    session_id: state.currentSessionId || null,
+    doc_name: state.currentDoc || null,
+    scope: $("scopeSelect").value || "all",
+    filter_extraction_type: $("fType").value || null,
+    response_mode: $("responseMode").value || "fast",
+    prompt_template: "You are a precise SCAL analysis assistant.",
+    top_k: 8,
+  };
+
+  addMessage("user", q);
+  $("chatInput").value = "";
+  state.streaming = true;
+  $("sendBtn").disabled = true;
+
+  try {
+    await runChatStream(payload);
+    await refreshSessions();
+    if (state.currentSessionId) renderSessions();
+  } catch (e) {
+    systemMsg(`Error: ${e.message || e}`);
+  } finally {
+    state.streaming = false;
+    $("sendBtn").disabled = false;
+  }
 }
 
-async function init() {
-  $('sendBtn').onclick = askChat;
-  $('clearBtn').onclick = clearChatView;
-  $('newSessionBtn').onclick = newSession;
-  $('refreshDocsBtn').onclick = refreshDocs;
-  $('browseDataRootBtn').onclick = browseDataRoot;
+async function buildRag(scope) {
+  const form = { scope };
+  if (scope === "selected") form.doc_name = state.currentDoc || "";
+  if (scope === "selected" && !form.doc_name) {
+    systemMsg("Select a document first for selected RAG build.");
+    return;
+  }
+  $("ragStatus").textContent = "RAG status: building...";
+  const data = await apiForm("/api/rag/build", form);
+  $("ragStatus").textContent = `RAG status: ${data.message || "done"}`;
+}
 
-  $('switchModelBtn').onclick = switchModel;
-  $('pullModelBtn').onclick = pullModel;
-  $('unloadModelBtn').onclick = unloadModel;
-  $('clearLogsBtn').onclick = clearLogs;
-  $('openLegacyBtn').onclick = () => {
-    window.open(S.services.legacy_ui_url || 'http://127.0.0.1:8090', '_blank');
-  };
+function bindEvents() {
+  $("newSessionBtn").addEventListener("click", async () => {
+    const data = await apiForm("/api/chat/session/new", { title: "SCAL Chat" });
+    state.currentSessionId = data.session?.id || "";
+    $("chatBox").innerHTML = "";
+    await refreshSessions();
+    renderSessions();
+  });
 
-  $('uiModeSelect').onchange = async (e) => {
-    const mode = e.target.value;
-    await saveSettings({ ui_mode: mode });
-  };
-
-  $('backendSelect').onchange = async (e) => {
-    const backend = e.target.value;
-    await saveSettings({ backend });
-    await refreshModels();
-    await pollState();
-  };
-
-  $('chatInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  $("sendBtn").addEventListener("click", sendChat);
+  $("clearBtn").addEventListener("click", () => { $("chatBox").innerHTML = ""; });
+  $("chatInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      askChat();
+      sendChat();
     }
   });
 
-  try {
-    const s = await apiFetch('/api/settings');
-    S.settings = s.settings || S.settings;
-  } catch (_) {}
+  $("refreshDocsBtn").addEventListener("click", refreshDocs);
+  $("browseDataRootBtn").addEventListener("click", async () => {
+    const r = await apiJson("/api/browse/folder", { method: "POST" });
+    if (r.path) {
+      $("dataRoot").value = r.path;
+      await saveSettings({ data_root: r.path });
+      await refreshDocs();
+    }
+  });
+  $("dataRoot").addEventListener("change", async () => {
+    await saveSettings({ data_root: $("dataRoot").value.trim() });
+    await refreshDocs();
+  });
 
-  $('dataRoot').value = S.settings.data_root || '';
-  $('uiModeSelect').value = S.settings.ui_mode || 'layman';
-  $('backendSelect').value = S.settings.backend || 'inference_api';
-  setUiMode(S.settings.ui_mode || 'layman');
+  $("buildRagAllBtn").addEventListener("click", () => buildRag("all"));
+  $("buildRagSelectedBtn").addEventListener("click", () => buildRag("selected"));
 
-  await refreshModels();
-  await refreshDocs();
-  await refreshSessions();
-  if (!S.sessionId) {
-    await newSession();
-  } else {
-    await loadSession(S.sessionId);
-  }
-  await pollState();
-  await refreshLogs();
+  $("uiModeSelect").addEventListener("change", async () => {
+    await saveSettings({ ui_mode: $("uiModeSelect").value });
+    applyUiMode(state.settings.ui_mode);
+  });
+  $("backendSelect").addEventListener("change", async () => {
+    await saveSettings({ backend: $("backendSelect").value });
+    await loadState();
+    await refreshModels();
+  });
 
-  setInterval(async () => {
-    await pollState();
+  $("switchModelBtn").addEventListener("click", async () => {
+    const modelName = $("modelSelect").value || "";
+    const r = await apiForm("/api/models/switch", { model_name: modelName });
+    systemMsg(r.message || "Switch complete");
+    await loadState();
+    await refreshModels();
+  });
+
+  $("pullModelBtn").addEventListener("click", async () => {
+    let modelName = $("modelSelect").value || "";
+    if (!modelName) modelName = window.prompt("Ollama model name (e.g. llama3.1:8b)", "") || "";
+    if (!modelName) return;
+    const r = await apiForm("/api/models/pull", { model_name: modelName });
+    systemMsg(r.message || "Pull started");
+    await loadState();
+    await refreshModels();
+  });
+
+  $("unloadModelBtn").addEventListener("click", async () => {
+    const r = await apiForm("/api/models/unload", {});
+    systemMsg(r.message || "Unloaded");
+    await loadState();
+  });
+
+  $("logStatusBtn").addEventListener("click", async () => {
+    state.logKind = "status";
+    setLogTab();
     await refreshLogs();
-  }, 2000);
+  });
+  $("logDebugBtn").addEventListener("click", async () => {
+    state.logKind = "debug";
+    setLogTab();
+    await refreshLogs();
+  });
+  $("logErrorBtn").addEventListener("click", async () => {
+    state.logKind = "error";
+    setLogTab();
+    await refreshLogs();
+  });
+  $("clearLogsBtn").addEventListener("click", async () => {
+    await apiForm("/api/logs/clear", { kind: state.logKind });
+    await refreshLogs();
+  });
+
+  $("refreshPreviewBtn").addEventListener("click", loadPreview);
+  $("tabPdfBtn").addEventListener("click", () => switchPreviewTab("pdf"));
+  $("tabJsonBtn").addEventListener("click", () => switchPreviewTab("json"));
+  $("tabHtmlBtn").addEventListener("click", () => switchPreviewTab("html"));
+
+  $("openLegacyBtn").addEventListener("click", () => {
+    const url = state.services.legacy_ui_url || "http://127.0.0.1:8090";
+    window.open(url, "_blank", "noopener,noreferrer");
+  });
+  $("reloadLegacyBtn").addEventListener("click", () => {
+    const iframe = $("legacyFrame");
+    iframe.src = iframe.src;
+  });
 }
 
-init();
+function setLogTab() {
+  ["Status", "Debug", "Error"].forEach((k) => {
+    const id = `log${k}Btn`;
+    $(id).classList.toggle("active-tab", state.logKind === k.toLowerCase());
+  });
+}
+
+async function boot() {
+  bindEvents();
+  switchPreviewTab("pdf");
+  setLogTab();
+  try {
+    await loadState();
+    await refreshModels();
+    await refreshDocs();
+    await refreshSessions();
+    if (state.sessions.length) {
+      await openSession(state.sessions[0].id);
+    }
+    await refreshLogs();
+  } catch (e) {
+    systemMsg(`Startup error: ${e.message || e}`);
+  }
+
+  window.setInterval(async () => {
+    try {
+      await loadState();
+      if (state.settings.ui_mode === "advanced") await refreshLogs();
+    } catch {
+      // ignore polling failures
+    }
+  }, 3500);
+}
+
+boot();

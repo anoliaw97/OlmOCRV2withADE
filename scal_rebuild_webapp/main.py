@@ -7,6 +7,7 @@ import re
 import subprocess
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -87,6 +88,7 @@ class Runtime:
         }
         self.logs = {
             "status": deque(maxlen=600),
+            "debug": deque(maxlen=400),
             "error": deque(maxlen=300),
         }
         self.lock = threading.Lock()
@@ -253,6 +255,57 @@ def coverage_for_doc(doc_name: str) -> dict[str, Any]:
     ext_pages = [p for p in all_pages if "md" in pages[p] or "json" in pages[p]]
     missing = [p for p in pdf_pages if p not in ext_pages]
     return {"pdf_pages": len(pdf_pages), "extracted_pages": len(ext_pages), "missing_pages": missing}
+
+
+def pages_map_for_doc(doc_name: str) -> list[dict[str, Any]]:
+    pages = R.docs.get(doc_name, {})
+    out: list[dict[str, Any]] = []
+    for pg in sorted(pages.keys()):
+        files = pages[pg]
+        out.append(
+            {
+                "page": int(pg),
+                "has_pdf": "pdf" in files,
+                "has_json": "json" in files,
+                "has_md": "md" in files,
+            }
+        )
+    return out
+
+
+def page_content_for(doc_name: str, page: int) -> dict[str, Any] | None:
+    files = R.docs.get(doc_name, {}).get(int(page))
+    if not files:
+        return None
+
+    raw_text = ""
+    source_type = ""
+    source_name = ""
+    raw_json = ""
+    if "json" in files:
+        source_type = "json"
+        source_name = files["json"].name
+        raw_json = files["json"].read_text(encoding="utf-8", errors="ignore")
+        try:
+            raw_text = flatten_json(json.loads(raw_json))
+        except Exception:
+            raw_text = raw_json
+    elif "md" in files:
+        source_type = "md"
+        source_name = files["md"].name
+        raw_text = files["md"].read_text(encoding="utf-8", errors="ignore")
+
+    tables = extract_html_tables(raw_text)
+    return {
+        "raw_text": raw_text,
+        "raw_json": raw_json,
+        "source_type": source_type,
+        "source_name": source_name,
+        "tables": tables,
+        "has_pdf": "pdf" in files,
+        "has_json": "json" in files,
+        "has_md": "md" in files,
+    }
 
 
 def flatten_json(obj: Any) -> str:
@@ -829,7 +882,94 @@ async def api_docs(root: str | None = None):
         "data_root": str(rr),
         "documents": names,
         "coverage": {n: coverage_for_doc(n) for n in names},
+        "pages_map": {n: pages_map_for_doc(n) for n in names},
     }
+
+
+@app.get("/api/page/view")
+def api_page_view(doc_name: str, page: int):
+    doc = (doc_name or "").strip()
+    if not doc:
+        raise HTTPException(status_code=400, detail="doc_name required")
+    if not R.docs:
+        R.docs = scan_docs(R.data_root)
+    info = page_content_for(doc, int(page))
+    if not info:
+        raise HTTPException(status_code=404, detail="Page not found")
+
+    qdoc = urllib.parse.quote(doc, safe="")
+    qpage = urllib.parse.quote(str(int(page)), safe="")
+    files = {
+        "pdf_url": f"/api/page/file?doc_name={qdoc}&page={qpage}&file_type=pdf" if info.get("has_pdf") else "",
+        "json_url": f"/api/page/file?doc_name={qdoc}&page={qpage}&file_type=json" if info.get("has_json") else "",
+        "md_url": f"/api/page/file?doc_name={qdoc}&page={qpage}&file_type=md" if info.get("has_md") else "",
+    }
+    return {
+        "doc_name": doc,
+        "page": int(page),
+        "source_type": info.get("source_type", ""),
+        "source_name": info.get("source_name", ""),
+        "raw_text": info.get("raw_text", ""),
+        "raw_json": info.get("raw_json", ""),
+        "tables": info.get("tables", []),
+        "files": files,
+    }
+
+
+@app.get("/api/page/file")
+def api_page_file(doc_name: str, page: int, file_type: str):
+    doc = (doc_name or "").strip()
+    ftype = (file_type or "").strip().lower()
+    if ftype not in {"pdf", "json", "md"}:
+        raise HTTPException(status_code=400, detail="file_type must be pdf/json/md")
+    if not R.docs:
+        R.docs = scan_docs(R.data_root)
+    files = R.docs.get(doc, {}).get(int(page), {})
+    if ftype not in files:
+        raise HTTPException(status_code=404, detail="Requested file type not found for page")
+    path = files[ftype]
+    media = {
+        "pdf": "application/pdf",
+        "json": "application/json",
+        "md": "text/markdown",
+    }.get(ftype, "application/octet-stream")
+    return FileResponse(str(path), media_type=media)
+
+
+@app.post("/api/rag/build")
+def api_rag_build(scope: str = Form("all"), doc_name: str = Form("")):
+    if not R.docs:
+        R.docs = scan_docs(R.data_root)
+
+    sc = (scope or "all").strip().lower()
+    target_doc = (doc_name or "").strip()
+    R.progress["index"]["running"] = True
+
+    try:
+        if sc == "selected" and target_doc:
+            set_progress("index", 10, "building", f"Building RAG index for {target_doc} from extracted JSON")
+            ok = build_doc_index(target_doc)
+            if not ok:
+                set_progress("index", 100, "failed", f"No extracted JSON/MD chunks for {target_doc}")
+                return {"ok": False, "message": f"No extracted chunks found for {target_doc}"}
+            set_progress("index", 100, "completed", f"RAG index ready for {target_doc}")
+            log("status", f"RAG index built for {target_doc}")
+            return {"ok": True, "message": f"RAG index built for {target_doc} (JSON-first)", "scope": "selected"}
+
+        names = sorted(R.docs.keys())
+        if not names:
+            set_progress("index", 100, "failed", "No extracted docs found for index build")
+            return {"ok": False, "message": "No docs found"}
+        set_progress("index", 10, "building", f"Building global RAG from extracted JSON for {len(names)} docs")
+        n = build_global_index(names)
+        if n <= 0:
+            set_progress("index", 100, "failed", "No extracted chunks found for global build")
+            return {"ok": False, "message": "No extracted chunks found"}
+        set_progress("index", 100, "completed", f"Global RAG index ready ({n} chunks)")
+        log("status", f"Global RAG index built with {n} chunks")
+        return {"ok": True, "message": f"Global RAG index built from extracted JSON ({n} chunks)", "scope": "all"}
+    finally:
+        R.progress["index"]["running"] = False
 
 
 @app.get("/api/models/options")
@@ -988,6 +1128,7 @@ def api_chat_session_delete(session_id: str):
 async def api_chat_stream(req: ChatReq):
     t_total0 = datetime.now()
     backend = str(R.settings.get("backend", "inference_api"))
+    log("debug", f"chat.stream backend={backend} scope={req.scope} mode={req.response_mode}")
     filters = {"extraction_type": req.filter_extraction_type}
     mode = (req.response_mode or "fast").lower()
     gen_cfg = llm_generation_settings(mode)
@@ -1010,6 +1151,7 @@ async def api_chat_stream(req: ChatReq):
             lambda: search(req.question, target_doc, filters, top_k=top_k),
         )
     retrieval_ms = (datetime.now() - retrieval_t0).total_seconds() * 1000.0
+    log("debug", f"retrieval hits={len(hits)} retrieval_ms={retrieval_ms:.2f}")
 
     reasoning = []
     for i, h in enumerate(hits, start=1):
@@ -1154,6 +1296,7 @@ async def api_chat_stream(req: ChatReq):
                     {"role": "assistant", "content": answer, "time": now(), "sources": reasoning},
                 ],
             )
+            log("debug", f"chat.stream complete tokens={infer_metrics.get('answer_tokens', 0)}")
 
             generation_ms = float(infer_metrics.get("generation_ms", 0) or 0)
             answer_tokens = int(infer_metrics.get("answer_tokens", approx_token_count(answer)) or 0)
