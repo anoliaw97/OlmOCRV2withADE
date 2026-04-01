@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import threading
+import time
 import traceback
 import uuid
 from collections import deque
@@ -56,12 +57,29 @@ INDEX_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR = ROOT / "scal_modern_exports"
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 SESSION_FILE = ROOT / "scal_modern_sessions.json"
+SETTINGS_FILE = ROOT / "scal_modern_settings.json"
+RESULTS_ROOT = ROOT / "results"
 
 # Large model cache override (to avoid filling C: drive).
 # Kimi-K2 is very large; route its Hugging Face cache to D:.
 MODEL_CACHE_DIRS: dict[str, Path] = {
     "moonshotai/Kimi-K2.5": Path(r"D:\hf_cache\moonshotai\Kimi-K2.5"),
 }
+
+RETRIEVAL_CONFIGS = [
+    "tfidf_unigram",
+    "tfidf_unigram_bigram",
+    "tfidf_with_metadata",
+    "tfidf_normalized_table_text",
+    "tfidf_text_plus_metadata",
+]
+
+PROMPT_TYPES = [
+    "direct_answer",
+    "structured_answer",
+    "compiled_answer",
+    "export_ready_answer",
+]
 
 LLM_MODEL_OPTIONS = [
     {
@@ -173,6 +191,20 @@ class Runtime:
 
         self.vlm = None
         self.extract_stop = threading.Event()  # set to request stop
+        self.advanced_mode = False
+        self.experiment_stop = threading.Event()
+        self.experiment = {
+            "running": False,
+            "percent": 0,
+            "stage": "idle",
+            "detail": "",
+            "run_id": "",
+            "mode": "",
+            "output_dir": "",
+            "started_at": "",
+            "finished_at": "",
+            "error": "",
+        }
 
 
 R = Runtime()
@@ -198,6 +230,25 @@ def _load_sessions() -> dict[str, Any]:
 
 def _save_sessions(data: dict[str, Any]):
     SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _load_settings() -> dict[str, Any]:
+    if not SETTINGS_FILE.exists():
+        return {"advanced_mode": False}
+    try:
+        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return {"advanced_mode": bool(data.get("advanced_mode", False))}
+    except Exception:
+        pass
+    return {"advanced_mode": False}
+
+
+def _save_settings(data: dict[str, Any]):
+    SETTINGS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+R.advanced_mode = bool(_load_settings().get("advanced_mode", False))
 
 
 def list_sessions() -> list[dict[str, Any]]:
@@ -682,6 +733,24 @@ def load_llm(model_name: str):
         log("status", f"LLM ready: {model_name}")
 
 
+def unload_llm():
+    import torch
+
+    with R._llm_lock:
+        R.progress["model"]["running"] = True
+        set_progress("model", 10, "unloading", "Releasing active LLM")
+        R._llm_model = None
+        R._llm_tok = None
+        R.llm_loaded = False
+        try:
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+        set_progress("model", 100, "completed", "LLM unloaded")
+        R.progress["model"]["running"] = False
+        log("status", "LLM unloaded")
+
+
 def ask_llm(system_prompt: str, user_prompt: str) -> str:
     import torch
 
@@ -704,6 +773,532 @@ def load_vlm():
     v.load()
     R.vlm = v
     R.vlm_loaded = True
+
+
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_\-]", "_", (name or "").strip())[:80] or "item"
+
+
+def _set_experiment_progress(percent: int, stage: str, detail: str = ""):
+    R.experiment.update(
+        {
+            "percent": max(0, min(100, int(percent))),
+            "stage": stage,
+            "detail": detail,
+        }
+    )
+
+
+def _load_benchmark(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        raise RuntimeError(f"Benchmark file not found: {path}")
+    if path.suffix.lower() == ".csv":
+        df = pd.read_csv(path)
+    elif path.suffix.lower() in {".json", ".jsonl"}:
+        txt = path.read_text(encoding="utf-8", errors="ignore")
+        data = json.loads(txt)
+        if isinstance(data, dict):
+            data = data.get("queries", [])
+        df = pd.DataFrame(data)
+    else:
+        raise RuntimeError("Benchmark must be .csv or .json")
+
+    required = ["query_id", "query_text", "expected_document", "expected_page", "expected_table"]
+    for col in required:
+        if col not in df.columns:
+            raise RuntimeError(f"Benchmark missing required column: {col}")
+    return df.fillna("").to_dict(orient="records")
+
+
+def _collect_units(data_root: Path) -> list[dict[str, Any]]:
+    docs = scan_docs(data_root)
+    units: list[dict[str, Any]] = []
+    for doc_name in sorted(docs.keys()):
+        pages = docs.get(doc_name, {})
+        for pg in sorted(pages.keys()):
+            files = pages[pg]
+            raw, source = "", ""
+            if "json" in files:
+                source = files["json"].name
+                try:
+                    raw = flatten_json(json.loads(files["json"].read_text(encoding="utf-8", errors="ignore")))
+                except Exception:
+                    raw = files["json"].read_text(encoding="utf-8", errors="ignore")
+            elif "md" in files:
+                source = files["md"].name
+                raw = files["md"].read_text(encoding="utf-8", errors="ignore")
+            if not raw.strip():
+                continue
+            tables = extract_html_tables(raw)
+            if tables:
+                for idx, h in enumerate(tables, start=1):
+                    cols, rows = parse_html_table(h)
+                    txt = json.dumps(rows, ensure_ascii=False) if rows else h
+                    table_id = f"T{pg:03d}_{idx:02d}"
+                    units.append(
+                        {
+                            "chunk_id": f"{doc_name}|{pg}|{table_id}",
+                            "text": txt,
+                            "meta": {
+                                "report_name": doc_name,
+                                "file_name": source,
+                                "page_number": pg,
+                                "table_id": table_id,
+                                "title": f"HTML table page {pg}",
+                                "extraction_type": infer_type(txt),
+                            },
+                            "chunk_type": "table",
+                        }
+                    )
+            units.append(
+                {
+                    "chunk_id": f"{doc_name}|{pg}|P{pg:03d}_FULL",
+                    "text": raw,
+                    "meta": {
+                        "report_name": doc_name,
+                        "file_name": source,
+                        "page_number": pg,
+                        "table_id": f"P{pg:03d}_FULL",
+                        "title": f"Full page {pg}",
+                        "extraction_type": infer_type(raw),
+                    },
+                    "chunk_type": "page",
+                }
+            )
+    return units
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").lower()).strip()
+
+
+def _unit_text_for_config(unit: dict[str, Any], config_name: str) -> str:
+    text = unit.get("text", "")
+    m = unit.get("meta", {})
+    meta_txt = " ".join(
+        [
+            str(m.get("report_name", "")),
+            str(m.get("file_name", "")),
+            str(m.get("title", "")),
+            str(m.get("table_id", "")),
+            str(m.get("extraction_type", "")),
+        ]
+    )
+    if config_name == "tfidf_unigram":
+        return text
+    if config_name == "tfidf_unigram_bigram":
+        return text
+    if config_name == "tfidf_with_metadata":
+        return f"{text}\n{meta_txt}"
+    if config_name == "tfidf_normalized_table_text":
+        if unit.get("chunk_type") == "table":
+            return _normalize_text(text)
+        return text
+    if config_name == "tfidf_text_plus_metadata":
+        return f"{_normalize_text(text)}\n{_normalize_text(meta_txt)}"
+    return text
+
+
+def _build_retrieval_index(units: list[dict[str, Any]], config_name: str):
+    texts = [_unit_text_for_config(u, config_name) for u in units]
+    ngram = (1, 1) if config_name == "tfidf_unigram" else (1, 2)
+    vec = TfidfVectorizer(ngram_range=ngram, min_df=1)
+    mat = vec.fit_transform(texts)
+    return vec, mat, texts
+
+
+def _retrieve_topk(vec, mat, texts: list[str], units: list[dict[str, Any]], query: str, config_name: str, top_k: int):
+    qtext = query if config_name != "tfidf_text_plus_metadata" else _normalize_text(query)
+    qv = vec.transform([qtext])
+    sims = linear_kernel(qv, mat).flatten()
+    order = sims.argsort()[::-1]
+    out = []
+    for i in order[: max(20, top_k * 2)]:
+        score = float(sims[i])
+        if score <= 0:
+            continue
+        u = units[i]
+        out.append(
+            {
+                "score": score,
+                "chunk_id": u.get("chunk_id", ""),
+                "report_name": u.get("meta", {}).get("report_name", ""),
+                "page_number": u.get("meta", {}).get("page_number", ""),
+                "table_id": u.get("meta", {}).get("table_id", ""),
+                "text": u.get("text", ""),
+            }
+        )
+        if len(out) >= top_k:
+            break
+    return out
+
+
+def _truth_match(hit: dict[str, Any], row: dict[str, Any]) -> tuple[bool, bool, bool, bool]:
+    exp_doc = str(row.get("expected_document", "")).strip()
+    exp_page = str(row.get("expected_page", "")).strip()
+    exp_table = str(row.get("expected_table", "")).strip()
+    doc_ok = (not exp_doc) or (str(hit.get("report_name", "")).strip() == exp_doc)
+    page_ok = (not exp_page) or (str(hit.get("page_number", "")).strip() == exp_page)
+    table_ok = (not exp_table) or (str(hit.get("table_id", "")).strip() == exp_table)
+    all_ok = doc_ok and page_ok and table_ok
+    return doc_ok, page_ok, table_ok, all_ok
+
+
+def _evaluate_retrieval(run_dir: Path, units: list[dict[str, Any]], benchmark_rows: list[dict[str, Any]], configs: list[str], top_k: int):
+    retrieval_root = run_dir / "retrieval"
+    retrieval_root.mkdir(parents=True, exist_ok=True)
+    overall = []
+    for ci, cfg in enumerate(configs, start=1):
+        cdir = retrieval_root / f"config_{ci:02d}"
+        cdir.mkdir(parents=True, exist_ok=True)
+        vec, mat, _ = _build_retrieval_index(units, cfg)
+        rows = []
+        fail = 0
+        for qidx, row in enumerate(benchmark_rows, start=1):
+            if R.experiment_stop.is_set():
+                raise RuntimeError("Experiment stopped by user")
+            t0 = time.perf_counter()
+            hits = _retrieve_topk(vec, mat, [], units, str(row.get("query_text", "")), cfg, max(3, top_k))
+            latency = round(time.perf_counter() - t0, 4)
+            top1 = hits[0] if hits else {}
+            d1, p1, tb1, all1 = _truth_match(top1, row) if hits else (False, False, False, False)
+            hit_top3 = False
+            for h in hits[:3]:
+                *_tmp, all_ok = _truth_match(h, row)
+                if all_ok:
+                    hit_top3 = True
+                    break
+            if not hits:
+                err = "no_retrieval"
+            elif not d1:
+                err = "wrong_document"
+            elif d1 and not p1:
+                err = "wrong_page"
+            elif d1 and p1 and not tb1:
+                err = "wrong_table"
+            elif hit_top3 and not all1:
+                err = "partial_match"
+            elif all1:
+                err = ""
+            else:
+                err = "noisy_retrieval"
+            if err:
+                fail += 1
+            rows.append(
+                {
+                    "query_id": row.get("query_id", qidx),
+                    "retrieval_configuration_name": cfg,
+                    "top_1_result": top1.get("chunk_id", ""),
+                    "top_3_results": json.dumps([h.get("chunk_id", "") for h in hits[:3]], ensure_ascii=False),
+                    "correct_document_top1": int(d1),
+                    "correct_page_top1": int(p1),
+                    "correct_table_top1": int(tb1),
+                    "hit_in_top3": int(hit_top3),
+                    "retrieval_latency": latency,
+                    "error_type": err,
+                }
+            )
+            _set_experiment_progress(20 + int((qidx / max(1, len(benchmark_rows))) * 35), "retrieval_eval", f"{cfg}: {qidx}/{len(benchmark_rows)}")
+
+        pq = pd.DataFrame(rows)
+        pq.to_csv(cdir / "per_query_results.csv", index=False)
+        summary = {
+            "retrieval_configuration_name": cfg,
+            "top_1_accuracy": round(float((pq["correct_document_top1"] & pq["correct_page_top1"] & pq["correct_table_top1"]).mean()), 4),
+            "top_3_recall": round(float(pq["hit_in_top3"].mean()), 4),
+            "document_accuracy": round(float(pq["correct_document_top1"].mean()), 4),
+            "page_accuracy": round(float(pq["correct_page_top1"].mean()), 4),
+            "table_accuracy": round(float(pq["correct_table_top1"].mean()), 4),
+            "average_latency": round(float(pq["retrieval_latency"].mean()), 4),
+            "total_queries": int(len(pq)),
+            "total_failures": int(fail),
+        }
+        pd.DataFrame([summary]).to_csv(cdir / "summary_metrics.csv", index=False)
+        err_df = pq[pq["error_type"].astype(str) != ""].groupby("error_type", as_index=False).size()
+        err_df.columns = ["error_type", "count"]
+        err_df.to_csv(cdir / "error_breakdown.csv", index=False)
+        overall.append(summary)
+
+    ov = pd.DataFrame(overall)
+    ov.to_csv(retrieval_root / "overall_retrieval_comparison.csv", index=False)
+    return overall
+
+
+def _best_retrieval_config(run_dir: Path) -> str:
+    p = run_dir / "retrieval" / "overall_retrieval_comparison.csv"
+    if not p.exists():
+        raise RuntimeError("Retrieval comparison file not found")
+    df = pd.read_csv(p)
+    if df.empty:
+        raise RuntimeError("No retrieval summary rows")
+    df = df.sort_values(["top_1_accuracy", "top_3_recall", "average_latency"], ascending=[False, False, True])
+    return str(df.iloc[0]["retrieval_configuration_name"])
+
+
+def _prompt_for_type(prompt_type: str, question: str, context: str) -> tuple[str, str]:
+    system = "You are a SCAL assistant. Use only provided context and cite [1],[2] when possible."
+    if prompt_type == "structured_answer":
+        user = f"Question: {question}\n\nReturn JSON with keys: answer, evidence_points, assumptions.\n\nContext:\n{context}"
+    elif prompt_type == "compiled_answer":
+        user = f"Question: {question}\n\nReturn concise compiled technical answer with bullets and citations.\n\nContext:\n{context}"
+    elif prompt_type == "export_ready_answer":
+        user = f"Question: {question}\n\nReturn export-ready markdown with section headers and a compact table if useful.\n\nContext:\n{context}"
+    else:
+        user = f"Question: {question}\n\nAnswer directly and concisely.\n\nContext:\n{context}"
+    return system, user
+
+
+def _score_reasoning(row: dict[str, Any], response: str, prompt_type: str, context_ids: list[str]) -> dict[str, Any]:
+    exp_answer = str(row.get("expected_answer", "")).strip().lower()
+    keys_raw = str(row.get("expected_keywords", "")).strip()
+    keys = [k.strip().lower() for k in keys_raw.split(",") if k.strip()]
+    rlow = (response or "").lower()
+    if keys:
+        hit = sum(1 for k in keys if k in rlow)
+        correctness = min(1.0, hit / max(1, len(keys)))
+        completeness = correctness
+    elif exp_answer:
+        correctness = 1.0 if exp_answer in rlow else 0.0
+        completeness = correctness
+    else:
+        correctness = 0.5 if response.strip() else 0.0
+        completeness = correctness
+
+    if prompt_type == "structured_answer":
+        formatting = 1.0 if response.strip().startswith("{") else 0.0
+    elif prompt_type == "export_ready_answer":
+        formatting = 1.0 if ("|" in response or "##" in response) else 0.0
+    else:
+        formatting = 1.0 if response.strip() else 0.0
+
+    refs = [int(x) for x in re.findall(r"\[(\d+)\]", response or "")]
+    halluc = int(any(r > max(1, len(context_ids)) for r in refs))
+    unnecessary = int(prompt_type == "direct_answer" and len(response or "") > 1200)
+    export_ready = int(prompt_type == "export_ready_answer" and formatting >= 1.0 and halluc == 0)
+    return {
+        "correctness_score": round(correctness, 4),
+        "completeness_score": round(completeness, 4),
+        "formatting_score": round(formatting, 4),
+        "hallucination_flag": halluc,
+        "unnecessary_reasoning_flag": unnecessary,
+        "export_ready_flag": export_ready,
+    }
+
+
+def _run_reasoning(
+    run_dir: Path,
+    units: list[dict[str, Any]],
+    benchmark_rows: list[dict[str, Any]],
+    selected_cfg: str,
+    models: list[str],
+    prompt_types: list[str],
+    top_k: int,
+):
+    reasoning_root = run_dir / "reasoning"
+    reasoning_root.mkdir(parents=True, exist_ok=True)
+    vec, mat, _ = _build_retrieval_index(units, selected_cfg)
+    overall = []
+    total_ops = max(1, len(models) * len(prompt_types) * len(benchmark_rows))
+    done = 0
+
+    for model_name in models:
+        if R.experiment_stop.is_set():
+            raise RuntimeError("Experiment stopped by user")
+        model_slug = _slug(model_name)
+        mdir = reasoning_root / model_slug
+        mdir.mkdir(parents=True, exist_ok=True)
+        try:
+            load_llm(model_name)
+        except Exception as e:
+            log("error", f"Reasoning skip model {model_name}: {e}")
+            continue
+
+        for prompt_type in prompt_types:
+            pdir = mdir / prompt_type
+            pdir.mkdir(parents=True, exist_ok=True)
+            rows = []
+            raw_outputs = []
+            for qidx, row in enumerate(benchmark_rows, start=1):
+                if R.experiment_stop.is_set():
+                    raise RuntimeError("Experiment stopped by user")
+                hits = _retrieve_topk(vec, mat, [], units, str(row.get("query_text", "")), selected_cfg, top_k)
+                context_ids = [h.get("chunk_id", "") for h in hits]
+                ctx = []
+                for i, h in enumerate(hits, start=1):
+                    txt = str(h.get("text", ""))
+                    if len(txt) > 500:
+                        txt = txt[:500] + "..."
+                    ctx.append(f"[{i}] {h.get('chunk_id')}\n{txt}")
+                context = "\n\n".join(ctx)
+                system, user = _prompt_for_type(prompt_type, str(row.get("query_text", "")), context)
+                t0 = time.perf_counter()
+                try:
+                    resp = ask_llm(system, user)
+                except Exception as e:
+                    resp = f"ERROR: {e}"
+                latency = round(time.perf_counter() - t0, 4)
+                score = _score_reasoning(row, resp, prompt_type, context_ids)
+                out_row = {
+                    "query_id": row.get("query_id", qidx),
+                    "model_name": model_name,
+                    "prompt_type": prompt_type,
+                    "retrieved_context_ids": json.dumps(context_ids, ensure_ascii=False),
+                    "response_text": resp,
+                    "response_latency": latency,
+                    **score,
+                }
+                rows.append(out_row)
+                raw_outputs.append(
+                    {
+                        "query_id": row.get("query_id", qidx),
+                        "query_text": row.get("query_text", ""),
+                        "prompt_type": prompt_type,
+                        "retrieved_context_ids": context_ids,
+                        "response_text": resp,
+                    }
+                )
+                done += 1
+                _set_experiment_progress(60 + int((done / total_ops) * 35), "reasoning_eval", f"{model_slug}/{prompt_type}: {qidx}/{len(benchmark_rows)}")
+
+            pq = pd.DataFrame(rows)
+            pq.to_csv(pdir / "per_query_results.csv", index=False)
+            summary = {
+                "model_name": model_name,
+                "prompt_type": prompt_type,
+                "average_correctness": round(float(pq["correctness_score"].mean()), 4),
+                "average_completeness": round(float(pq["completeness_score"].mean()), 4),
+                "average_formatting": round(float(pq["formatting_score"].mean()), 4),
+                "hallucination_rate": round(float(pq["hallucination_flag"].mean()), 4),
+                "unnecessary_reasoning_rate": round(float(pq["unnecessary_reasoning_flag"].mean()), 4),
+                "export_ready_rate": round(float(pq["export_ready_flag"].mean()), 4),
+                "average_latency": round(float(pq["response_latency"].mean()), 4),
+                "total_queries": int(len(pq)),
+            }
+            pd.DataFrame([summary]).to_csv(pdir / "summary_metrics.csv", index=False)
+            (pdir / "raw_outputs.json").write_text(json.dumps(raw_outputs, indent=2, ensure_ascii=False), encoding="utf-8")
+            overall.append(summary)
+
+    pd.DataFrame(overall).to_csv(reasoning_root / "overall_reasoning_comparison.csv", index=False)
+    return overall
+
+
+def _finalize_summary(run_dir: Path, selected_cfg: str):
+    final_dir = run_dir / "final_summary"
+    final_dir.mkdir(parents=True, exist_ok=True)
+    rcmp = pd.read_csv(run_dir / "retrieval" / "overall_retrieval_comparison.csv")
+    ycmp = pd.read_csv(run_dir / "reasoning" / "overall_reasoning_comparison.csv")
+    best_reasoning = ycmp.sort_values(["average_correctness", "average_completeness", "average_latency"], ascending=[False, False, True]).iloc[0]
+    best_retrieval = rcmp[rcmp["retrieval_configuration_name"] == selected_cfg].iloc[0]
+    row = {
+        "best_retrieval_configuration": selected_cfg,
+        "best_llm_model": best_reasoning["model_name"],
+        "best_prompt_type": best_reasoning["prompt_type"],
+        "retrieval_accuracy": best_retrieval["top_1_accuracy"],
+        "reasoning_accuracy": best_reasoning["average_correctness"],
+        "retrieval_latency": best_retrieval["average_latency"],
+        "reasoning_latency": best_reasoning["average_latency"],
+        "overall_recommended_pipeline": f"{selected_cfg} + {best_reasoning['model_name']} + {best_reasoning['prompt_type']}",
+    }
+    pd.DataFrame([row]).to_csv(final_dir / "best_pipeline_summary.csv", index=False)
+    overview = {
+        "run_id": run_dir.name,
+        "best_retrieval_configuration": selected_cfg,
+        "best_llm_model": str(best_reasoning["model_name"]),
+        "best_prompt_type": str(best_reasoning["prompt_type"]),
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    (final_dir / "experiment_overview.json").write_text(json.dumps(overview, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _experiment_worker(payload: dict[str, Any]):
+    try:
+        R.experiment_stop.clear()
+        mode = str(payload.get("mode", "full")).strip().lower()
+        run_id = str(payload.get("run_id") or datetime.now().strftime("run_%Y%m%d_%H%M%S"))
+        data_root = Path(payload.get("data_root") or DATA_ROOT)
+        benchmark_path = Path(payload.get("benchmark_path") or "")
+        output_root = Path(payload.get("output_root") or RESULTS_ROOT)
+        top_k = max(1, int(payload.get("top_k") or 3))
+        run_dir = output_root / "runs" / _slug(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        R.experiment.update(
+            {
+                "running": True,
+                "percent": 1,
+                "stage": "starting",
+                "detail": "Initializing experiment",
+                "run_id": run_dir.name,
+                "mode": mode,
+                "output_dir": str(run_dir),
+                "started_at": datetime.now().isoformat(timespec="seconds"),
+                "finished_at": "",
+                "error": "",
+            }
+        )
+
+        configs = payload.get("retrieval_configs") or RETRIEVAL_CONFIGS
+        configs = [c for c in configs if c in RETRIEVAL_CONFIGS] or RETRIEVAL_CONFIGS
+        models = payload.get("model_names") or [m["name"] for m in LLM_MODEL_OPTIONS if "moonshotai/Kimi" not in m["name"]]
+        prompt_types = payload.get("prompt_types") or PROMPT_TYPES
+        prompt_types = [p for p in prompt_types if p in PROMPT_TYPES] or PROMPT_TYPES
+
+        _set_experiment_progress(5, "loading_data", f"Loading extracted JSON/MD from {data_root}")
+        units = _collect_units(data_root)
+        if not units:
+            raise RuntimeError("No retrieval units found in data root")
+
+        _set_experiment_progress(12, "loading_benchmark", f"Loading benchmark: {benchmark_path}")
+        benchmark_rows = _load_benchmark(benchmark_path)
+        if not benchmark_rows:
+            raise RuntimeError("Benchmark file has no rows")
+
+        retrieval_done = (run_dir / "retrieval" / "overall_retrieval_comparison.csv").exists()
+        selected_cfg = str(payload.get("selected_retrieval_config") or "").strip()
+
+        if mode in {"full", "retrieval"}:
+            _set_experiment_progress(15, "retrieval_build", "Running retrieval study")
+            _evaluate_retrieval(run_dir, units, benchmark_rows, configs, top_k)
+            retrieval_done = True
+
+        if mode in {"full", "reasoning"}:
+            if not retrieval_done and not selected_cfg:
+                raise RuntimeError("Reasoning mode requires retrieval outputs or selected retrieval config")
+            if not selected_cfg:
+                selected_cfg = _best_retrieval_config(run_dir)
+            _set_experiment_progress(60, "reasoning_start", f"Using retrieval config: {selected_cfg}")
+            _run_reasoning(run_dir, units, benchmark_rows, selected_cfg, models, prompt_types, top_k)
+
+        if mode == "full":
+            _set_experiment_progress(96, "final_summary", "Building final comparison summary")
+            _finalize_summary(run_dir, selected_cfg)
+
+        registry = output_root / "run_registry.csv"
+        reg_row = {
+            "run_id": run_dir.name,
+            "mode": mode,
+            "started_at": R.experiment.get("started_at", ""),
+            "finished_at": datetime.now().isoformat(timespec="seconds"),
+            "output_dir": str(run_dir),
+        }
+        if registry.exists():
+            reg_df = pd.read_csv(registry)
+            reg_df = pd.concat([reg_df, pd.DataFrame([reg_row])], ignore_index=True)
+        else:
+            reg_df = pd.DataFrame([reg_row])
+        reg_df.to_csv(registry, index=False)
+
+        _set_experiment_progress(100, "completed", f"Experiment completed: {run_dir}")
+        R.experiment["finished_at"] = datetime.now().isoformat(timespec="seconds")
+    except Exception as e:
+        _set_experiment_progress(100, "failed", str(e))
+        R.experiment["error"] = str(e)
+        R.experiment["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        log("error", f"Experiment failed: {e}")
+        log("debug", traceback.format_exc())
+    finally:
+        R.experiment["running"] = False
+
 
 
 def extraction_job(
@@ -868,6 +1463,19 @@ class ChatReq(BaseModel):
     top_k: int = 8
 
 
+class ExperimentReq(BaseModel):
+    mode: str = "full"  # full | retrieval | reasoning
+    data_root: str = ""
+    benchmark_path: str
+    output_root: str = ""
+    top_k: int = 3
+    run_id: str = ""
+    retrieval_configs: list[str] = []
+    model_names: list[str] = []
+    prompt_types: list[str] = []
+    selected_retrieval_config: str = ""
+
+
 # ── Folder / file browse (non-blocking, runs tkinter in executor) ─────────────
 
 def _tkdialog_folder() -> str:
@@ -907,6 +1515,19 @@ async def api_browse_file(payload: dict = {}):
     loop = asyncio.get_event_loop()
     path = await loop.run_in_executor(_DIALOG_EXECUTOR, _tkdialog_file, accept)
     return {"path": path}
+
+
+@app.get("/api/settings")
+def api_settings_get():
+    return {"advanced_mode": R.advanced_mode}
+
+
+@app.post("/api/settings/advanced-mode")
+def api_settings_advanced_mode(enabled: str = Form("false")):
+    val = str(enabled).strip().lower() in {"1", "true", "yes", "on"}
+    R.advanced_mode = val
+    _save_settings({"advanced_mode": val})
+    return {"ok": True, "advanced_mode": val}
 
 
 # ── Documents & index ─────────────────────────────────────────────────────────
@@ -1031,6 +1652,8 @@ def api_build_all(data_root: str = Form("")):
 def api_state():
     return {
         "progress": R.progress,
+        "advanced_mode": R.advanced_mode,
+        "experiment": R.experiment,
         "models": {
             "llm_loaded": R.llm_loaded,
             "llm_model": R.llm_model_name,
@@ -1097,6 +1720,20 @@ def api_load_llm(model_name: str = Form("Qwen/Qwen2.5-14B-Instruct")):
     return {"ok": True, "message": "LLM loading in background — watch logs / model pill"}
 
 
+@app.post("/api/models/unload-llm")
+def api_unload_llm():
+    if R._llm_lock.locked():
+        return {"ok": False, "message": "LLM load/unload already running"}
+    if not R.llm_loaded and R._llm_model is None and R._llm_tok is None:
+        return {"ok": True, "message": "LLM already unloaded"}
+    try:
+        unload_llm()
+    except Exception as e:
+        log("error", f"LLM unload failed: {e}")
+        return {"ok": False, "message": f"LLM unload failed: {e}"}
+    return {"ok": True, "message": "LLM unloaded"}
+
+
 @app.get("/api/models/options")
 def api_model_options():
     return {"models": LLM_MODEL_OPTIONS, "default": R.llm_model_name}
@@ -1109,6 +1746,44 @@ def api_load_vlm():
     log("status", "VLM load requested")
     threading.Thread(target=_load_vlm_bg, daemon=True).start()
     return {"ok": True, "message": "VLM loading in background — watch logs / model pill"}
+
+
+@app.get("/api/experiments/state")
+def api_experiment_state():
+    return R.experiment
+
+
+@app.get("/api/experiments/options")
+def api_experiment_options():
+    models = [m for m in LLM_MODEL_OPTIONS if not m.get("name", "").startswith("moonshotai/Kimi")]
+    return {
+        "retrieval_configs": RETRIEVAL_CONFIGS,
+        "prompt_types": PROMPT_TYPES,
+        "models": models,
+    }
+
+
+@app.post("/api/experiments/stop")
+def api_experiment_stop():
+    if not R.experiment.get("running"):
+        return {"ok": True, "message": "No experiment running"}
+    R.experiment_stop.set()
+    return {"ok": True, "message": "Experiment stop requested"}
+
+
+@app.post("/api/experiments/run")
+def api_experiment_run(req: ExperimentReq):
+    if not R.advanced_mode:
+        raise HTTPException(status_code=403, detail="Advanced mode is disabled")
+    if R.experiment.get("running"):
+        return {"ok": False, "message": "Experiment already running"}
+    mode = (req.mode or "full").strip().lower()
+    if mode not in {"full", "retrieval", "reasoning"}:
+        raise HTTPException(status_code=400, detail="Invalid mode")
+    payload = req.model_dump()
+    t = threading.Thread(target=_experiment_worker, args=(payload,), daemon=True)
+    t.start()
+    return {"ok": True, "message": f"Experiment started ({mode})", "run_id": req.run_id or "auto"}
 
 
 # ── Chat ──────────────────────────────────────────────────────────────────────

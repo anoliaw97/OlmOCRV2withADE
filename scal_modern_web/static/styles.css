@@ -36,6 +36,8 @@ html, body {
   line-height: 1.5;
 }
 
+.hidden { display: none !important; }
+
 /* scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -520,6 +522,26 @@ html, body {
   width: auto;
 }
 .send-btn:hover { background: var(--accent); }
+
+.exp-form-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  overflow: auto;
+}
+
+.exp-status-box {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text2);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  padding: 8px;
+  min-height: 180px;
+  white-space: pre-wrap;
+}
 
 /* ── VIEWER ── */
 .viewer-layout {

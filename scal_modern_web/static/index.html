@@ -28,6 +28,7 @@
     <select id="llmModelSelect" class="top-model-select" title="Choose LLM model"></select>
     <button class="topbtn" id="loadVlmBtn" title="Load Vision Model (VLM)">Load VLM</button>
     <button class="topbtn topbtn-llm" id="loadLlmBtn" title="Load Language Model (LLM)">Load LLM</button>
+    <button class="topbtn" id="unloadLlmBtn" title="Unload active LLM">Unload LLM</button>
     <span id="loadingSpinner" class="spinner hidden">⟳</span>
   </div>
 </header>
@@ -113,6 +114,12 @@
       </div>
     </div>
 
+    <div class="sidebar-section">
+      <div class="section-label">Advanced Mode</div>
+      <label class="radio-label"><input id="advancedModeToggle" type="checkbox" /> Enable experiments</label>
+      <div id="advancedModeHint" class="coverage-chip" style="margin-top:6px;">Advanced mode is OFF.</div>
+    </div>
+
   </aside>
 
   <!-- ══════════ CENTER: TABBED MAIN AREA ══════════ -->
@@ -122,6 +129,7 @@
     <div class="tab-nav">
       <button class="tab-btn active" data-tab="chat">💬 Chat</button>
       <button class="tab-btn" data-tab="viewer">📄 Document Viewer</button>
+      <button id="experimentsTabBtn" class="tab-btn hidden" data-tab="experiments">🧪 Experiments</button>
     </div>
 
     <!-- ── CHAT TAB ── -->
@@ -198,6 +206,44 @@
       </div>
     </div>
 
+    <div id="tab-experiments" class="tab-pane hidden">
+      <div class="chat-topbar">
+        <div class="filter-row">
+          <span class="tiny-label">Mode:</span>
+          <select id="expMode" class="filter-select">
+            <option value="full">Full pipeline</option>
+            <option value="retrieval">Study 1 only</option>
+            <option value="reasoning">Study 2 only</option>
+          </select>
+          <span class="tiny-label">Top-k:</span>
+          <input id="expTopK" type="number" min="1" value="3" class="num-input" />
+        </div>
+        <div class="chat-export-row">
+          <button class="btn-xs" id="runExperimentBtn">▶ Run</button>
+          <button class="btn-xs" id="stopExperimentBtn">■ Stop</button>
+        </div>
+      </div>
+
+      <div class="exp-form-wrap">
+        <div class="folder-row">
+          <input id="expBenchmarkPath" type="text" class="folder-input" placeholder="Benchmark CSV/JSON path" />
+          <button id="browseBenchmarkBtn" class="icon-btn" title="Browse benchmark file">📂</button>
+        </div>
+        <div class="folder-row">
+          <input id="expOutputRoot" type="text" class="folder-input" placeholder="Output root (default: results)" />
+          <button id="browseExpOutputBtn" class="icon-btn" title="Browse output folder">📁</button>
+        </div>
+        <div class="folder-row">
+          <input id="expRunId" type="text" class="folder-input" placeholder="Run ID (optional)" />
+          <input id="expSelectedConfig" type="text" class="folder-input" placeholder="Manual retrieval config (reasoning mode)" />
+        </div>
+        <div id="expConfigChecks" class="chat-suggestions"></div>
+        <div id="expPromptChecks" class="chat-suggestions"></div>
+        <div id="expModelChecks" class="chat-suggestions"></div>
+        <pre id="expStatusBox" class="exp-status-box">Experiment status will appear here.</pre>
+      </div>
+    </div>
+
   </main>
 
   <!-- ══════════ RIGHT PANEL ══════════ -->
@@ -220,6 +266,11 @@
         <div class="prog-label">Model Loading</div>
         <div class="prog-track"><div id="barModel" class="prog-bar"></div></div>
         <div id="modelDetail" class="detail-text">Idle</div>
+      </div>
+      <div class="progress-block">
+        <div class="prog-label">Experiments</div>
+        <div class="prog-track"><div id="barExperiment" class="prog-bar"></div></div>
+        <div id="experimentDetail" class="detail-text">Idle</div>
       </div>
     </div>
 

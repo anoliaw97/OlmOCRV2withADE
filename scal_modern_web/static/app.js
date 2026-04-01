@@ -20,6 +20,8 @@ const S = {
   docsMap: {},              // doc -> pages map from /api/docs
   sessionId: null,
   suggestions: [],
+  advancedMode: false,
+  experimentOptions: { retrieval_configs: [], prompt_types: [], models: [] },
 };
 
 /* ══════════════════════════════════════════
@@ -243,6 +245,19 @@ async function loadModel(kind) {
   }
 }
 
+async function unloadLlm() {
+  const btn = $('unloadLlmBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const d = await apiFetch('/api/models/unload-llm', { method: 'POST', body: fd({}) });
+    addChatMsg('system', d.message || 'LLM unload requested.');
+  } catch (e) {
+    addChatMsg('system', `LLM unload error: ${e.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 /* ══════════════════════════════════════════
    State polling (every 1.5 s)
 ══════════════════════════════════════════ */
@@ -287,6 +302,19 @@ async function pollState() {
     const mdDetail = $('modelDetail');
     if (mdDetail) mdDetail.textContent = md.detail || '';
     show('loadingSpinner', llmLoading);
+
+    // Experiment bar
+    const ep = d.experiment || { percent: 0, stage: 'idle', detail: '' };
+    const bX = $('barExperiment');
+    if (bX) {
+      bX.style.width = (ep.percent || 0) + '%';
+      bX.textContent = `${ep.percent || 0}% ${ep.stage || 'idle'}`;
+    }
+    const exDetail = $('experimentDetail');
+    if (exDetail) exDetail.textContent = ep.detail || '';
+    if (S.advancedMode && $('expStatusBox')) {
+      $('expStatusBox').textContent = JSON.stringify(ep, null, 2);
+    }
 
     if (!ex.running) $('stopExtractBtn').disabled = true;
   } catch (_) {}
@@ -400,6 +428,107 @@ async function loadSessionMessages(sessionId) {
       addChatMsg(role, m.content || '');
     });
   } catch (_) {}
+}
+
+function checkedValues(name) {
+  return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map((x) => x.value);
+}
+
+function renderExperimentChecks() {
+  const cfgBox = $('expConfigChecks');
+  const prmBox = $('expPromptChecks');
+  const mdlBox = $('expModelChecks');
+  if (!cfgBox || !prmBox || !mdlBox) return;
+  const opts = S.experimentOptions || { retrieval_configs: [], prompt_types: [], models: [] };
+  cfgBox.innerHTML = (opts.retrieval_configs || []).map((c) =>
+    `<label class="radio-label"><input type="checkbox" name="expCfg" value="${esc(c)}" checked /> ${esc(c)}</label>`
+  ).join('');
+  prmBox.innerHTML = (opts.prompt_types || []).map((p) =>
+    `<label class="radio-label"><input type="checkbox" name="expPrompt" value="${esc(p)}" checked /> ${esc(p)}</label>`
+  ).join('');
+  mdlBox.innerHTML = (opts.models || []).map((m) =>
+    `<label class="radio-label"><input type="checkbox" name="expModel" value="${esc(m.name)}" checked /> ${esc(m.label || m.name)}</label>`
+  ).join('');
+}
+
+function setAdvancedModeUi(enabled) {
+  S.advancedMode = !!enabled;
+  const tabBtn = $('experimentsTabBtn');
+  const hint = $('advancedModeHint');
+  if (tabBtn) tabBtn.classList.toggle('hidden', !enabled);
+  if (hint) hint.textContent = enabled
+    ? 'Advanced mode is ON. Experiments panel enabled.'
+    : 'Advanced mode is OFF.';
+  if (!enabled && $('tab-experiments') && !$('tab-experiments').classList.contains('hidden')) {
+    document.querySelector('.tab-btn[data-tab="chat"]')?.click();
+  }
+}
+
+async function initAdvancedMode() {
+  try {
+    const d = await apiFetch('/api/settings');
+    const enabled = !!d.advanced_mode;
+    $('advancedModeToggle').checked = enabled;
+    setAdvancedModeUi(enabled);
+  } catch (_) {
+    $('advancedModeToggle').checked = false;
+    setAdvancedModeUi(false);
+  }
+
+  $('advancedModeToggle').onchange = async (e) => {
+    const enabled = !!e.target.checked;
+    try {
+      const d = await apiFetch('/api/settings/advanced-mode', { method: 'POST', body: fd({ enabled }) });
+      setAdvancedModeUi(!!d.advanced_mode);
+    } catch (err) {
+      addChatMsg('system', `Advanced mode toggle failed: ${err.message}`);
+      e.target.checked = S.advancedMode;
+    }
+  };
+
+  try {
+    const opts = await apiFetch('/api/experiments/options');
+    S.experimentOptions = opts;
+    renderExperimentChecks();
+  } catch (_) {}
+}
+
+async function runExperiment() {
+  const payload = {
+    mode: $('expMode').value,
+    data_root: $('dataRoot').value.trim(),
+    benchmark_path: $('expBenchmarkPath').value.trim(),
+    output_root: $('expOutputRoot').value.trim(),
+    top_k: Number($('expTopK').value || 3),
+    run_id: $('expRunId').value.trim(),
+    selected_retrieval_config: $('expSelectedConfig').value.trim(),
+    retrieval_configs: checkedValues('expCfg'),
+    prompt_types: checkedValues('expPrompt'),
+    model_names: checkedValues('expModel'),
+  };
+  if (!payload.benchmark_path) {
+    $('expStatusBox').textContent = 'Benchmark path is required.';
+    return;
+  }
+  try {
+    const d = await apiFetch('/api/experiments/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    $('expStatusBox').textContent = d.message || 'Experiment started.';
+  } catch (e) {
+    $('expStatusBox').textContent = `Experiment start error: ${e.message}`;
+  }
+}
+
+async function stopExperiment() {
+  try {
+    const d = await apiFetch('/api/experiments/stop', { method: 'POST', body: fd({}) });
+    $('expStatusBox').textContent = d.message || 'Stop signal sent.';
+  } catch (e) {
+    $('expStatusBox').textContent = `Experiment stop error: ${e.message}`;
+  }
 }
 
 async function loadChatSuggestions() {
@@ -763,6 +892,7 @@ async function init() {
   // Models — these are slow (CUDA load); apiFetch blocks until done
   $('loadVlmBtn').onclick = () => loadModel('vlm');
   $('loadLlmBtn').onclick = () => loadModel('llm');
+  $('unloadLlmBtn').onclick = unloadLlm;
 
   // Scope changes suggestions context
   $('chatScope').onchange = () => loadChatSuggestions();
@@ -789,7 +919,28 @@ async function init() {
   // Logs
   $('clearLogsBtn').onclick = clearLogs;
 
+  // Experiments (advanced)
+  $('runExperimentBtn').onclick = runExperiment;
+  $('stopExperimentBtn').onclick = stopExperiment;
+  $('browseBenchmarkBtn').onclick = async () => {
+    try {
+      const d = await apiFetch('/api/browse/file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accept: '.csv,.json' }),
+      });
+      if (d.path) $('expBenchmarkPath').value = d.path;
+    } catch (_) {}
+  };
+  $('browseExpOutputBtn').onclick = async () => {
+    try {
+      const d = await apiFetch('/api/browse/folder', { method: 'POST' });
+      if (d.path) $('expOutputRoot').value = d.path;
+    } catch (_) {}
+  };
+
   // Boot
+  await initAdvancedMode();
   await initModelOptions();
   await refreshDocs();
   await loadChatSuggestions();
