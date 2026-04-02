@@ -28,9 +28,16 @@ echo Starting inference API in separate window...
 start "SCAL Inference API" "%INFER_RUNNER%"
 
 echo Waiting for inference health on http://127.0.0.1:8010/v1/health ...
+set "HEALTH_CHECKER=powershell"
+where curl.exe >nul 2>&1
+if not errorlevel 1 set "HEALTH_CHECKER=curl"
 set "INFER_OK=0"
 for /L %%I in (1,1,240) do (
-  powershell -NoProfile -Command "try { Invoke-WebRequest 'http://127.0.0.1:8010/v1/health' -UseBasicParsing -TimeoutSec 2 ^| Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
+  if /I "%HEALTH_CHECKER%"=="curl" (
+    curl.exe -fsS "http://127.0.0.1:8010/v1/health" >nul 2>&1
+  ) else (
+    powershell -NoProfile -Command "try { Invoke-WebRequest 'http://127.0.0.1:8010/v1/health' -UseBasicParsing -TimeoutSec 2 ^| Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
+  )
   if not errorlevel 1 (
     set "INFER_OK=1"
     goto :infer_ready
