@@ -2,6 +2,7 @@ const state = {
   app: {},
   settings: { backend: "inference_api", ui_mode: "layman", data_root: "" },
   model: {},
+  progress: {},
   services: {},
   sessions: [],
   currentSessionId: "",
@@ -14,6 +15,14 @@ const state = {
   lastSources: [],
   lastTables: [],
   streaming: false,
+};
+
+const modelNotice = {
+  booted: false,
+  lastStage: "",
+  lastPercent: -1,
+  lastLoaded: false,
+  lastModelName: "",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -76,6 +85,46 @@ function updateModelStatus() {
   $("pullModelBtn").style.display = canPull ? "" : "none";
 }
 
+function maybeReportModelProgress() {
+  const p = state.progress?.model || {};
+  const m = state.model || {};
+  const stage = String(p.stage || "");
+  const detail = String(p.detail || "");
+  const percent = Number(p.percent ?? -1);
+  const loaded = !!m.loaded;
+  const modelName = String(m.model_name || m.target_model || "model");
+
+  if (!modelNotice.booted) {
+    modelNotice.booted = true;
+    modelNotice.lastStage = stage;
+    modelNotice.lastPercent = percent;
+    modelNotice.lastLoaded = loaded;
+    modelNotice.lastModelName = modelName;
+    return;
+  }
+
+  if ((stage === "loading" || stage === "downloading" || stage === "finalizing") && percent >= 0) {
+    const bucket = Math.floor(percent / 10) * 10;
+    const lastBucket = Math.floor((modelNotice.lastPercent >= 0 ? modelNotice.lastPercent : -1) / 10) * 10;
+    if (stage !== modelNotice.lastStage || bucket !== lastBucket) {
+      systemMsg(`Model loading ${modelName}: ${percent}% (${stage}${detail ? ` - ${detail}` : ""})`);
+    }
+  }
+
+  if (!modelNotice.lastLoaded && loaded) {
+    systemMsg(`Model loaded: ${m.model_name || "ready"} (${m.backend || state.settings.backend})`);
+  }
+
+  if (stage === "failed" && stage !== modelNotice.lastStage) {
+    systemMsg(`Model load failed: ${m.last_error || detail || "unknown error"}`);
+  }
+
+  modelNotice.lastStage = stage;
+  modelNotice.lastPercent = percent;
+  modelNotice.lastLoaded = loaded;
+  modelNotice.lastModelName = modelName;
+}
+
 async function saveSettings(patch) {
   const data = await apiJson("/api/settings", {
     method: "POST",
@@ -92,6 +141,7 @@ async function loadState() {
   state.app = s.app || {};
   state.settings = s.settings || state.settings;
   state.model = s.model || {};
+  state.progress = s.progress || state.progress;
   state.services = s.services || {};
 
   $("buildChip").textContent = `build: ${state.app.build || "-"}`;
@@ -100,6 +150,7 @@ async function loadState() {
   $("dataRoot").value = state.settings.data_root || "";
   applyUiMode(state.settings.ui_mode || "layman");
   updateModelStatus();
+  maybeReportModelProgress();
 }
 
 function renderSessions() {
