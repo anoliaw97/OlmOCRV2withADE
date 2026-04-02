@@ -48,7 +48,6 @@ SETTINGS_FILE = ROOT / "scal_rebuild_settings.json"
 INFERENCE_API_URL = os.environ.get("SCAL_INFERENCE_API_URL", "http://127.0.0.1:8010").rstrip("/")
 OLLAMA_BASE_URL = os.environ.get("SCAL_OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 LOCALAI_BASE_URL = os.environ.get("SCAL_LOCALAI_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
-CLASSIC_UI_URL = os.environ.get("SCAL_CLASSIC_UI_URL", "http://127.0.0.1:8080").rstrip("/")
 
 
 def _git_commit_short() -> str:
@@ -861,15 +860,6 @@ def sync_model_state() -> dict[str, Any]:
         return {}
 
 
-def _classic_ui_candidates() -> list[str]:
-    candidates = [CLASSIC_UI_URL, "http://127.0.0.1:8090", "http://127.0.0.1:8080"]
-    out = []
-    for url in candidates:
-        if url and url not in out:
-            out.append(url)
-    return out
-
-
 def _first_image_for_page(files: dict[str, Path]) -> Path | None:
     for ext in ("png", "jpg", "jpeg", "webp"):
         if ext in files:
@@ -999,7 +989,6 @@ def api_state():
             "inference_api_url": INFERENCE_API_URL,
             "ollama_url": OLLAMA_BASE_URL,
             "localai_url": LOCALAI_BASE_URL,
-            "legacy_ui_url": CLASSIC_UI_URL,
         },
     }
 
@@ -1051,25 +1040,6 @@ def api_logs_clear(kind: str = Form("all")):
     else:
         raise HTTPException(status_code=400, detail="Invalid log kind")
     return {"ok": True}
-
-
-@app.get("/api/legacy/health")
-def api_legacy_health():
-    errors = []
-    for legacy_url in _classic_ui_candidates():
-        req = urllib.request.Request(legacy_url, headers={"Accept": "text/html"}, method="GET")
-        try:
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                code = int(getattr(resp, "status", 200) or 200)
-                return {"ok": True, "url": legacy_url, "status_code": code, "message": "Classic app reachable"}
-        except Exception as e:
-            errors.append(f"{legacy_url} -> {e}")
-    return {
-        "ok": False,
-        "url": CLASSIC_UI_URL,
-        "status_code": 0,
-        "message": " ; ".join(errors) if errors else "Classic app unreachable",
-    }
 
 
 def _tkdialog_folder() -> str:

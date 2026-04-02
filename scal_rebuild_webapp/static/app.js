@@ -100,11 +100,6 @@ async function loadState() {
   $("dataRoot").value = state.settings.data_root || "";
   applyUiMode(state.settings.ui_mode || "layman");
   updateModelStatus();
-
-  const legacyStatus = $("legacyStatus");
-  if (legacyStatus && state.services.legacy_ui_url) {
-    legacyStatus.textContent = `Classic app status: configured at ${state.services.legacy_ui_url}`;
-  }
 }
 
 function renderSessions() {
@@ -594,14 +589,8 @@ function bindEvents() {
   $("buildRagSelectedBtn").addEventListener("click", () => buildRag("selected"));
 
   $("uiModeSelect").addEventListener("change", async () => {
-    const nextMode = $("uiModeSelect").value;
     await saveSettings({ ui_mode: $("uiModeSelect").value });
     applyUiMode(state.settings.ui_mode);
-    if (nextMode === "advanced") {
-      const url = state.services.legacy_ui_url || "http://127.0.0.1:8080";
-      window.open(url, "_blank", "noopener,noreferrer");
-      systemMsg("Advanced mode enabled. Opened Classic VLM tools in a new tab.");
-    }
   });
   $("backendSelect").addEventListener("change", async () => {
     await saveSettings({ backend: $("backendSelect").value });
@@ -678,14 +667,6 @@ function bindEvents() {
   $("exportExcelBtn").addEventListener("click", () => exportTables("excel"));
   $("exportWordBtn").addEventListener("click", () => exportTables("word"));
 
-  $("openLegacyBtn").addEventListener("click", () => {
-    const url = state.services.legacy_ui_url || "http://127.0.0.1:8080";
-    window.open(url, "_blank", "noopener,noreferrer");
-  });
-  $("checkLegacyBtn").addEventListener("click", async () => {
-    const data = await apiJson("/api/legacy/health");
-    $("legacyStatus").textContent = `Classic app status: ${data.ok ? "reachable" : "unreachable"} (${data.message || ""})`;
-  });
 }
 
 function setLogTab() {
@@ -709,8 +690,6 @@ async function boot() {
       await openSession(state.sessions[0].id);
     }
     await refreshLogs();
-    const legacy = await apiJson("/api/legacy/health");
-    $("legacyStatus").textContent = `Classic app status: ${legacy.ok ? "reachable" : "unreachable"} (${legacy.message || ""})`;
   } catch (e) {
     systemMsg(`Startup error: ${e.message || e}`);
   }

@@ -16,7 +16,7 @@ This is a clean reconstruction branch/folder inspired by Open WebUI interaction 
 - Persisted TF-IDF index for extracted JSON/MD (load existing index; rebuild on demand)
 - Assistant label uses active model name
 - Layman / Advanced mode toggle
-- Advanced mode opens **Classic VLM Tools** (`8080`/`8090`) and includes reachability status check
+- Advanced mode enables power-user controls (logs, retrieval scope/type, model controls)
 - Folder browse API for path selection (no manual copy/paste required)
 - Ollama-backed model loader flow (pull on demand + auto-pull when switching missing models)
 - Table export from retrieved results to Word/Excel-compatible files
@@ -24,7 +24,7 @@ This is a clean reconstruction branch/folder inspired by Open WebUI interaction 
 
 ## Run
 
-Use one command to launch both services:
+Use one command to launch inference + rebuilt UI:
 
 `run_scal_rebuild_stack_conda.bat`
 
@@ -40,4 +40,3 @@ If using Ollama backend, ensure Ollama is running locally.
 - Inference API URL defaults to `http://127.0.0.1:8010` and can be overridden via `SCAL_INFERENCE_API_URL`.
 - Ollama URL defaults to `http://127.0.0.1:11434` and can be overridden via `SCAL_OLLAMA_BASE_URL`.
 - LocalAI URL defaults to `http://127.0.0.1:8080` and can be overridden via `SCAL_LOCALAI_BASE_URL`.
-- Classic UI URL defaults to `http://127.0.0.1:8080` and can be overridden via `SCAL_CLASSIC_UI_URL`.
