@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+import traceback
 
 
 REQUIRED_MODULES = [
@@ -46,6 +47,7 @@ def main() -> int:
         return 0
     except Exception as exc:
         print(f"Failed to start web app: {exc}")
+        traceback.print_exc()
         return 1
 
 

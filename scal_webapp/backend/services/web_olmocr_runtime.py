@@ -7,10 +7,41 @@ from threading import Lock
 
 import torch
 from PIL import Image
-from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer, Qwen2_5_VLForConditionalGeneration
 
-from olmocr.data.renderpdf import render_pdf_to_base64png
-from olmocr.prompts import build_no_anchoring_v4_yaml_prompt
+
+def _import_vlm_transformers():
+    try:
+        from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+
+        return AutoProcessor, Qwen2_5_VLForConditionalGeneration
+    except Exception as e:
+        raise RuntimeError(
+            "VLM dependency import failed (AutoProcessor/Qwen2.5-VL). "
+            "Install compatible transformers/torch stack and retry. "
+            f"Underlying error: {e}"
+        )
+
+
+def _import_llm_transformers():
+    try:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        return AutoModelForCausalLM, AutoTokenizer
+    except Exception as e:
+        raise RuntimeError(
+            "LLM dependency import failed (AutoModelForCausalLM/AutoTokenizer). "
+            "Install compatible transformers/torch stack and retry. "
+            f"Underlying error: {e}"
+        )
+
+
+def _default_prompt() -> str:
+    try:
+        from olmocr.prompts import build_no_anchoring_v4_yaml_prompt
+
+        return build_no_anchoring_v4_yaml_prompt()
+    except Exception:
+        return "Extract structured tables and key values from this SCAL page. Preserve headers, units, and row values."
 
 
 MODEL_ID = "allenai/olmOCR-2-7B-1025-FP8"
@@ -32,6 +63,7 @@ class VLMRuntime:
             if not torch.cuda.is_available():
                 raise RuntimeError("CUDA GPU required for VLM")
 
+            AutoProcessor, Qwen2_5_VLForConditionalGeneration = _import_vlm_transformers()
             self.processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct")
             self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                 self.model_id,
@@ -45,7 +77,9 @@ class VLMRuntime:
             if not self.loaded:
                 raise RuntimeError("VLM not loaded. Click Load VLM first.")
 
-            use_prompt = prompt or build_no_anchoring_v4_yaml_prompt()
+            from olmocr.data.renderpdf import render_pdf_to_base64png
+
+            use_prompt = prompt or _default_prompt()
             image_base64 = render_pdf_to_base64png(pdf_path, page, target_longest_image_dim=1288)
             pil_image = Image.open(BytesIO(base64.b64decode(image_base64)))
 
@@ -97,6 +131,7 @@ class LLMRuntime:
                 return
             if not torch.cuda.is_available():
                 raise RuntimeError("CUDA GPU required for LLM")
+            AutoModelForCausalLM, AutoTokenizer = _import_llm_transformers()
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
             self.model = AutoModelForCausalLM.from_pretrained(self.model_id, torch_dtype=torch.float16).to("cuda").eval()
             self.loaded = True
@@ -115,4 +150,4 @@ def get_llm() -> LLMRuntime:
 
 
 def default_olmocr_prompt() -> str:
-    return build_no_anchoring_v4_yaml_prompt()
+    return _default_prompt()

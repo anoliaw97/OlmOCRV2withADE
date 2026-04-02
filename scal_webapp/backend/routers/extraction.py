@@ -18,7 +18,6 @@ from ..services.indexer import LocalHybridIndex
 from ..services.logger import log_event
 from ..services.postprocess import build_rag_chunks, normalize_tables
 from ..services.web_olmocr_runtime import default_olmocr_prompt, get_vlm
-from olmocr.data.renderpdf import render_pdf_to_base64png
 
 
 router = APIRouter(prefix="/api/extraction", tags=["extraction"])
@@ -386,6 +385,8 @@ def get_page_thumbnail(report_id: int, page_number: int, db: Session = Depends(g
         raise HTTPException(status_code=404, detail="Source PDF not found in uploads")
 
     try:
+        from olmocr.data.renderpdf import render_pdf_to_base64png
+
         img_b64 = render_pdf_to_base64png(str(pdf_path), page_number, target_longest_image_dim=360)
         return {
             "report_id": report_id,
