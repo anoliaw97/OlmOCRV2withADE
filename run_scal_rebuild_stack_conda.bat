@@ -65,12 +65,28 @@ echo Installing classic webapp package...
 call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -e "scal_webapp" --no-deps
 if errorlevel 1 goto :deps_fail
 
+set "INFER_RUNNER=%TEMP%\scal_infer_runner_%ENV_NAME%.bat"
+set "CLASSIC_RUNNER=%TEMP%\scal_classic_runner_%ENV_NAME%.bat"
+
+(
+  echo @echo off
+  echo set "HF_HUB_DISABLE_XET=1"
+  echo set "HF_HUB_ENABLE_HF_TRANSFER=1"
+  echo set "HF_HUB_DOWNLOAD_TIMEOUT=120"
+  echo call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --workers 1
+) > "%INFER_RUNNER%"
+
+(
+  echo @echo off
+  echo call "%CONDA_BAT%" run -n "%ENV_NAME%" scal-webapp
+) > "%CLASSIC_RUNNER%"
+
 echo Starting services in separate windows...
-start "SCAL Inference API" cmd /k "set HF_HUB_DISABLE_XET=1 ^& set HF_HUB_ENABLE_HF_TRANSFER=1 ^& set HF_HUB_DOWNLOAD_TIMEOUT=120 ^& call ""%CONDA_BAT%"" run -n ""%ENV_NAME%"" python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --workers 1"
+start "SCAL Inference API" cmd /k call "%INFER_RUNNER%"
 
 timeout /t 2 /nobreak >nul
 
-start "SCAL Classic UI" cmd /k "call ""%CONDA_BAT%"" run -n ""%ENV_NAME%"" scal-webapp"
+start "SCAL Classic UI" cmd /k call "%CLASSIC_RUNNER%"
 
 timeout /t 3 /nobreak >nul
 
