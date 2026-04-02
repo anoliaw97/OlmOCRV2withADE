@@ -12,6 +12,7 @@ const state = {
   logKind: "status",
   previewTab: "pdf",
   lastSources: [],
+  lastTables: [],
   streaming: false,
 };
 
@@ -318,6 +319,41 @@ function renderSources(list) {
   }
 }
 
+async function exportTables(format) {
+  if (!state.lastTables.length) {
+    $("exportStatus").textContent = "Export: no tables in last response";
+    return;
+  }
+  $("exportStatus").textContent = `Export: generating ${format}...`;
+  const res = await fetch("/api/tables/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      format,
+      title: "SCAL combined retrieved tables",
+      tables: state.lastTables,
+    }),
+  });
+  if (!res.ok) {
+    $("exportStatus").textContent = `Export failed: ${await res.text()}`;
+    return;
+  }
+  const blob = await res.blob();
+  const dispo = res.headers.get("Content-Disposition") || "";
+  let name = format === "excel" ? "scal_tables.xls" : "scal_tables.doc";
+  const m = dispo.match(/filename=([^;]+)/i);
+  if (m) name = m[1].replace(/^"|"$/g, "");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  $("exportStatus").textContent = `Export: downloaded ${name}`;
+}
+
 async function refreshLogs() {
   const data = await apiJson(`/api/logs?kind=${encodeURIComponent(state.logKind)}&limit=200`);
   const host = $("logsList");
@@ -422,6 +458,10 @@ async function runChatStream(payload) {
     }
     if (doneEvent.session_id) state.currentSessionId = doneEvent.session_id;
     renderSources(doneEvent.sources || []);
+    state.lastTables = Array.isArray(doneEvent.tables) ? doneEvent.tables : [];
+    if (state.lastTables.length) {
+      $("exportStatus").textContent = `Export: ${state.lastTables.length} table(s) ready`;
+    }
   }
 }
 
@@ -442,8 +482,10 @@ async function sendChat() {
     scope: $("scopeSelect").value || "all",
     filter_extraction_type: $("fType").value || null,
     response_mode: $("responseMode").value || "fast",
-    prompt_template: "You are a precise SCAL analysis assistant.",
-    top_k: 8,
+    prompt_template: ($("taskPromptInput").value || "").trim(),
+    top_k: Number($("topKInput").value || 24),
+    include_table_html: !!$("includeHtmlChk").checked,
+    use_pdf_vision: !!$("useVisionChk").checked,
   };
 
   addMessage("user", q);
@@ -473,6 +515,20 @@ async function buildRag(scope) {
   $("ragStatus").textContent = "RAG status: building...";
   const data = await apiForm("/api/rag/build", form);
   $("ragStatus").textContent = `RAG status: ${data.message || "done"}`;
+  await refreshRagStatus();
+}
+
+async function refreshRagStatus() {
+  try {
+    const s = await apiJson("/api/rag/status");
+    if (s.global_index_ready) {
+      $("ragStatus").textContent = `RAG status: loaded ${s.global_chunks || 0} chunk(s)`;
+    } else {
+      $("ragStatus").textContent = "RAG status: no saved index loaded";
+    }
+  } catch {
+    // ignore
+  }
 }
 
 function bindEvents() {
@@ -515,7 +571,7 @@ function bindEvents() {
     await saveSettings({ ui_mode: $("uiModeSelect").value });
     applyUiMode(state.settings.ui_mode);
     if (nextMode === "advanced") {
-      const url = state.services.legacy_ui_url || "http://127.0.0.1:8090";
+      const url = state.services.legacy_ui_url || "http://127.0.0.1:8080";
       window.open(url, "_blank", "noopener,noreferrer");
       systemMsg("Advanced mode enabled. Opened Classic VLM tools in a new tab.");
     }
@@ -580,12 +636,23 @@ function bindEvents() {
   });
 
   $("refreshPreviewBtn").addEventListener("click", loadPreview);
+  $("popoutPdfBtn").addEventListener("click", () => {
+    const src = $("previewPdfFrame").src || "";
+    if (!src || src === "about:blank") {
+      systemMsg("Load a PDF page preview first.");
+      return;
+    }
+    window.open(src, "_blank", "noopener,noreferrer");
+  });
   $("tabPdfBtn").addEventListener("click", () => switchPreviewTab("pdf"));
   $("tabJsonBtn").addEventListener("click", () => switchPreviewTab("json"));
   $("tabHtmlBtn").addEventListener("click", () => switchPreviewTab("html"));
 
+  $("exportExcelBtn").addEventListener("click", () => exportTables("excel"));
+  $("exportWordBtn").addEventListener("click", () => exportTables("word"));
+
   $("openLegacyBtn").addEventListener("click", () => {
-    const url = state.services.legacy_ui_url || "http://127.0.0.1:8090";
+    const url = state.services.legacy_ui_url || "http://127.0.0.1:8080";
     window.open(url, "_blank", "noopener,noreferrer");
   });
   $("checkLegacyBtn").addEventListener("click", async () => {
@@ -609,6 +676,7 @@ async function boot() {
     await loadState();
     await refreshModels();
     await refreshDocs();
+    await refreshRagStatus();
     await refreshSessions();
     if (state.sessions.length) {
       await openSession(state.sessions[0].id);

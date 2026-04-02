@@ -9,6 +9,9 @@ cd /d "%~dp0"
 echo Starting SCAL inference API in a new window...
 start "SCAL Inference API" cmd /k "call "%~dp0run_scal_inference_api_conda.bat" %ENV_NAME%"
 
+echo Starting SCAL classic VLM tools UI in a new window...
+start "SCAL Classic UI" cmd /k "call "%~dp0run_scal_webapp_conda.bat" %ENV_NAME%"
+
 echo Waiting 3 seconds before launching rebuild web app...
 timeout /t 3 /nobreak >nul
 

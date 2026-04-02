@@ -97,6 +97,7 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   gap: 6px;
   max-height: 34vh;
   overflow: auto;
+  resize: vertical;
 }
 
 .session-item,
@@ -136,6 +137,8 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   display: flex;
   flex-direction: column;
   gap: 10px;
+  resize: vertical;
+  min-height: 220px;
 }
 
 .msg {
@@ -218,6 +221,7 @@ input, select { height: 34px; }
 textarea { width: 100%; resize: vertical; min-height: 80px; }
 
 #modelInput { min-width: 220px; }
+#topKInput { width: 82px; }
 
 button { cursor: pointer; }
 .btn-primary { background: #195086; border-color: #2d73b6; color: #eaf4ff; }
@@ -243,6 +247,7 @@ button { cursor: pointer; }
   overflow: auto;
   background: var(--bg2);
   padding: 6px;
+  resize: both;
 }
 
 #previewPdfFrame {

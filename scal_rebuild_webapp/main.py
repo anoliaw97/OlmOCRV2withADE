@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import urllib.error
 import urllib.parse
@@ -12,6 +14,7 @@ import urllib.request
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +22,7 @@ import joblib
 from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
@@ -45,6 +48,7 @@ SETTINGS_FILE = ROOT / "scal_rebuild_settings.json"
 INFERENCE_API_URL = os.environ.get("SCAL_INFERENCE_API_URL", "http://127.0.0.1:8010").rstrip("/")
 OLLAMA_BASE_URL = os.environ.get("SCAL_OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 LOCALAI_BASE_URL = os.environ.get("SCAL_LOCALAI_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
+CLASSIC_UI_URL = os.environ.get("SCAL_CLASSIC_UI_URL", "http://127.0.0.1:8080").rstrip("/")
 
 
 def _git_commit_short() -> str:
@@ -226,7 +230,7 @@ def append_session_messages(session_id: str, new_messages: list[dict[str, Any]])
 
 
 def parse_name(file_name: str) -> tuple[str | None, int | None, str]:
-    m = re.match(r"^(.*)_page(\d+)\.(pdf|md|json)$", file_name, flags=re.IGNORECASE)
+    m = re.match(r"^(.*)_page(\d+)\.(pdf|md|json|png|jpg|jpeg|webp)$", file_name, flags=re.IGNORECASE)
     if not m:
         return None, None, Path(file_name).suffix.lower().lstrip(".")
     return m.group(1), int(m.group(2)), m.group(3).lower()
@@ -269,6 +273,7 @@ def pages_map_for_doc(doc_name: str) -> list[dict[str, Any]]:
                 "has_pdf": "pdf" in files,
                 "has_json": "json" in files,
                 "has_md": "md" in files,
+                "has_image": any(k in files for k in ("png", "jpg", "jpeg", "webp")),
             }
         )
     return out
@@ -306,6 +311,7 @@ def page_content_for(doc_name: str, page: int) -> dict[str, Any] | None:
         "has_pdf": "pdf" in files,
         "has_json": "json" in files,
         "has_md": "md" in files,
+        "has_image": any(k in files for k in ("png", "jpg", "jpeg", "webp")),
     }
 
 
@@ -401,7 +407,15 @@ def chunks_for_doc(doc_name: str) -> list[dict[str, Any]]:
             for h in tables:
                 tcount += 1
                 cols, rows = parse_html_table(h)
-                txt = json.dumps(rows, ensure_ascii=False) if rows else h
+                rows_json = json.dumps(rows, ensure_ascii=False) if rows else "[]"
+                txt = (
+                    "TABLE_HTML_BEGIN\n"
+                    f"{h}\n"
+                    "TABLE_HTML_END\n"
+                    "TABLE_ROWS_JSON_BEGIN\n"
+                    f"{rows_json}\n"
+                    "TABLE_ROWS_JSON_END"
+                )
                 chunks.append(
                     {
                         "text": txt,
@@ -502,13 +516,8 @@ def ensure_doc_index_loaded(doc_name: str) -> bool:
         return True
     obj = load_index(ns(doc_name))
     if obj is None:
-        ok = build_doc_index(doc_name)
-        if not ok:
-            return False
-        obj = load_index(ns(doc_name))
-        if obj is None:
-            return False
-        log("status", f"Auto-built index for {doc_name}")
+        log("status", f"No existing RAG index for {doc_name}. Run RAG Build.")
+        return False
     R.vectorizer, R.matrix, R.index_texts, R.index_meta = obj
     R.current_doc = doc_name
     return True
@@ -519,16 +528,8 @@ def ensure_global_index_loaded() -> bool:
         return True
     obj = load_index(ns("__ALL__"))
     if obj is None:
-        names = sorted(R.docs.keys())
-        if not names:
-            return False
-        n = build_global_index(names)
-        if n <= 0:
-            return False
-        obj = load_index(ns("__ALL__"))
-        if obj is None:
-            return False
-        log("status", f"Auto-built global index ({n} chunks)")
+        log("status", "No existing global RAG index. Run RAG Build.")
+        return False
     R.vectorizer, R.matrix, R.index_texts, R.index_meta = obj
     R.current_doc = "__ALL__"
     return True
@@ -783,6 +784,77 @@ def sync_model_state() -> dict[str, Any]:
         return {}
 
 
+def _classic_ui_candidates() -> list[str]:
+    candidates = [CLASSIC_UI_URL, "http://127.0.0.1:8090", "http://127.0.0.1:8080"]
+    out = []
+    for url in candidates:
+        if url and url not in out:
+            out.append(url)
+    return out
+
+
+def _first_image_for_page(files: dict[str, Path]) -> Path | None:
+    for ext in ("png", "jpg", "jpeg", "webp"):
+        if ext in files:
+            return files[ext]
+    return None
+
+
+def _as_data_url(path: Path) -> str:
+    mime = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }.get(path.suffix.lower(), "application/octet-stream")
+    raw = path.read_bytes()
+    return f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
+
+
+def _rows_to_html(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return "<table><tr><td>(no rows)</td></tr></table>"
+    cols = []
+    for r in rows:
+        for k in r.keys():
+            if k not in cols:
+                cols.append(str(k))
+    head = "".join(f"<th>{escape(c)}</th>" for c in cols)
+    body = []
+    for r in rows:
+        tds = "".join(f"<td>{escape(str(r.get(c, '')))}</td>" for c in cols)
+        body.append(f"<tr>{tds}</tr>")
+    return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table>"
+
+
+def _export_tables_document(tables: list[dict[str, Any]], title: str, kind: str) -> tuple[Path, str]:
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ext = "xls" if kind == "excel" else "doc"
+    out_path = Path(tempfile.gettempdir()) / f"scal_tables_{ts}.{ext}"
+    blocks = []
+    for i, t in enumerate(tables, start=1):
+        html = str(t.get("raw_html") or "").strip()
+        if not html:
+            html = _rows_to_html(list(t.get("rows") or []))
+        meta = f"{t.get('file_name','?')} | page {t.get('page_number','?')} | {t.get('table_id','T'+str(i))}"
+        blocks.append(f"<h3>Table {i}</h3><div>{escape(meta)}</div>{html}<hr>")
+    if not blocks:
+        blocks.append("<p>No tables available for export.</p>")
+    body = "\n".join(blocks)
+    doc = (
+        "<html><head><meta charset='utf-8'><style>"
+        "body{font-family:Segoe UI,Arial,sans-serif;font-size:11pt;}"
+        "table{border-collapse:collapse;width:100%;margin:8px 0;}"
+        "th,td{border:1px solid #999;padding:4px 6px;font-size:10pt;}"
+        "h2,h3{margin:8px 0 4px 0;}hr{border:none;border-top:1px solid #ccc;margin:10px 0;}"
+        "</style></head><body>"
+        f"<h2>{escape(title)}</h2>{body}</body></html>"
+    )
+    out_path.write_text(doc, encoding="utf-8")
+    media = "application/vnd.ms-excel" if kind == "excel" else "application/msword"
+    return out_path, media
+
+
 def llm_generation_settings(mode: str) -> dict[str, Any]:
     m = (mode or "balanced").strip().lower()
     if m == "fast":
@@ -807,7 +879,9 @@ class ChatReq(BaseModel):
     filter_extraction_type: str | None = None
     response_mode: str = "fast"
     prompt_template: str = ""
-    top_k: int = 8
+    top_k: int = 24
+    include_table_html: bool = True
+    use_pdf_vision: bool = False
 
 
 class SettingsReq(BaseModel):
@@ -818,6 +892,12 @@ class SettingsReq(BaseModel):
 
 class SessionTitleReq(BaseModel):
     title: str = ""
+
+
+class ExportTablesReq(BaseModel):
+    format: str = "excel"  # excel | word
+    title: str = "SCAL Combined Tables"
+    tables: list[dict[str, Any]] = Field(default_factory=list)
 
 
 app = FastAPI(title="SCAL Rebuild WebApp")
@@ -842,7 +922,7 @@ def api_state():
             "inference_api_url": INFERENCE_API_URL,
             "ollama_url": OLLAMA_BASE_URL,
             "localai_url": LOCALAI_BASE_URL,
-            "legacy_ui_url": "http://127.0.0.1:8090",
+            "legacy_ui_url": CLASSIC_UI_URL,
         },
     }
 
@@ -898,14 +978,21 @@ def api_logs_clear(kind: str = Form("all")):
 
 @app.get("/api/legacy/health")
 def api_legacy_health():
-    legacy_url = "http://127.0.0.1:8090"
-    req = urllib.request.Request(legacy_url, headers={"Accept": "text/html"}, method="GET")
-    try:
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            code = int(getattr(resp, "status", 200) or 200)
-            return {"ok": True, "url": legacy_url, "status_code": code, "message": "Classic app reachable"}
-    except Exception as e:
-        return {"ok": False, "url": legacy_url, "status_code": 0, "message": str(e)}
+    errors = []
+    for legacy_url in _classic_ui_candidates():
+        req = urllib.request.Request(legacy_url, headers={"Accept": "text/html"}, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                code = int(getattr(resp, "status", 200) or 200)
+                return {"ok": True, "url": legacy_url, "status_code": code, "message": "Classic app reachable"}
+        except Exception as e:
+            errors.append(f"{legacy_url} -> {e}")
+    return {
+        "ok": False,
+        "url": CLASSIC_UI_URL,
+        "status_code": 0,
+        "message": " ; ".join(errors) if errors else "Classic app unreachable",
+    }
 
 
 def _tkdialog_folder() -> str:
@@ -1001,6 +1088,7 @@ def api_page_view(doc_name: str, page: int):
         "pdf_url": f"/api/page/file?doc_name={qdoc}&page={qpage}&file_type=pdf" if info.get("has_pdf") else "",
         "json_url": f"/api/page/file?doc_name={qdoc}&page={qpage}&file_type=json" if info.get("has_json") else "",
         "md_url": f"/api/page/file?doc_name={qdoc}&page={qpage}&file_type=md" if info.get("has_md") else "",
+        "image_url": f"/api/page/file?doc_name={qdoc}&page={qpage}&file_type=image" if info.get("has_image") else "",
     }
     return {
         "doc_name": doc,
@@ -1018,19 +1106,30 @@ def api_page_view(doc_name: str, page: int):
 def api_page_file(doc_name: str, page: int, file_type: str):
     doc = (doc_name or "").strip()
     ftype = (file_type or "").strip().lower()
-    if ftype not in {"pdf", "json", "md"}:
-        raise HTTPException(status_code=400, detail="file_type must be pdf/json/md")
+    if ftype not in {"pdf", "json", "md", "image"}:
+        raise HTTPException(status_code=400, detail="file_type must be pdf/json/md/image")
     if not R.docs:
         R.docs = scan_docs(R.data_root)
     files = R.docs.get(doc, {}).get(int(page), {})
-    if ftype not in files:
+    target_key = ftype
+    if ftype == "image":
+        target_key = ""
+        for k in ("png", "jpg", "jpeg", "webp"):
+            if k in files:
+                target_key = k
+                break
+    if target_key not in files:
         raise HTTPException(status_code=404, detail="Requested file type not found for page")
-    path = files[ftype]
+    path = files[target_key]
     media = {
         "pdf": "application/pdf",
         "json": "application/json",
         "md": "text/markdown",
-    }.get(ftype, "application/octet-stream")
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "webp": "image/webp",
+    }.get(target_key, "application/octet-stream")
     return FileResponse(str(path), media_type=media)
 
 
@@ -1068,6 +1167,34 @@ def api_rag_build(scope: str = Form("all"), doc_name: str = Form("")):
         return {"ok": True, "message": f"Global RAG index built from extracted JSON ({n} chunks)", "scope": "all"}
     finally:
         R.progress["index"]["running"] = False
+
+
+@app.get("/api/rag/status")
+def api_rag_status():
+    all_obj = load_index(ns("__ALL__"))
+    all_chunks = len(all_obj[2]) if all_obj else 0
+    return {
+        "global_index_ready": bool(all_obj),
+        "global_chunks": all_chunks,
+        "current_doc": R.current_doc,
+    }
+
+
+@app.post("/api/tables/export")
+def api_tables_export(req: ExportTablesReq):
+    fmt = str(req.format or "excel").strip().lower()
+    if fmt in {"xls", "xlsx"}:
+        fmt = "excel"
+    if fmt in {"doc", "docx"}:
+        fmt = "word"
+    if fmt not in {"excel", "word"}:
+        raise HTTPException(status_code=400, detail="format must be excel or word")
+
+    tables = list(req.tables or [])
+    path, media = _export_tables_document(tables, str(req.title or "SCAL Combined Tables"), fmt)
+    fname = path.name
+    headers = {"Content-Disposition": f"attachment; filename={fname}"}
+    return FileResponse(str(path), media_type=media, filename=fname, headers=headers)
 
 
 @app.get("/api/models/options")
@@ -1263,7 +1390,7 @@ async def api_chat_stream(req: ChatReq):
     filters = {"extraction_type": req.filter_extraction_type}
     mode = (req.response_mode or "fast").lower()
     gen_cfg = llm_generation_settings(mode)
-    top_k = max(1, int(req.top_k or 8))
+    top_k = max(1, int(req.top_k or 24))
 
     if not R.docs:
         R.docs = scan_docs(R.data_root)
@@ -1315,6 +1442,28 @@ async def api_chat_stream(req: ChatReq):
                 }
             )
 
+    vision_images: list[str] = []
+    if bool(req.use_pdf_vision):
+        seen = set()
+        for h in hits:
+            m = h["meta"]
+            doc = str(m.get("report_name") or "")
+            page = int(m.get("page_number") or 0)
+            key = (doc, page)
+            if not doc or page <= 0 or key in seen:
+                continue
+            seen.add(key)
+            files = R.docs.get(doc, {}).get(page, {})
+            img_path = _first_image_for_page(files)
+            if img_path is None:
+                continue
+            try:
+                vision_images.append(_as_data_url(img_path))
+            except Exception:
+                continue
+            if len(vision_images) >= 4:
+                break
+
     if is_casual_chat(req.question):
         system = (
             "You are a friendly SCAL assistant. For casual chat, respond naturally and briefly. "
@@ -1334,12 +1483,26 @@ async def api_chat_stream(req: ChatReq):
         for i, h in enumerate(hits, start=1):
             m = h["meta"]
             txt = h["text"]
-            if len(txt) > 700:
-                txt = txt[:700] + "..."
-            ctx.append(f"[{i}] file={m.get('file_name')} page={m.get('page_number')} table={m.get('table_id')}\n{txt}")
+            if len(txt) > 1400:
+                txt = txt[:1400] + "..."
+            block = f"[{i}] file={m.get('file_name')} page={m.get('page_number')} table={m.get('table_id')}\n{txt}"
+            raw_html = str(m.get("raw_html") or "")
+            if req.include_table_html and raw_html:
+                if len(raw_html) > 2200:
+                    raw_html = raw_html[:2200] + "..."
+                block += f"\n\nHTML_TABLE:\n{raw_html}"
+            ctx.append(block)
         context = "\n\n".join(ctx)
-        system = "You are a SCAL assistant. Use only retrieved evidence and cite [1],[2]."
-        user_prompt = f"Task prompt:\n{req.prompt_template}\n\nQuestion:\n{req.question}\n\nEvidence:\n{context}"
+        system = (
+            "You are a SCAL assistant focused on PDF extraction results. "
+            "Treat HTML tables inside <table>...</table> as primary source structure, "
+            "use retrieved evidence only, and cite [1],[2] references in answers."
+        )
+        task_hint = (req.prompt_template or "").strip()
+        if task_hint:
+            user_prompt = f"Task:\n{task_hint}\n\nQuestion:\n{req.question}\n\nEvidence:\n{context}"
+        else:
+            user_prompt = f"Question:\n{req.question}\n\nEvidence:\n{context}"
         prefix = ""
 
     sid = req.session_id
@@ -1387,6 +1550,8 @@ async def api_chat_stream(req: ChatReq):
                         "top_p": float(gen_cfg.get("top_p", 0.9)),
                     },
                 }
+                if req.use_pdf_vision and vision_images:
+                    opayload["images"] = [x.split(",", 1)[1] for x in vision_images]
 
                 first_token_ms = None
                 t_gen0 = datetime.now()
@@ -1420,15 +1585,26 @@ async def api_chat_stream(req: ChatReq):
 
                 cpayload = {
                     "model": model_name,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user_prompt},
-                    ],
+                    "messages": [],
                     "stream": True,
                     "temperature": float(gen_cfg.get("temperature", 0.2)),
                     "top_p": float(gen_cfg.get("top_p", 0.9)),
                     "max_tokens": int(gen_cfg.get("max_new_tokens", 420)),
                 }
+                if req.use_pdf_vision and vision_images:
+                    cpayload["messages"] = [
+                        {"role": "system", "content": system},
+                        {
+                            "role": "user",
+                            "content": [{"type": "text", "text": user_prompt}]
+                            + [{"type": "image_url", "image_url": {"url": u}} for u in vision_images],
+                        },
+                    ]
+                else:
+                    cpayload["messages"] = [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user_prompt},
+                    ]
 
                 t_gen0 = datetime.now()
                 first_token_ms = None
@@ -1498,6 +1674,7 @@ async def api_chat_stream(req: ChatReq):
                     "sources": reasoning,
                     "tables": tables,
                     "raw_hits": hits,
+                    "vision_images_used": len(vision_images),
                     "metrics": {
                         "backend": backend,
                         "response_mode": mode,

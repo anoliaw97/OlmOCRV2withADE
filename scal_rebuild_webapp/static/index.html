@@ -64,6 +64,7 @@
       <div class="row">
         <select id="previewPageSelect"></select>
         <button id="refreshPreviewBtn" class="btn-muted">Load</button>
+        <button id="popoutPdfBtn" class="btn-muted">Pop Out PDF</button>
       </div>
       <div class="row">
         <button id="tabPdfBtn" class="btn-muted active-tab">PDF</button>
@@ -73,6 +74,13 @@
       <div id="previewPdfPane" class="preview-pane"><iframe id="previewPdfFrame"></iframe></div>
       <pre id="previewJsonPane" class="preview-pane hidden"></pre>
       <div id="previewHtmlPane" class="preview-pane hidden"></div>
+
+      <div class="section-head"><h3>Table Export</h3></div>
+      <div class="row">
+        <button id="exportExcelBtn" class="btn-muted">Export Excel</button>
+        <button id="exportWordBtn" class="btn-muted">Export Word</button>
+      </div>
+      <div id="exportStatus" class="small-text">Export: idle</div>
 
       <div class="section-head"><h3>RAG (Extracted JSON)</h3></div>
       <div class="row">
@@ -108,7 +116,15 @@
             <option value="balanced">Balanced</option>
             <option value="deep">Deep</option>
           </select>
+
+          <label for="topKInput">TopK</label>
+          <input id="topKInput" type="number" min="1" max="80" step="1" value="24" />
+
+          <label><input id="includeHtmlChk" type="checkbox" checked /> include HTML</label>
+          <label><input id="useVisionChk" type="checkbox" /> use vision</label>
         </div>
+
+        <textarea id="taskPromptInput" rows="2" class="advanced-only" placeholder="Optional task guidance (not fixed)."></textarea>
 
         <textarea id="chatInput" rows="3" placeholder="Ask anything... (Enter to send, Shift+Enter newline)"></textarea>
 
