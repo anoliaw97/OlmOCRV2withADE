@@ -10,6 +10,7 @@ if "%ENV_NAME%"=="" set "ENV_NAME=olmocr"
 
 REM Run from repo root if launched elsewhere
 cd /d "%~dp0"
+set "REPO_DIR=%CD%"
 
 REM Resolve conda activation script
 set "CONDA_BAT="
@@ -95,31 +96,21 @@ if errorlevel 1 (
   echo Local LLM may not work until torch CUDA install succeeds.
 )
 
-if "%USE_CONDA_RUN%"=="1" (
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -e "scal_webapp" --no-deps
-) else (
-  python -m pip install -e "scal_webapp" --no-deps
-)
-if errorlevel 1 (
-  echo Failed installing local scal_webapp package.
-  pause
-  exit /b 1
-)
-
 echo Starting SCAL Extraction + Offline RAG web app...
 echo Open: http://localhost:8080
 echo (Press Ctrl+C to stop)
 if "%USE_CONDA_RUN%"=="1" (
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" scal-webapp
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_webapp.backend.main:app --host 127.0.0.1 --port 8080 --workers 1 --app-dir "%REPO_DIR%"
 ) else (
-  scal-webapp
+  set "PYTHONPATH=%REPO_DIR%;%PYTHONPATH%"
+  python -m uvicorn scal_webapp.backend.main:app --host 127.0.0.1 --port 8080 --workers 1 --app-dir "%REPO_DIR%"
 )
 if errorlevel 1 (
   echo.
   echo Web app failed to start.
   echo If dependencies are missing, run:
   echo   pip install -r requirements_olmocr_full.txt
-  echo   pip install -e scal_webapp
+  echo   python -m uvicorn scal_webapp.backend.main:app --app-dir "%REPO_DIR%"
   pause
 )
 

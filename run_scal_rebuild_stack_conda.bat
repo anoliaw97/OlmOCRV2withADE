@@ -10,6 +10,7 @@ set "ENV_NAME=%~1"
 if "%ENV_NAME%"=="" set "ENV_NAME=olmocr"
 
 cd /d "%~dp0"
+set "REPO_DIR=%CD%"
 
 set "CONDA_BAT="
 if defined CONDA_EXE (
@@ -63,24 +64,24 @@ if errorlevel 1 (
 
 call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install "setuptools<82"
 
-echo Installing classic webapp package...
-call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -e "scal_webapp" --no-deps
-if errorlevel 1 goto :deps_fail
-
 set "INFER_RUNNER=%TEMP%\scal_infer_runner_%ENV_NAME%.bat"
 set "CLASSIC_RUNNER=%TEMP%\scal_classic_runner_%ENV_NAME%.bat"
 
 (
   echo @echo off
+  echo cd /d "%REPO_DIR%"
   echo set "HF_HUB_DISABLE_XET=1"
   echo set "HF_HUB_ENABLE_HF_TRANSFER=1"
   echo set "HF_HUB_DOWNLOAD_TIMEOUT=120"
+  echo set "PYTHONPATH=%REPO_DIR%;%%PYTHONPATH%%"
   echo call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --workers 1
 ) > "%INFER_RUNNER%"
 
 (
   echo @echo off
-  echo call "%CONDA_BAT%" run -n "%ENV_NAME%" scal-webapp
+  echo cd /d "%REPO_DIR%"
+  echo set "PYTHONPATH=%REPO_DIR%;%%PYTHONPATH%%"
+  echo call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_webapp.backend.main:app --host 127.0.0.1 --port 8080 --workers 1 --app-dir "%REPO_DIR%"
 ) > "%CLASSIC_RUNNER%"
 
 echo Starting services in separate windows...
