@@ -41,6 +41,8 @@ class Runtime:
         self.model_name = DEFAULT_MODEL
         self.target_model = ""
         self.state = "idle"  # idle/loading/loaded/unloading/failed
+        self.device = "cpu"
+        self.cuda_available = False
         self.progress = {"percent": 0, "stage": "idle", "detail": ""}
         self.last_error = ""
         self.last_metrics: dict[str, Any] = {}
@@ -127,11 +129,14 @@ def _load_model_impl(model_name: str):
         )
 
         _set_progress(45, "downloading", f"Weights: {model_name}")
+        use_cuda = bool(torch.cuda.is_available())
+        dtype = torch.float16 if use_cuda else torch.float32
+        device_map = "auto" if use_cuda else None
         try:
             mdl = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                torch_dtype=torch.float16,
-                device_map="auto",
+                torch_dtype=dtype,
+                device_map=device_map,
                 trust_remote_code=True,
                 cache_dir=str(cache_dir) if cache_dir is not None else None,
             ).eval()
@@ -155,7 +160,9 @@ def _load_model_impl(model_name: str):
         R.model_name = model_name
         R.target_model = ""
         R.state = "loaded"
-        _set_progress(100, "completed", f"Model ready: {model_name}")
+        R.cuda_available = use_cuda
+        R.device = "cuda" if use_cuda else "cpu"
+        _set_progress(100, "completed", f"Model ready: {model_name} on {R.device}")
 
 
 def _load_model_bg(model_name: str):
@@ -164,6 +171,8 @@ def _load_model_bg(model_name: str):
     except Exception as e:
         R.loaded = False
         R.state = "failed"
+        R.device = "cpu"
+        R.cuda_available = False
         R.target_model = ""
         R.last_error = str(e)
         _set_progress(100, "failed", str(e))
@@ -179,6 +188,8 @@ def _unload_model_impl():
         R._model = None
         R._tok = None
         R.loaded = False
+        R.device = "cpu"
+        R.cuda_available = bool(torch.cuda.is_available())
         try:
             torch.cuda.empty_cache()
         except Exception:
@@ -196,6 +207,8 @@ def api_health():
         "model_name": R.model_name,
         "target_model": R.target_model,
         "last_error": R.last_error,
+        "device": R.device,
+        "cuda_available": bool(R.cuda_available),
         "progress": R.progress,
         "busy": R._lock.locked() or R._gen_lock.locked(),
     }
@@ -241,15 +254,18 @@ def api_chat(req: ChatReq):
     ]
     t0 = time.perf_counter()
     with R._gen_lock:
-        inp = R._tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to("cuda", dtype=torch.long)
-        with torch.no_grad():
-            out = R._model.generate(
-                inp,
-                max_new_tokens=int(req.max_new_tokens),
-                temperature=float(req.temperature),
-                do_sample=bool(req.do_sample),
-                top_p=float(req.top_p),
-            )
+        try:
+            inp = R._tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to(R.device, dtype=torch.long)
+            with torch.no_grad():
+                out = R._model.generate(
+                    inp,
+                    max_new_tokens=int(req.max_new_tokens),
+                    temperature=float(req.temperature),
+                    do_sample=bool(req.do_sample),
+                    top_p=float(req.top_p),
+                )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Generation failed on {R.device}: {e}")
         answer = R._tok.decode(out[0][inp.shape[1] :], skip_special_tokens=True).strip()
     dt = (time.perf_counter() - t0) * 1000.0
     out_tokens = len(R._tok.encode(answer)) if answer else 0
@@ -275,54 +291,63 @@ def api_chat_stream(req: ChatReq):
         raise HTTPException(status_code=400, detail="No model loaded")
 
     def event_stream():
-        msgs = [
-            {"role": "system", "content": req.system_prompt},
-            {"role": "user", "content": req.user_prompt},
-        ]
-        with R._gen_lock:
-            inp = R._tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to("cuda", dtype=torch.long)
-            streamer = TextIteratorStreamer(R._tok, skip_prompt=True, skip_special_tokens=True)
-            kwargs = {
-                "input_ids": inp,
-                "max_new_tokens": int(req.max_new_tokens),
-                "temperature": float(req.temperature),
-                "do_sample": bool(req.do_sample),
-                "top_p": float(req.top_p),
-                "streamer": streamer,
-            }
+        try:
+            msgs = [
+                {"role": "system", "content": req.system_prompt},
+                {"role": "user", "content": req.user_prompt},
+            ]
+            with R._gen_lock:
+                inp = R._tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to(R.device, dtype=torch.long)
+                streamer = TextIteratorStreamer(R._tok, skip_prompt=True, skip_special_tokens=True)
+                kwargs = {
+                    "input_ids": inp,
+                    "max_new_tokens": int(req.max_new_tokens),
+                    "temperature": float(req.temperature),
+                    "do_sample": bool(req.do_sample),
+                    "top_p": float(req.top_p),
+                    "streamer": streamer,
+                }
 
-            answer_parts: list[str] = []
+                answer_parts: list[str] = []
+                gen_err: list[str] = []
 
-            def _producer():
-                try:
-                    with torch.no_grad():
-                        R._model.generate(**kwargs)
-                except Exception:
-                    pass
+                def _producer():
+                    try:
+                        with torch.no_grad():
+                            R._model.generate(**kwargs)
+                    except Exception as e:
+                        gen_err.append(str(e))
 
-            t0 = time.perf_counter()
-            first_token_ms = None
-            threading.Thread(target=_producer, daemon=True).start()
+                t0 = time.perf_counter()
+                first_token_ms = None
+                threading.Thread(target=_producer, daemon=True).start()
 
-            for piece in streamer:
-                if piece:
-                    if first_token_ms is None:
-                        first_token_ms = (time.perf_counter() - t0) * 1000.0
-                    answer_parts.append(piece)
-                    payload = {"type": "token", "text": piece}
-                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                for piece in streamer:
+                    if piece:
+                        if first_token_ms is None:
+                            first_token_ms = (time.perf_counter() - t0) * 1000.0
+                        answer_parts.append(piece)
+                        payload = {"type": "token", "text": piece}
+                        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-            answer = "".join(answer_parts).strip()
-            total_ms = (time.perf_counter() - t0) * 1000.0
-            out_tokens = len(R._tok.encode(answer)) if answer else 0
-            metrics = {
-                "generation_ms": round(total_ms, 2),
-                "first_token_ms": round(float(first_token_ms or total_ms), 2),
-                "answer_tokens": int(out_tokens),
-                "tokens_per_sec": round((out_tokens / max(total_ms / 1000.0, 1e-6)), 2),
-            }
-            R.last_metrics = metrics
-            yield f"data: {json.dumps({'type': 'metrics', 'metrics': metrics}, ensure_ascii=False)}\n\n"
+                if gen_err:
+                    raise RuntimeError(gen_err[0])
+
+                answer = "".join(answer_parts).strip()
+                total_ms = (time.perf_counter() - t0) * 1000.0
+                out_tokens = len(R._tok.encode(answer)) if answer else 0
+                metrics = {
+                    "generation_ms": round(total_ms, 2),
+                    "first_token_ms": round(float(first_token_ms or total_ms), 2),
+                    "answer_tokens": int(out_tokens),
+                    "tokens_per_sec": round((out_tokens / max(total_ms / 1000.0, 1e-6)), 2),
+                }
+                R.last_metrics = metrics
+                yield f"data: {json.dumps({'type': 'metrics', 'metrics': metrics}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+        except Exception as e:
+            err = {"type": "error", "message": f"Generation failed on {R.device}: {e}"}
+            yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
