@@ -71,6 +71,7 @@ function updateModelStatus() {
       ? `Model: ${m.model_name || "ready"} (${m.backend || state.settings.backend})`
       : `Model: idle (${state.settings.backend})`;
   $("modelStatus").textContent = status;
+  $("pullModelBtn").style.display = state.settings.backend === "ollama" ? "" : "none";
 }
 
 async function saveSettings(patch) {
@@ -98,8 +99,10 @@ async function loadState() {
   applyUiMode(state.settings.ui_mode || "layman");
   updateModelStatus();
 
-  const legacy = $("legacyFrame");
-  if (legacy && state.services.legacy_ui_url) legacy.src = state.services.legacy_ui_url;
+  const legacyStatus = $("legacyStatus");
+  if (legacyStatus && state.services.legacy_ui_url) {
+    legacyStatus.textContent = `Classic app status: configured at ${state.services.legacy_ui_url}`;
+  }
 }
 
 function renderSessions() {
@@ -566,9 +569,9 @@ function bindEvents() {
     const url = state.services.legacy_ui_url || "http://127.0.0.1:8090";
     window.open(url, "_blank", "noopener,noreferrer");
   });
-  $("reloadLegacyBtn").addEventListener("click", () => {
-    const iframe = $("legacyFrame");
-    iframe.src = iframe.src;
+  $("checkLegacyBtn").addEventListener("click", async () => {
+    const data = await apiJson("/api/legacy/health");
+    $("legacyStatus").textContent = `Classic app status: ${data.ok ? "reachable" : "unreachable"} (${data.message || ""})`;
   });
 }
 
@@ -592,6 +595,8 @@ async function boot() {
       await openSession(state.sessions[0].id);
     }
     await refreshLogs();
+    const legacy = await apiJson("/api/legacy/health");
+    $("legacyStatus").textContent = `Classic app status: ${legacy.ok ? "reachable" : "unreachable"} (${legacy.message || ""})`;
   } catch (e) {
     systemMsg(`Startup error: ${e.message || e}`);
   }

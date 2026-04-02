@@ -28,6 +28,7 @@
         <select id="backendSelect" class="advanced-only">
           <option value="inference_api">Inference API</option>
           <option value="ollama">Ollama</option>
+          <option value="localai">LocalAI (OpenAI API)</option>
         </select>
 
         <select id="modelSelect"></select>
@@ -135,15 +136,13 @@
       <pre id="previewJsonPane" class="preview-pane hidden"></pre>
       <div id="previewHtmlPane" class="preview-pane hidden"></div>
 
-      <div class="section-head"><h3>Legacy Advanced UI</h3></div>
+      <div class="section-head"><h3>Classic VLM Tools</h3></div>
       <div class="row">
-        <button id="openLegacyBtn" class="btn-muted">Open in New Tab</button>
-        <button id="reloadLegacyBtn" class="btn-muted">Reload Embed</button>
+        <button id="openLegacyBtn" class="btn-muted">Open Classic App</button>
+        <button id="checkLegacyBtn" class="btn-muted">Check Status</button>
       </div>
-      <details id="legacyDetails">
-        <summary class="small-text">Show legacy VLM extraction + debug UI</summary>
-        <iframe id="legacyFrame" src="http://127.0.0.1:8090"></iframe>
-      </details>
+      <div class="small-text">Classic app includes VLM extraction + debug/status pages.</div>
+      <div id="legacyStatus" class="small-text">Classic app status: unknown</div>
     </aside>
   </div>
 

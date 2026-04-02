@@ -269,15 +269,6 @@ button { cursor: pointer; }
   font-size: 11px;
 }
 
-#legacyFrame {
-  width: 100%;
-  min-height: 460px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  margin-top: 8px;
-  background: #0f1520;
-}
-
 @media (max-width: 1200px) {
   .app-layout { grid-template-columns: 270px 1fr; }
   .right-panel { display: none; }

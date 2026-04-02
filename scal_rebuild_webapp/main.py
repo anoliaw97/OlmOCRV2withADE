@@ -44,6 +44,7 @@ SESSION_FILE = ROOT / "scal_rebuild_sessions.json"
 SETTINGS_FILE = ROOT / "scal_rebuild_settings.json"
 INFERENCE_API_URL = os.environ.get("SCAL_INFERENCE_API_URL", "http://127.0.0.1:8010").rstrip("/")
 OLLAMA_BASE_URL = os.environ.get("SCAL_OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+LOCALAI_BASE_URL = os.environ.get("SCAL_LOCALAI_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
 
 
 def _git_commit_short() -> str:
@@ -69,7 +70,7 @@ class Runtime:
         self.index_meta: list[dict[str, Any]] = []
 
         self.settings = {
-            "backend": "inference_api",  # inference_api | ollama
+            "backend": "inference_api",  # inference_api | ollama | localai
             "ui_mode": "layman",  # layman | advanced
             "data_root": str(DATA_ROOT),
         }
@@ -135,7 +136,7 @@ def _load_settings() -> dict[str, Any]:
         backend = str(data.get("backend", defaults["backend"]))
         ui_mode = str(data.get("ui_mode", defaults["ui_mode"]))
         data_root = str(data.get("data_root", defaults["data_root"]))
-        if backend not in {"inference_api", "ollama"}:
+        if backend not in {"inference_api", "ollama", "localai"}:
             backend = defaults["backend"]
         if ui_mode not in {"layman", "advanced"}:
             ui_mode = defaults["ui_mode"]
@@ -592,6 +593,10 @@ def _ollama_request(method: str, path: str, payload: dict[str, Any] | None = Non
     return _json_request(OLLAMA_BASE_URL, method, path, payload, timeout)
 
 
+def _localai_request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
+    return _json_request(LOCALAI_BASE_URL, method, path, payload, timeout)
+
+
 def _inference_stream_events(path: str, payload: dict[str, Any], timeout: int = 600):
     url = f"{INFERENCE_API_URL}{path}"
     data = json.dumps(payload).encode("utf-8")
@@ -641,6 +646,33 @@ def _ollama_stream_generate(payload: dict[str, Any], timeout: int = 600):
         raise RuntimeError(f"Ollama unavailable at {OLLAMA_BASE_URL}: {e}")
 
 
+def _openai_stream_chat(base_url: str, payload: dict[str, Any], timeout: int = 1200):
+    url = f"{base_url}/v1/chat/completions"
+    body = json.dumps(payload).encode("utf-8")
+    headers = {"Accept": "text/event-stream", "Content-Type": "application/json"}
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            for raw in resp:
+                line = raw.decode("utf-8", errors="ignore").strip()
+                if not line.startswith("data:"):
+                    continue
+                data_line = line[5:].strip()
+                if not data_line:
+                    continue
+                if data_line == "[DONE]":
+                    break
+                try:
+                    yield json.loads(data_line)
+                except Exception:
+                    continue
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"OpenAI-compatible API HTTP {e.code}: {detail or e.reason}")
+    except Exception as e:
+        raise RuntimeError(f"OpenAI-compatible API unavailable at {base_url}: {e}")
+
+
 def _sync_model_state_inference() -> dict[str, Any]:
     st = _inference_request("GET", "/v1/health", timeout=5)
     R.model = {
@@ -683,11 +715,36 @@ def _sync_model_state_ollama() -> dict[str, Any]:
     return {"models": names}
 
 
+def _sync_model_state_localai() -> dict[str, Any]:
+    models_resp = _localai_request("GET", "/v1/models", timeout=8)
+    model_items = models_resp.get("data", []) if isinstance(models_resp, dict) else []
+    names = [str(m.get("id") or "") for m in model_items if isinstance(m, dict)]
+    current = str(R.model.get("model_name") or "")
+    loaded = bool(current and current in names)
+    R.model = {
+        "loaded": loaded,
+        "model_name": current,
+        "target_model": "",
+        "loading": False,
+        "last_error": "",
+        "backend": "localai",
+    }
+    R.progress["model"] = {
+        "running": False,
+        "percent": 100 if loaded else 0,
+        "stage": "loaded" if loaded else "idle",
+        "detail": f"LocalAI models available: {len(names)}",
+    }
+    return {"models": names}
+
+
 def sync_model_state() -> dict[str, Any]:
     backend = str(R.settings.get("backend", "inference_api"))
     try:
         if backend == "ollama":
             return _sync_model_state_ollama()
+        if backend == "localai":
+            return _sync_model_state_localai()
         return _sync_model_state_inference()
     except Exception as e:
         R.model["loaded"] = False
@@ -726,7 +783,7 @@ class ChatReq(BaseModel):
 
 
 class SettingsReq(BaseModel):
-    backend: str | None = None  # inference_api | ollama
+    backend: str | None = None  # inference_api | ollama | localai
     ui_mode: str | None = None  # layman | advanced
     data_root: str | None = None
 
@@ -756,6 +813,7 @@ def api_state():
         "services": {
             "inference_api_url": INFERENCE_API_URL,
             "ollama_url": OLLAMA_BASE_URL,
+            "localai_url": LOCALAI_BASE_URL,
             "legacy_ui_url": "http://127.0.0.1:8090",
         },
     }
@@ -771,8 +829,8 @@ def api_settings_set(req: SettingsReq):
     data = dict(R.settings)
     if req.backend is not None:
         backend = str(req.backend).strip().lower()
-        if backend not in {"inference_api", "ollama"}:
-            raise HTTPException(status_code=400, detail="backend must be inference_api or ollama")
+        if backend not in {"inference_api", "ollama", "localai"}:
+            raise HTTPException(status_code=400, detail="backend must be inference_api, ollama, or localai")
         data["backend"] = backend
     if req.ui_mode is not None:
         ui_mode = str(req.ui_mode).strip().lower()
@@ -808,6 +866,18 @@ def api_logs_clear(kind: str = Form("all")):
     else:
         raise HTTPException(status_code=400, detail="Invalid log kind")
     return {"ok": True}
+
+
+@app.get("/api/legacy/health")
+def api_legacy_health():
+    legacy_url = "http://127.0.0.1:8090"
+    req = urllib.request.Request(legacy_url, headers={"Accept": "text/html"}, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            code = int(getattr(resp, "status", 200) or 200)
+            return {"ok": True, "url": legacy_url, "status_code": code, "message": "Classic app reachable"}
+    except Exception as e:
+        return {"ok": False, "url": legacy_url, "status_code": 0, "message": str(e)}
 
 
 def _tkdialog_folder() -> str:
@@ -993,6 +1063,24 @@ def api_models_options():
                 "backend": "ollama",
             }
 
+        if backend == "localai":
+            resp = _localai_request("GET", "/v1/models", timeout=8)
+            models = []
+            for m in resp.get("data", []):
+                if not isinstance(m, dict):
+                    continue
+                name = str(m.get("id") or "")
+                if not name:
+                    continue
+                models.append({"name": name, "label": name})
+            active_name = str(R.model.get("model_name") or "")
+            return {
+                "models": models,
+                "default": active_name or (models[0]["name"] if models else ""),
+                "active": active_name,
+                "backend": "localai",
+            }
+
         resp = _inference_request("GET", "/v1/models", timeout=8)
         return {
             "models": resp.get("models", []),
@@ -1056,6 +1144,23 @@ def api_models_switch(model_name: str = Form(...)):
             R.model.update({"loaded": False, "last_error": str(e), "backend": "ollama"})
             return {"ok": False, "message": str(e), "backend": "ollama"}
 
+    if backend == "localai":
+        try:
+            resp = _localai_request("GET", "/v1/models", timeout=8)
+            names = {str(m.get("id") or "") for m in resp.get("data", []) if isinstance(m, dict)}
+            if name not in names:
+                return {
+                    "ok": False,
+                    "message": f"Model {name} not found in LocalAI model list",
+                    "backend": "localai",
+                }
+            R.model.update({"model_name": name, "loaded": True, "loading": False, "target_model": "", "last_error": "", "backend": "localai"})
+            set_progress("model", 100, "completed", f"Active model: {name} (LocalAI)")
+            return {"ok": True, "message": f"Switched model to {name} (LocalAI)", "backend": "localai"}
+        except Exception as e:
+            R.model.update({"loaded": False, "last_error": str(e), "backend": "localai"})
+            return {"ok": False, "message": str(e), "backend": "localai"}
+
     try:
         resp = _inference_request("POST", "/v1/models/load", {"model_name": name}, timeout=15)
         sync_model_state()
@@ -1072,6 +1177,12 @@ def api_models_unload():
         R.model.update({"loaded": False, "model_name": "", "target_model": "", "loading": False, "last_error": "", "backend": "ollama"})
         set_progress("model", 0, "idle", "No active Ollama model")
         return {"ok": True, "message": f"Ollama model context cleared ({old})"}
+
+    if backend == "localai":
+        old = R.model.get("model_name", "")
+        R.model.update({"loaded": False, "model_name": "", "target_model": "", "loading": False, "last_error": "", "backend": "localai"})
+        set_progress("model", 0, "idle", "No active LocalAI model")
+        return {"ok": True, "message": f"LocalAI model context cleared ({old})"}
 
     try:
         resp = _inference_request("POST", "/v1/models/unload", {}, timeout=15)
@@ -1278,6 +1389,62 @@ async def api_chat_stream(req: ChatReq):
                             "tokens_per_sec": round(tok_s, 2),
                         }
                         break
+            elif backend == "localai":
+                model_name = str(R.model.get("model_name") or "").strip()
+                if not model_name:
+                    models_resp = _localai_request("GET", "/v1/models", timeout=8)
+                    names = [str(m.get("id") or "") for m in models_resp.get("data", []) if isinstance(m, dict)]
+                    if not names:
+                        raise RuntimeError("No LocalAI models found. Start LocalAI and load at least one model.")
+                    model_name = names[0]
+                    R.model.update({"model_name": model_name, "loaded": True, "backend": "localai"})
+
+                cpayload = {
+                    "model": model_name,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "stream": True,
+                    "temperature": float(gen_cfg.get("temperature", 0.2)),
+                    "top_p": float(gen_cfg.get("top_p", 0.9)),
+                    "max_tokens": int(gen_cfg.get("max_new_tokens", 420)),
+                }
+
+                t_gen0 = datetime.now()
+                first_token_ms = None
+                seen_tokens = 0
+                for obj in _openai_stream_chat(LOCALAI_BASE_URL, cpayload, timeout=1200):
+                    choices = obj.get("choices", []) if isinstance(obj, dict) else []
+                    if choices and isinstance(choices[0], dict):
+                        delta = choices[0].get("delta") or {}
+                        piece = str(delta.get("content") or "")
+                        if piece:
+                            if first_token_ms is None:
+                                first_token_ms = (datetime.now() - t_gen0).total_seconds() * 1000.0
+                            seen_tokens += approx_token_count(piece)
+                            answer_parts.append(piece)
+                            yield _sse({"type": "token", "text": piece})
+
+                    usage = obj.get("usage") if isinstance(obj, dict) else None
+                    if isinstance(usage, dict):
+                        answer_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or seen_tokens)
+                        gen_ms = (datetime.now() - t_gen0).total_seconds() * 1000.0
+                        infer_metrics = {
+                            "generation_ms": round(gen_ms, 2),
+                            "first_token_ms": round(float(first_token_ms or gen_ms), 2),
+                            "answer_tokens": int(answer_tokens),
+                            "tokens_per_sec": round(answer_tokens / max(gen_ms / 1000.0, 1e-6), 2),
+                        }
+                if not infer_metrics:
+                    gen_ms = (datetime.now() - t_gen0).total_seconds() * 1000.0
+                    answer_tokens = approx_token_count("".join(answer_parts))
+                    infer_metrics = {
+                        "generation_ms": round(gen_ms, 2),
+                        "first_token_ms": round(float(first_token_ms or gen_ms), 2),
+                        "answer_tokens": int(answer_tokens),
+                        "tokens_per_sec": round(answer_tokens / max(gen_ms / 1000.0, 1e-6), 2),
+                    }
             else:
                 for ev in _inference_stream_events("/v1/chat/stream", payload, timeout=600):
                     if ev.get("type") == "token":
