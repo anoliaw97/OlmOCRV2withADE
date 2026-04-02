@@ -18,22 +18,42 @@ if not defined CONDA_BAT (
   exit /b 1
 )
 
+set "USE_CONDA_RUN=0"
 echo Activating env: %ENV_NAME%
 call "%CONDA_BAT%" activate "%ENV_NAME%"
 if errorlevel 1 (
-  echo Creating env: %ENV_NAME%
-  call "%CONDA_BAT%" create -n "%ENV_NAME%" python=3.11 -y
-  call "%CONDA_BAT%" activate "%ENV_NAME%"
+  echo Activate failed. Trying conda run mode...
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python --version >nul 2>&1
+  if errorlevel 1 (
+    echo Env not ready. Creating env: %ENV_NAME%
+    call "%CONDA_BAT%" create -n "%ENV_NAME%" python=3.11 -y
+  )
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python --version >nul 2>&1
+  if errorlevel 1 (
+    echo Failed to use env %ENV_NAME% with conda run.
+    pause
+    exit /b 1
+  )
+  set "USE_CONDA_RUN=1"
 )
 
 echo Installing/updating dependencies...
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install fastapi uvicorn[standard] pydantic scikit-learn joblib beautifulsoup4
+if "%USE_CONDA_RUN%"=="1" (
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip setuptools wheel
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install fastapi uvicorn[standard] pydantic scikit-learn joblib beautifulsoup4
+) else (
+  python -m pip install --upgrade pip setuptools wheel
+  python -m pip install fastapi uvicorn[standard] pydantic scikit-learn joblib beautifulsoup4
+)
 
 set "SCAL_INFERENCE_API_URL=http://127.0.0.1:8010"
 
 echo Starting SCAL rebuild web app...
 echo Open http://127.0.0.1:8092
-python -m uvicorn scal_rebuild_webapp.main:app --host 127.0.0.1 --port 8092 --workers 1
+if "%USE_CONDA_RUN%"=="1" (
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_rebuild_webapp.main:app --host 127.0.0.1 --port 8092 --workers 1
+) else (
+  python -m uvicorn scal_rebuild_webapp.main:app --host 127.0.0.1 --port 8092 --workers 1
+)
 
 endlocal

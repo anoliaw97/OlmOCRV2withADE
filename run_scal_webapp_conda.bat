@@ -55,19 +55,23 @@ if not defined CONDA_BAT (
   exit /b 1
 )
 
+set "USE_CONDA_RUN=0"
 echo Activating Conda environment: %ENV_NAME%
 call "%CONDA_BAT%" activate "%ENV_NAME%"
 if errorlevel 1 (
   echo Failed to activate Conda environment: %ENV_NAME%
-  echo Try creating it first or pass another name:
-  echo   run_scal_webapp_conda.bat my_env
-  pause
-  exit /b 1
+  echo Falling back to conda run mode (no activate).
+  set "USE_CONDA_RUN=1"
 )
 
 echo Installing/repairing required packages (missing packages will be added)...
-python -m pip install --upgrade pip setuptools wheel >nul
-python -m pip install -r requirements_olmocr_full.txt
+if "%USE_CONDA_RUN%"=="1" (
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip setuptools wheel >nul
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -r requirements_olmocr_full.txt
+) else (
+  python -m pip install --upgrade pip setuptools wheel >nul
+  python -m pip install -r requirements_olmocr_full.txt
+)
 if errorlevel 1 (
   echo Failed installing requirements.
   echo Try manually: pip install -r requirements_olmocr_full.txt
@@ -76,14 +80,23 @@ if errorlevel 1 (
 )
 
 echo Ensuring CUDA-enabled PyTorch for local LLM...
-python -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
-python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision torchaudio
+if "%USE_CONDA_RUN%"=="1" (
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision torchaudio
+) else (
+  python -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
+  python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision torchaudio
+)
 if errorlevel 1 (
   echo Failed installing CUDA PyTorch.
   echo Local LLM may not work until torch CUDA install succeeds.
 )
 
-python -m pip install -e "scal_webapp"
+if "%USE_CONDA_RUN%"=="1" (
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -e "scal_webapp"
+) else (
+  python -m pip install -e "scal_webapp"
+)
 if errorlevel 1 (
   echo Failed installing local scal_webapp package.
   pause
@@ -93,7 +106,11 @@ if errorlevel 1 (
 echo Starting SCAL Extraction + Offline RAG web app...
 echo Open: http://localhost:8080
 echo (Press Ctrl+C to stop)
-scal-webapp
+if "%USE_CONDA_RUN%"=="1" (
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" scal-webapp
+) else (
+  scal-webapp
+)
 if errorlevel 1 (
   echo.
   echo Web app failed to start.
