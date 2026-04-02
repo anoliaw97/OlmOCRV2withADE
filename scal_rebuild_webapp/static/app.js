@@ -508,7 +508,6 @@ async function sendChat() {
     scope: $("scopeSelect").value || "all",
     filter_extraction_type: $("fType").value || null,
     response_mode: $("responseMode").value || "fast",
-    prompt_template: ($("taskPromptInput").value || "").trim(),
     top_k: Number($("topKInput").value || 24),
     include_table_html: !!$("includeHtmlChk").checked,
     use_pdf_vision: !!$("useVisionChk").checked,
