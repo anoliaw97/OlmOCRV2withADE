@@ -597,6 +597,36 @@ def _localai_request(method: str, path: str, payload: dict[str, Any] | None = No
     return _json_request(LOCALAI_BASE_URL, method, path, payload, timeout)
 
 
+def _localai_models_list(timeout: int = 8) -> list[str]:
+    # LocalAI commonly exposes /v1/models; some setups expose /models.
+    try:
+        resp = _localai_request("GET", "/v1/models", timeout=timeout)
+        if isinstance(resp, dict):
+            out = [str(m.get("id") or "") for m in resp.get("data", []) if isinstance(m, dict)]
+            out = [x for x in out if x]
+            if out:
+                return out
+    except Exception:
+        pass
+
+    try:
+        resp = _localai_request("GET", "/models", timeout=timeout)
+        if isinstance(resp, list):
+            out = []
+            for m in resp:
+                if isinstance(m, str):
+                    out.append(m)
+                elif isinstance(m, dict):
+                    out.append(str(m.get("id") or m.get("name") or ""))
+            return [x for x in out if x]
+        if isinstance(resp, dict):
+            out = [str(m.get("id") or m.get("name") or "") for m in resp.get("data", []) if isinstance(m, dict)]
+            return [x for x in out if x]
+    except Exception:
+        pass
+    return []
+
+
 def _inference_stream_events(path: str, payload: dict[str, Any], timeout: int = 600):
     url = f"{INFERENCE_API_URL}{path}"
     data = json.dumps(payload).encode("utf-8")
@@ -646,7 +676,7 @@ def _ollama_stream_generate(payload: dict[str, Any], timeout: int = 600):
         raise RuntimeError(f"Ollama unavailable at {OLLAMA_BASE_URL}: {e}")
 
 
-def _openai_stream_chat(base_url: str, payload: dict[str, Any], timeout: int = 1200):
+def _compat_stream_chat(base_url: str, payload: dict[str, Any], timeout: int = 1200):
     url = f"{base_url}/v1/chat/completions"
     body = json.dumps(payload).encode("utf-8")
     headers = {"Accept": "text/event-stream", "Content-Type": "application/json"}
@@ -668,9 +698,9 @@ def _openai_stream_chat(base_url: str, payload: dict[str, Any], timeout: int = 1
                     continue
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"OpenAI-compatible API HTTP {e.code}: {detail or e.reason}")
+        raise RuntimeError(f"Local compatible API HTTP {e.code}: {detail or e.reason}")
     except Exception as e:
-        raise RuntimeError(f"OpenAI-compatible API unavailable at {base_url}: {e}")
+        raise RuntimeError(f"Local compatible API unavailable at {base_url}: {e}")
 
 
 def _sync_model_state_inference() -> dict[str, Any]:
@@ -716,9 +746,7 @@ def _sync_model_state_ollama() -> dict[str, Any]:
 
 
 def _sync_model_state_localai() -> dict[str, Any]:
-    models_resp = _localai_request("GET", "/v1/models", timeout=8)
-    model_items = models_resp.get("data", []) if isinstance(models_resp, dict) else []
-    names = [str(m.get("id") or "") for m in model_items if isinstance(m, dict)]
+    names = _localai_models_list(timeout=8)
     current = str(R.model.get("model_name") or "")
     loaded = bool(current and current in names)
     R.model = {
@@ -1064,15 +1092,8 @@ def api_models_options():
             }
 
         if backend == "localai":
-            resp = _localai_request("GET", "/v1/models", timeout=8)
-            models = []
-            for m in resp.get("data", []):
-                if not isinstance(m, dict):
-                    continue
-                name = str(m.get("id") or "")
-                if not name:
-                    continue
-                models.append({"name": name, "label": name})
+            names = _localai_models_list(timeout=8)
+            models = [{"name": n, "label": n} for n in names]
             active_name = str(R.model.get("model_name") or "")
             return {
                 "models": models,
@@ -1110,15 +1131,15 @@ def _ollama_pull_worker(model_name: str):
 @app.post("/api/models/pull")
 def api_models_pull(model_name: str = Form(...)):
     backend = str(R.settings.get("backend", "inference_api"))
-    if backend != "ollama":
-        return {"ok": False, "message": "Model pull is available only when backend=ollama"}
+    if backend not in {"ollama", "localai"}:
+        return {"ok": False, "message": "Model pull uses Ollama and is available for backend=ollama or localai"}
     name = (model_name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="model_name required")
     if R.model.get("loading"):
         return {"ok": False, "message": "Another model operation is running"}
     threading.Thread(target=_ollama_pull_worker, args=(name,), daemon=True).start()
-    return {"ok": True, "message": f"Started pulling {name} via Ollama"}
+    return {"ok": True, "message": f"Started pulling {name} via Ollama model loader"}
 
 
 @app.post("/api/models/switch")
@@ -1133,10 +1154,10 @@ def api_models_switch(model_name: str = Form(...)):
             tags = _ollama_request("GET", "/api/tags", timeout=8)
             names = {str(m.get("name") or "") for m in tags.get("models", []) if isinstance(m, dict)}
             if name not in names:
-                return {
-                    "ok": False,
-                    "message": f"Model {name} not found in local Ollama. Use Pull first.",
-                }
+                if R.model.get("loading"):
+                    return {"ok": False, "message": "Another model operation is running"}
+                threading.Thread(target=_ollama_pull_worker, args=(name,), daemon=True).start()
+                return {"ok": True, "message": f"Model {name} not local yet. Started Ollama pull.", "backend": "ollama", "pull_started": True}
             R.model.update({"model_name": name, "loaded": True, "loading": False, "target_model": "", "last_error": "", "backend": "ollama"})
             set_progress("model", 100, "completed", f"Active model: {name} (Ollama)")
             return {"ok": True, "message": f"Switched model to {name} (Ollama)", "backend": "ollama"}
@@ -1146,8 +1167,7 @@ def api_models_switch(model_name: str = Form(...)):
 
     if backend == "localai":
         try:
-            resp = _localai_request("GET", "/v1/models", timeout=8)
-            names = {str(m.get("id") or "") for m in resp.get("data", []) if isinstance(m, dict)}
+            names = set(_localai_models_list(timeout=8))
             if name not in names:
                 return {
                     "ok": False,
@@ -1392,8 +1412,7 @@ async def api_chat_stream(req: ChatReq):
             elif backend == "localai":
                 model_name = str(R.model.get("model_name") or "").strip()
                 if not model_name:
-                    models_resp = _localai_request("GET", "/v1/models", timeout=8)
-                    names = [str(m.get("id") or "") for m in models_resp.get("data", []) if isinstance(m, dict)]
+                    names = _localai_models_list(timeout=8)
                     if not names:
                         raise RuntimeError("No LocalAI models found. Start LocalAI and load at least one model.")
                     model_name = names[0]
@@ -1414,7 +1433,7 @@ async def api_chat_stream(req: ChatReq):
                 t_gen0 = datetime.now()
                 first_token_ms = None
                 seen_tokens = 0
-                for obj in _openai_stream_chat(LOCALAI_BASE_URL, cpayload, timeout=1200):
+                for obj in _compat_stream_chat(LOCALAI_BASE_URL, cpayload, timeout=1200):
                     choices = obj.get("choices", []) if isinstance(obj, dict) else []
                     if choices and isinstance(choices[0], dict):
                         delta = choices[0].get("delta") or {}

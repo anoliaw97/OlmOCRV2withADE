@@ -71,7 +71,8 @@ function updateModelStatus() {
       ? `Model: ${m.model_name || "ready"} (${m.backend || state.settings.backend})`
       : `Model: idle (${state.settings.backend})`;
   $("modelStatus").textContent = status;
-  $("pullModelBtn").style.display = state.settings.backend === "ollama" ? "" : "none";
+  const canPull = state.settings.backend === "ollama" || state.settings.backend === "localai";
+  $("pullModelBtn").style.display = canPull ? "" : "none";
 }
 
 async function saveSettings(patch) {
@@ -341,7 +342,10 @@ async function refreshModels() {
     select.appendChild(o);
   }
   const pick = data.active || data.default || "";
-  if (pick) select.value = pick;
+  if (pick) {
+    select.value = pick;
+    $("modelInput").value = pick;
+  }
 }
 
 async function runChatStream(payload) {
@@ -507,8 +511,14 @@ function bindEvents() {
   $("buildRagSelectedBtn").addEventListener("click", () => buildRag("selected"));
 
   $("uiModeSelect").addEventListener("change", async () => {
+    const nextMode = $("uiModeSelect").value;
     await saveSettings({ ui_mode: $("uiModeSelect").value });
     applyUiMode(state.settings.ui_mode);
+    if (nextMode === "advanced") {
+      const url = state.services.legacy_ui_url || "http://127.0.0.1:8090";
+      window.open(url, "_blank", "noopener,noreferrer");
+      systemMsg("Advanced mode enabled. Opened Classic VLM tools in a new tab.");
+    }
   });
   $("backendSelect").addEventListener("change", async () => {
     await saveSettings({ backend: $("backendSelect").value });
@@ -516,8 +526,17 @@ function bindEvents() {
     await refreshModels();
   });
 
+  $("modelSelect").addEventListener("change", () => {
+    const v = $("modelSelect").value || "";
+    if (v) $("modelInput").value = v;
+  });
+
   $("switchModelBtn").addEventListener("click", async () => {
-    const modelName = $("modelSelect").value || "";
+    const modelName = ($("modelInput").value || "").trim() || $("modelSelect").value || "";
+    if (!modelName) {
+      systemMsg("Enter or select a model name first.");
+      return;
+    }
     const r = await apiForm("/api/models/switch", { model_name: modelName });
     systemMsg(r.message || "Switch complete");
     await loadState();
@@ -525,7 +544,7 @@ function bindEvents() {
   });
 
   $("pullModelBtn").addEventListener("click", async () => {
-    let modelName = $("modelSelect").value || "";
+    let modelName = ($("modelInput").value || "").trim() || $("modelSelect").value || "";
     if (!modelName) modelName = window.prompt("Ollama model name (e.g. llama3.1:8b)", "") || "";
     if (!modelName) return;
     const r = await apiForm("/api/models/pull", { model_name: modelName });

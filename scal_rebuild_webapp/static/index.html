@@ -17,7 +17,7 @@
       <label for="uiModeSelect" class="label-mini">Mode</label>
       <select id="uiModeSelect">
         <option value="layman">Layman</option>
-        <option value="advanced">Advanced</option>
+        <option value="advanced">Advanced (Classic + Debug)</option>
       </select>
     </div>
 
@@ -28,11 +28,12 @@
         <select id="backendSelect" class="advanced-only">
           <option value="inference_api">Inference API</option>
           <option value="ollama">Ollama</option>
-          <option value="localai">LocalAI (OpenAI API)</option>
+          <option value="localai">LocalAI (local API)</option>
         </select>
 
+        <input id="modelInput" type="text" placeholder="Model name (e.g. llama3.1:8b)" class="advanced-only" />
         <select id="modelSelect"></select>
-        <button id="switchModelBtn" class="btn-primary">Switch</button>
+        <button id="switchModelBtn" class="btn-primary">Load</button>
         <button id="pullModelBtn" class="btn-muted advanced-only">Pull</button>
         <button id="unloadModelBtn" class="btn-muted">Unload</button>
       </div>
@@ -58,6 +59,20 @@
 
       <div class="section-head"><h3>Documents</h3></div>
       <div id="docsList" class="docs-list"></div>
+
+      <div class="section-head"><h3>Preview</h3></div>
+      <div class="row">
+        <select id="previewPageSelect"></select>
+        <button id="refreshPreviewBtn" class="btn-muted">Load</button>
+      </div>
+      <div class="row">
+        <button id="tabPdfBtn" class="btn-muted active-tab">PDF</button>
+        <button id="tabJsonBtn" class="btn-muted">JSON/MD</button>
+        <button id="tabHtmlBtn" class="btn-muted">HTML</button>
+      </div>
+      <div id="previewPdfPane" class="preview-pane"><iframe id="previewPdfFrame"></iframe></div>
+      <pre id="previewJsonPane" class="preview-pane hidden"></pre>
+      <div id="previewHtmlPane" class="preview-pane hidden"></div>
 
       <div class="section-head"><h3>RAG (Extracted JSON)</h3></div>
       <div class="row">
@@ -121,20 +136,6 @@
         <button id="logErrorBtn" class="btn-muted">Error</button>
       </div>
       <div id="logsList" class="logs-list"></div>
-
-      <div class="section-head"><h3>Preview</h3></div>
-      <div class="row">
-        <select id="previewPageSelect"></select>
-        <button id="refreshPreviewBtn" class="btn-muted">Load</button>
-      </div>
-      <div class="row">
-        <button id="tabPdfBtn" class="btn-muted active-tab">PDF</button>
-        <button id="tabJsonBtn" class="btn-muted">JSON/MD</button>
-        <button id="tabHtmlBtn" class="btn-muted">HTML</button>
-      </div>
-      <div id="previewPdfPane" class="preview-pane"><iframe id="previewPdfFrame"></iframe></div>
-      <pre id="previewJsonPane" class="preview-pane hidden"></pre>
-      <div id="previewHtmlPane" class="preview-pane hidden"></div>
 
       <div class="section-head"><h3>Classic VLM Tools</h3></div>
       <div class="row">

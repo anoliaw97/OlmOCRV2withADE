@@ -217,6 +217,8 @@ input, select, textarea, button {
 input, select { height: 34px; }
 textarea { width: 100%; resize: vertical; min-height: 80px; }
 
+#modelInput { min-width: 220px; }
+
 button { cursor: pointer; }
 .btn-primary { background: #195086; border-color: #2d73b6; color: #eaf4ff; }
 .btn-muted { color: var(--muted); }
