@@ -15,3 +15,4 @@ nicegui
 scikit-learn
 joblib
 beautifulsoup4
+setuptools<82

@@ -49,7 +49,7 @@ if errorlevel 1 (
 )
 
 echo Installing/updating shared dependencies ^(one-time sequential setup^)...
-call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip setuptools wheel
+call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip wheel "setuptools<82"
 if errorlevel 1 goto :deps_fail
 
 call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -r requirements_olmocr_full.txt
@@ -60,6 +60,8 @@ call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --index-url https:/
 if errorlevel 1 (
   echo WARNING: CUDA PyTorch install failed. Services may run CPU-only or fail for VLM.
 )
+
+call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install "setuptools<82"
 
 echo Installing classic webapp package...
 call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -e "scal_webapp" --no-deps

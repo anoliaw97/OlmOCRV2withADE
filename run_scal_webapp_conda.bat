@@ -66,10 +66,10 @@ if errorlevel 1 (
 
 echo Installing/repairing required packages (missing packages will be added)...
 if "%USE_CONDA_RUN%"=="1" (
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip setuptools wheel >nul
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip wheel "setuptools<82" >nul
   call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -r requirements_olmocr_full.txt
 ) else (
-  python -m pip install --upgrade pip setuptools wheel >nul
+  python -m pip install --upgrade pip wheel "setuptools<82" >nul
   python -m pip install -r requirements_olmocr_full.txt
 )
 if errorlevel 1 (
@@ -81,11 +81,14 @@ if errorlevel 1 (
 
 echo Ensuring CUDA-enabled PyTorch for local LLM...
 if "%USE_CONDA_RUN%"=="1" (
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision torchaudio
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0
 ) else (
-  python -m pip uninstall -y torch torchvision torchaudio >nul 2>&1
-  python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision torchaudio
+  python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0
+)
+if "%USE_CONDA_RUN%"=="1" (
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install "setuptools<82" >nul
+) else (
+  python -m pip install "setuptools<82" >nul
 )
 if errorlevel 1 (
   echo Failed installing CUDA PyTorch.
@@ -93,9 +96,9 @@ if errorlevel 1 (
 )
 
 if "%USE_CONDA_RUN%"=="1" (
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -e "scal_webapp"
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install -e "scal_webapp" --no-deps
 ) else (
-  python -m pip install -e "scal_webapp"
+  python -m pip install -e "scal_webapp" --no-deps
 )
 if errorlevel 1 (
   echo Failed installing local scal_webapp package.

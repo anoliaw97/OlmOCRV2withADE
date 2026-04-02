@@ -39,10 +39,10 @@ if errorlevel 1 (
 
 echo Installing/updating dependencies...
 if "%USE_CONDA_RUN%"=="1" (
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip setuptools wheel
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip wheel "setuptools<82"
   call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install fastapi uvicorn[standard] pydantic scikit-learn joblib beautifulsoup4
 ) else (
-  python -m pip install --upgrade pip setuptools wheel
+  python -m pip install --upgrade pip wheel "setuptools<82"
   python -m pip install fastapi uvicorn[standard] pydantic scikit-learn joblib beautifulsoup4
 )
 
