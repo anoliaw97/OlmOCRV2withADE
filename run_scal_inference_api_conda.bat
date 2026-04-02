@@ -58,12 +58,12 @@ if "%NEED_INSTALL%"=="1" (
     call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip wheel "setuptools<82"
     call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install fastapi uvicorn[standard] pydantic "transformers==4.57.3" hf_transfer
     call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip uninstall -y torchvision torchaudio >nul 2>&1
-    call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0
+    call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --force-reinstall --no-cache-dir --index-url https://download.pytorch.org/whl/cu128 "torch==2.11.0+cu128"
   ) else (
     python -m pip install --upgrade pip wheel "setuptools<82"
     python -m pip install fastapi uvicorn[standard] pydantic "transformers==4.57.3" hf_transfer
     python -m pip uninstall -y torchvision torchaudio >nul 2>&1
-    python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0
+    python -m pip install --force-reinstall --no-cache-dir --index-url https://download.pytorch.org/whl/cu128 "torch==2.11.0+cu128"
   )
 ) else (
   echo Dependencies already satisfied. Skipping pip install.
@@ -71,10 +71,21 @@ if "%NEED_INSTALL%"=="1" (
 
 if "%USE_CONDA_RUN%"=="1" (
   call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip uninstall -y torchvision torchaudio >nul 2>&1
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -c "import torch; print('Torch:',torch.__version__,'CUDA:',torch.version.cuda)"
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -c "import torch; print('Torch:',torch.__version__,'CUDA:',torch.version.cuda,'CUDA available:',torch.cuda.is_available(),'GPU count:',torch.cuda.device_count())"
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -c "import torch,sys; sys.exit(0 if (getattr(torch.version,'cuda',None) and torch.cuda.is_available()) else 1)"
 ) else (
   python -m pip uninstall -y torchvision torchaudio >nul 2>&1
-  python -c "import torch; print('Torch:',torch.__version__,'CUDA:',torch.version.cuda)"
+  python -c "import torch; print('Torch:',torch.__version__,'CUDA:',torch.version.cuda,'CUDA available:',torch.cuda.is_available(),'GPU count:',torch.cuda.device_count())"
+  python -c "import torch,sys; sys.exit(0 if (getattr(torch.version,'cuda',None) and torch.cuda.is_available()) else 1)"
+)
+if errorlevel 1 (
+  echo.
+  echo ERROR: GPU runtime is not available in env %ENV_NAME%.
+  echo Required for GPU speed. Check NVIDIA driver and CUDA-visible GPU first.
+  echo Verify with: nvidia-smi
+  echo Then rerun this launcher.
+  pause
+  exit /b 1
 )
 
 echo Configuring Hugging Face download settings...
