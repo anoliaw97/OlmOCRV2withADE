@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 
 
 APP_TITLE = "SCAL Local Inference API"
-DEFAULT_MODEL = os.environ.get("SCAL_DEFAULT_MODEL", "Qwen/Qwen2.5-14B-Instruct")
+DEFAULT_MODEL = os.environ.get("SCAL_DEFAULT_MODEL", "Qwen/Qwen2.5-7B-Instruct")
 
 MODEL_CACHE_DIRS: dict[str, Path] = {
     "moonshotai/Kimi-K2.5": Path(r"D:\hf_cache\moonshotai\Kimi-K2.5"),
@@ -23,7 +23,6 @@ MODEL_CACHE_DIRS: dict[str, Path] = {
 
 LLM_MODEL_OPTIONS = [
     {"name": "Qwen/Qwen2.5-7B-Instruct", "label": "Qwen2.5-7B-Instruct"},
-    {"name": "meta-llama/Llama-3.1-8B-Instruct", "label": "Llama-3.1-8B-Instruct"},
     {"name": "Qwen/Qwen2.5-14B-Instruct", "label": "Qwen2.5-14B-Instruct"},
     {"name": "Qwen/Qwen3-30B-A3B-Instruct-2507", "label": "Qwen3-30B-A3B-Instruct-2507"},
     {"name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B", "label": "DeepSeek-R1-Distill-Qwen-32B"},
@@ -90,6 +89,7 @@ def _ensure_kimi_requirements(model_name: str):
 
 
 def _load_model_impl(model_name: str):
+    os.environ.setdefault("TRANSFORMERS_NO_TORCHVISION", "1")
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -127,13 +127,26 @@ def _load_model_impl(model_name: str):
         )
 
         _set_progress(45, "downloading", f"Weights: {model_name}")
-        mdl = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16,
-            device_map="auto",
-            trust_remote_code=True,
-            cache_dir=str(cache_dir) if cache_dir is not None else None,
-        ).eval()
+        try:
+            mdl = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16,
+                device_map="auto",
+                trust_remote_code=True,
+                cache_dir=str(cache_dir) if cache_dir is not None else None,
+            ).eval()
+        except Exception as e:
+            msg = str(e)
+            if "torchvision::nms" in msg or "Could not import module 'Qwen2ForCausalLM'" in msg:
+                raise RuntimeError(
+                    "Model load failed due to torchvision/transformers mismatch. "
+                    "Uninstall torchvision and torchaudio in the env, then retry."
+                )
+            if "gated repo" in msg.lower() or "401" in msg:
+                raise RuntimeError(
+                    f"Model {model_name} is gated/private. Choose an open model or login to Hugging Face."
+                )
+            raise
 
         _set_progress(90, "finalizing", "Finishing load")
         R._tok = tok

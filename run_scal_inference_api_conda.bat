@@ -53,14 +53,22 @@ if "%NEED_INSTALL%"=="1" (
   if "%USE_CONDA_RUN%"=="1" (
     call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip wheel "setuptools<82"
     call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install fastapi uvicorn[standard] pydantic "transformers==4.57.3" hf_transfer
-    call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0
+    call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip uninstall -y torchvision torchaudio >nul 2>&1
+    call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0
   ) else (
     python -m pip install --upgrade pip wheel "setuptools<82"
     python -m pip install fastapi uvicorn[standard] pydantic "transformers==4.57.3" hf_transfer
-    python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0
+    python -m pip uninstall -y torchvision torchaudio >nul 2>&1
+    python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0
   )
 ) else (
   echo Dependencies already satisfied. Skipping pip install.
+)
+
+if "%USE_CONDA_RUN%"=="1" (
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip uninstall -y torchvision torchaudio >nul 2>&1
+) else (
+  python -m pip uninstall -y torchvision torchaudio >nul 2>&1
 )
 
 echo Configuring Hugging Face download settings...
