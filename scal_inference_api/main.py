@@ -273,6 +273,26 @@ def api_chat(req: ChatReq):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Generation failed on {R.device}: {e}")
         answer = R._tok.decode(out[0][inp.shape[1] :], skip_special_tokens=True).strip()
+
+        if not answer:
+            fb_msgs = [
+                {"role": "system", "content": req.system_prompt + "\nAlways provide a concise response."},
+                {"role": "user", "content": req.user_prompt + "\n\nRespond in 1-2 sentences."},
+            ]
+            inp2 = R._tok.apply_chat_template(fb_msgs, return_tensors="pt", add_generation_prompt=True).to(R.device, dtype=torch.long)
+            attn2 = torch.ones_like(inp2, dtype=torch.long, device=inp2.device)
+            with torch.no_grad():
+                out2 = R._model.generate(
+                    inp2,
+                    attention_mask=attn2,
+                    max_new_tokens=max(64, min(int(req.max_new_tokens), 256)),
+                    temperature=max(0.2, float(req.temperature)),
+                    do_sample=True,
+                    top_p=max(0.9, float(req.top_p)),
+                    pad_token_id=R._tok.pad_token_id,
+                    eos_token_id=R._tok.eos_token_id,
+                )
+            answer = R._tok.decode(out2[0][inp2.shape[1] :], skip_special_tokens=True).strip() or "I received your message. Please ask me to continue if you want more detail."
     dt = (time.perf_counter() - t0) * 1000.0
     out_tokens = len(R._tok.encode(answer)) if answer else 0
     R.last_metrics = {
@@ -344,6 +364,29 @@ def api_chat_stream(req: ChatReq):
                     raise RuntimeError(gen_err[0])
 
                 answer = "".join(answer_parts).strip()
+                if not answer:
+                    fb_msgs = [
+                        {"role": "system", "content": req.system_prompt + "\nAlways provide a concise response."},
+                        {"role": "user", "content": req.user_prompt + "\n\nRespond in 1-2 sentences."},
+                    ]
+                    inp2 = R._tok.apply_chat_template(fb_msgs, return_tensors="pt", add_generation_prompt=True).to(R.device, dtype=torch.long)
+                    attn2 = torch.ones_like(inp2, dtype=torch.long, device=inp2.device)
+                    with torch.no_grad():
+                        out2 = R._model.generate(
+                            inp2,
+                            attention_mask=attn2,
+                            max_new_tokens=max(64, min(int(req.max_new_tokens), 256)),
+                            temperature=max(0.2, float(req.temperature)),
+                            do_sample=True,
+                            top_p=max(0.9, float(req.top_p)),
+                            pad_token_id=R._tok.pad_token_id,
+                            eos_token_id=R._tok.eos_token_id,
+                        )
+                    answer = R._tok.decode(out2[0][inp2.shape[1] :], skip_special_tokens=True).strip()
+                    if not answer:
+                        answer = "I received your message. Please ask me to continue if you want more detail."
+                    yield f"data: {json.dumps({'type': 'token', 'text': answer}, ensure_ascii=False)}\n\n"
+
                 total_ms = (time.perf_counter() - t0) * 1000.0
                 out_tokens = len(R._tok.encode(answer)) if answer else 0
                 metrics = {
