@@ -6,14 +6,33 @@ if "%ENV_NAME%"=="" set "ENV_NAME=olmocr"
 
 cd /d "%~dp0"
 
+set "CONDA_BAT="
+if defined CONDA_EXE (
+  for %%P in ("%CONDA_EXE%") do set "_CONDA_DIR=%%~dpP"
+  if exist "%_CONDA_DIR%..\condabin\conda.bat" set "CONDA_BAT=%_CONDA_DIR%..\condabin\conda.bat"
+  if exist "%_CONDA_DIR%conda.bat" set "CONDA_BAT=%_CONDA_DIR%conda.bat"
+)
+if not defined CONDA_BAT if exist "%USERPROFILE%\miniconda3\condabin\conda.bat" set "CONDA_BAT=%USERPROFILE%\miniconda3\condabin\conda.bat"
+if not defined CONDA_BAT if exist "%USERPROFILE%\anaconda3\condabin\conda.bat" set "CONDA_BAT=%USERPROFILE%\anaconda3\condabin\conda.bat"
+if not defined CONDA_BAT if exist "C:\ProgramData\miniconda3\condabin\conda.bat" set "CONDA_BAT=C:\ProgramData\miniconda3\condabin\conda.bat"
+if not defined CONDA_BAT if exist "C:\ProgramData\anaconda3\condabin\conda.bat" set "CONDA_BAT=C:\ProgramData\anaconda3\condabin\conda.bat"
+
 echo Starting SCAL inference API in a new window...
-start "SCAL Inference API" cmd /k "call "%~dp0run_scal_inference_api_conda.bat" %ENV_NAME%"
+if defined CONDA_BAT (
+  start "SCAL Inference API" cmd /k "call ""%CONDA_BAT%"" activate base ^& call ""%~dp0run_scal_inference_api_conda.bat"" %ENV_NAME%"
+) else (
+  start "SCAL Inference API" cmd /k "call "%~dp0run_scal_inference_api_conda.bat" %ENV_NAME%"
+)
 
 echo Waiting 2 seconds before launching classic UI...
 timeout /t 2 /nobreak >nul
 
 echo Starting SCAL classic VLM tools UI in a new window...
-start "SCAL Classic UI" cmd /k "call "%~dp0run_scal_webapp_conda.bat" %ENV_NAME%"
+if defined CONDA_BAT (
+  start "SCAL Classic UI" cmd /k "call ""%CONDA_BAT%"" activate base ^& call ""%~dp0run_scal_webapp_conda.bat"" %ENV_NAME%"
+) else (
+  start "SCAL Classic UI" cmd /k "call "%~dp0run_scal_webapp_conda.bat" %ENV_NAME%"
+)
 
 echo Waiting 4 seconds before launching rebuild web app...
 timeout /t 4 /nobreak >nul

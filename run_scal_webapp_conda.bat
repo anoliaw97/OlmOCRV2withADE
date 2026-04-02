@@ -60,7 +60,7 @@ echo Activating Conda environment: %ENV_NAME%
 call "%CONDA_BAT%" activate "%ENV_NAME%"
 if errorlevel 1 (
   echo Failed to activate Conda environment: %ENV_NAME%
-  echo Falling back to conda run mode (no activate).
+  echo Falling back to conda run mode ^(no activate^).
   set "USE_CONDA_RUN=1"
 )
 
