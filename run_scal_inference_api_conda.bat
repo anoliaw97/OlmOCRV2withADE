@@ -43,8 +43,12 @@ set "NEED_INSTALL=0"
 if "%USE_CONDA_RUN%"=="1" (
   call "%CONDA_BAT%" run -n "%ENV_NAME%" python -c "import fastapi,uvicorn,pydantic,transformers,torch" >nul 2>&1
   if errorlevel 1 set "NEED_INSTALL=1"
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -c "import torch,sys; sys.exit(0 if getattr(torch.version,'cuda',None) else 1)" >nul 2>&1
+  if errorlevel 1 set "NEED_INSTALL=1"
 ) else (
   python -c "import fastapi,uvicorn,pydantic,transformers,torch" >nul 2>&1
+  if errorlevel 1 set "NEED_INSTALL=1"
+  python -c "import torch,sys; sys.exit(0 if getattr(torch.version,'cuda',None) else 1)" >nul 2>&1
   if errorlevel 1 set "NEED_INSTALL=1"
 )
 
@@ -67,8 +71,10 @@ if "%NEED_INSTALL%"=="1" (
 
 if "%USE_CONDA_RUN%"=="1" (
   call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip uninstall -y torchvision torchaudio >nul 2>&1
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -c "import torch; print('Torch:',torch.__version__,'CUDA:',torch.version.cuda)"
 ) else (
   python -m pip uninstall -y torchvision torchaudio >nul 2>&1
+  python -c "import torch; print('Torch:',torch.__version__,'CUDA:',torch.version.cuda)"
 )
 
 echo Configuring Hugging Face download settings...

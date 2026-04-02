@@ -127,6 +127,8 @@ def _load_model_impl(model_name: str):
             trust_remote_code=True,
             cache_dir=str(cache_dir) if cache_dir is not None else None,
         )
+        if tok.pad_token_id is None and tok.eos_token_id is not None:
+            tok.pad_token = tok.eos_token
 
         _set_progress(45, "downloading", f"Weights: {model_name}")
         use_cuda = bool(torch.cuda.is_available())
@@ -256,13 +258,17 @@ def api_chat(req: ChatReq):
     with R._gen_lock:
         try:
             inp = R._tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to(R.device, dtype=torch.long)
+            attn = torch.ones_like(inp, dtype=torch.long, device=inp.device)
             with torch.no_grad():
                 out = R._model.generate(
                     inp,
+                    attention_mask=attn,
                     max_new_tokens=int(req.max_new_tokens),
                     temperature=float(req.temperature),
                     do_sample=bool(req.do_sample),
                     top_p=float(req.top_p),
+                    pad_token_id=R._tok.pad_token_id,
+                    eos_token_id=R._tok.eos_token_id,
                 )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Generation failed on {R.device}: {e}")
@@ -298,13 +304,17 @@ def api_chat_stream(req: ChatReq):
             ]
             with R._gen_lock:
                 inp = R._tok.apply_chat_template(msgs, return_tensors="pt", add_generation_prompt=True).to(R.device, dtype=torch.long)
+                attn = torch.ones_like(inp, dtype=torch.long, device=inp.device)
                 streamer = TextIteratorStreamer(R._tok, skip_prompt=True, skip_special_tokens=True)
                 kwargs = {
                     "input_ids": inp,
+                    "attention_mask": attn,
                     "max_new_tokens": int(req.max_new_tokens),
                     "temperature": float(req.temperature),
                     "do_sample": bool(req.do_sample),
                     "top_p": float(req.top_p),
+                    "pad_token_id": R._tok.pad_token_id,
+                    "eos_token_id": R._tok.eos_token_id,
                     "streamer": streamer,
                 }
 
