@@ -20,7 +20,7 @@ from typing import Any
 
 import joblib
 from fastapi import FastAPI, Form, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -199,6 +199,42 @@ def get_session(session_id: str) -> dict[str, Any] | None:
         if s.get("id") == session_id:
             return s
     return None
+
+
+def session_to_text(session: dict[str, Any]) -> str:
+    title = str(session.get("title") or "SCAL Chat")
+    sid = str(session.get("id") or "")
+    created = str(session.get("created_at") or "")
+    updated = str(session.get("updated_at") or "")
+    lines = [
+        f"Session Title: {title}",
+        f"Session ID: {sid}",
+        f"Created: {created}",
+        f"Updated: {updated}",
+        "",
+    ]
+
+    for i, m in enumerate(session.get("messages", []), start=1):
+        role = str(m.get("role") or "assistant").upper()
+        t = str(m.get("time") or "")
+        content = str(m.get("content") or "").strip()
+        lines.append(f"[{i}] {role}" + (f" ({t})" if t else ""))
+        lines.append(content)
+
+        if role == "ASSISTANT":
+            sources = m.get("sources") or []
+            if isinstance(sources, list) and sources:
+                lines.append("Sources:")
+                for s in sources:
+                    if not isinstance(s, dict):
+                        continue
+                    rank = s.get("rank", "?")
+                    file_name = s.get("file_name", "?")
+                    page = s.get("page_number", "?")
+                    score = s.get("score", "?")
+                    lines.append(f"- [{rank}] {file_name} page {page} score {score}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 def append_session_messages(session_id: str, new_messages: list[dict[str, Any]]):
@@ -1380,6 +1416,22 @@ def api_chat_session_delete(session_id: str):
         raise HTTPException(status_code=404, detail="Session not found")
     _save_sessions(data)
     return {"ok": True}
+
+
+@app.get("/api/chat/session/{session_id}/export")
+def api_chat_session_export(session_id: str):
+    s = get_session(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    text = session_to_text(s)
+    base = re.sub(r"[^a-zA-Z0-9_\-]+", "_", str(s.get("title") or "SCAL_Chat")).strip("_") or "SCAL_Chat"
+    filename = f"{base}_{session_id}.txt"
+    return Response(
+        content=text.encode("utf-8"),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename=\"{filename}\""},
+    )
 
 
 @app.post("/api/chat/stream")

@@ -171,6 +171,32 @@ async function refreshSessions() {
   renderSessions();
 }
 
+async function downloadSessionTranscript() {
+  const sid = state.currentSessionId || (state.sessions[0]?.id || "");
+  if (!sid) {
+    systemMsg("No chat session available to download.");
+    return;
+  }
+  const res = await fetch(`/api/chat/session/${encodeURIComponent(sid)}/export`);
+  if (!res.ok) {
+    systemMsg(`Download failed: ${await res.text()}`);
+    return;
+  }
+  const blob = await res.blob();
+  const dispo = res.headers.get("Content-Disposition") || "";
+  let fileName = `session_${sid}.txt`;
+  const m = dispo.match(/filename="?([^";]+)"?/i);
+  if (m && m[1]) fileName = m[1];
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function addMessage(role, content, extra = {}) {
   const chat = $("chatBox");
   const item = document.createElement("div");
@@ -532,6 +558,8 @@ async function refreshRagStatus() {
 }
 
 function bindEvents() {
+  $("downloadSessionBtn").addEventListener("click", downloadSessionTranscript);
+
   $("newSessionBtn").addEventListener("click", async () => {
     const data = await apiForm("/api/chat/session/new", { title: "SCAL Chat" });
     state.currentSessionId = data.session?.id || "";
