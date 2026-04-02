@@ -502,8 +502,9 @@ async function runChatStream(payload) {
   }
 
   if (doneEvent) {
-    const finalContent = doneEvent.answer || "";
-    contentEl.innerHTML = esc(finalContent).replace(/\n/g, "<br>");
+    const finalContent = (doneEvent.answer || "").trim();
+    const safeContent = finalContent || "[No response text returned. Check model logs.]";
+    contentEl.innerHTML = esc(safeContent).replace(/\n/g, "<br>");
     if (Array.isArray(doneEvent.sources) && doneEvent.sources.length) {
       const rb = document.createElement("details");
       rb.className = "reasoning-block";

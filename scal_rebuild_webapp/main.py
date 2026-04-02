@@ -1770,6 +1770,8 @@ async def api_chat_stream(req: ChatReq):
                             yield _sse({"type": "token", "text": piece})
                     elif ev.get("type") == "metrics":
                         infer_metrics = ev.get("metrics") or {}
+                    elif ev.get("type") == "error":
+                        raise RuntimeError(str(ev.get("message") or "Inference stream error"))
 
             answer = "".join(answer_parts).strip()
             append_session_messages(
