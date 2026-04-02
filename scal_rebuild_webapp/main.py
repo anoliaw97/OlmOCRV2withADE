@@ -420,6 +420,47 @@ def is_casual_chat(query: str) -> bool:
     return len(tokens) <= 3 and any(w in q for w in ["hi", "hello", "hey", "thanks", "yo"])
 
 
+def is_database_count_query(query: str) -> bool:
+    q = (query or "").strip().lower()
+    if not q:
+        return False
+    if ("how many" in q or "number of" in q or "count" in q) and any(k in q for k in ["pdf", "pdfs", "documents", "database"]):
+        return True
+    return False
+
+
+def database_summary() -> dict[str, int]:
+    docs = R.docs or {}
+    doc_count = len(docs)
+    total_pages = 0
+    extracted_pages = 0
+    html_table_pages = 0
+    for pages in docs.values():
+        total_pages += len(pages)
+        for files in pages.values():
+            has_extract = "json" in files or "md" in files
+            if has_extract:
+                extracted_pages += 1
+                try:
+                    raw = ""
+                    if "json" in files:
+                        raw = files["json"].read_text(encoding="utf-8", errors="ignore")
+                    elif "md" in files:
+                        raw = files["md"].read_text(encoding="utf-8", errors="ignore")
+                    if "<table" in raw.lower():
+                        html_table_pages += 1
+                except Exception:
+                    pass
+    missing_pages = max(0, total_pages - extracted_pages)
+    return {
+        "documents": int(doc_count),
+        "total_pages": int(total_pages),
+        "extracted_pages": int(extracted_pages),
+        "missing_pages": int(missing_pages),
+        "html_table_pages": int(html_table_pages),
+    }
+
+
 def chunks_for_doc(doc_name: str) -> list[dict[str, Any]]:
     pages = R.docs.get(doc_name, {})
     chunks = []
@@ -1114,6 +1155,57 @@ def api_page_view(doc_name: str, page: int):
         raise HTTPException(status_code=400, detail="doc_name required")
     if not R.docs:
         R.docs = scan_docs(R.data_root)
+
+    if is_database_count_query(req.question):
+        stats = database_summary()
+        global_index_ready = bool(load_index(ns("__ALL__")))
+        msg = (
+            f"Current database has {stats['documents']} PDF document(s). "
+            f"Total pages: {stats['total_pages']}. "
+            f"Extracted JSON/MD pages: {stats['extracted_pages']} "
+            f"(missing extraction: {stats['missing_pages']}). "
+            f"Pages containing HTML tables: {stats['html_table_pages']}. "
+            f"Global RAG index: {'ready' if global_index_ready else 'not built'}."
+        )
+
+        sid = req.session_id
+        if not sid:
+            sid = create_session("SCAL Chat").get("id")
+        append_session_messages(
+            sid,
+            [
+                {"role": "user", "content": req.question, "time": now()},
+                {"role": "assistant", "content": msg, "time": now(), "sources": []},
+            ],
+        )
+
+        def quick_stream():
+            evt = {
+                "type": "done",
+                "session_id": sid,
+                "answer": msg,
+                "reasoning": [],
+                "sources": [],
+                "tables": [],
+                "raw_hits": [],
+                "vision_images_used": 0,
+                "metrics": {
+                    "backend": backend,
+                    "response_mode": mode,
+                    "model_name": R.model.get("model_name", ""),
+                    "retrieval_ms": 0,
+                    "generation_ms": 0,
+                    "first_token_ms": 0,
+                    "total_ms": round((datetime.now() - t_total0).total_seconds() * 1000.0, 2),
+                    "answer_tokens": approx_token_count(msg),
+                    "tokens_per_sec": 0,
+                    "hits": 0,
+                    "max_new_tokens": 0,
+                },
+            }
+            yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+
+        return StreamingResponse(quick_stream(), media_type="text/event-stream")
     info = page_content_for(doc, int(page))
     if not info:
         raise HTTPException(status_code=404, detail="Page not found")
@@ -1528,8 +1620,15 @@ async def api_chat_stream(req: ChatReq):
             "You are a helpful assistant in a SCAL app. If no document evidence is available, "
             "answer generally and clearly state it is not grounded in retrieved files."
         )
+        idx_ready = bool(load_index(ns("__ALL__"))) if target_doc == "__ALL__" else bool(load_index(ns(target_doc)))
+        if not idx_ready:
+            prefix = (
+                "(No retrieved document context found because RAG index is not loaded. "
+                "Run RAG Build first to query PDF JSON/MD content.)\n\n"
+            )
+        else:
+            prefix = "(No retrieved matches found for this query in current RAG chunks.)\n\n"
         user_prompt = req.question
-        prefix = "(No retrieved document context found; general model response)\n\n"
     else:
         ctx = []
         for i, h in enumerate(hits, start=1):
