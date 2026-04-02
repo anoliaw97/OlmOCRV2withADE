@@ -5,6 +5,7 @@ set "ENV_NAME=%~1"
 if "%ENV_NAME%"=="" set "ENV_NAME=olmocr"
 
 cd /d "%~dp0"
+set "REPO_DIR=%CD%"
 
 set "CONDA_BAT="
 if exist "%USERPROFILE%\miniconda3\condabin\conda.bat" set "CONDA_BAT=%USERPROFILE%\miniconda3\condabin\conda.bat"
@@ -51,9 +52,10 @@ set "SCAL_INFERENCE_API_URL=http://127.0.0.1:8010"
 echo Starting SCAL rebuild web app...
 echo Open http://127.0.0.1:8092
 if "%USE_CONDA_RUN%"=="1" (
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_rebuild_webapp.main:app --host 127.0.0.1 --port 8092 --workers 1
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_rebuild_webapp.main:app --host 127.0.0.1 --port 8092 --app-dir "%REPO_DIR%"
 ) else (
-  python -m uvicorn scal_rebuild_webapp.main:app --host 127.0.0.1 --port 8092 --workers 1
+  set "PYTHONPATH=%REPO_DIR%;%PYTHONPATH%"
+  python -m uvicorn scal_rebuild_webapp.main:app --host 127.0.0.1 --port 8092 --app-dir "%REPO_DIR%"
 )
 
 endlocal

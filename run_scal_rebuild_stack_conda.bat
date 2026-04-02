@@ -74,28 +74,59 @@ set "CLASSIC_RUNNER=%TEMP%\scal_classic_runner_%ENV_NAME%.bat"
   echo set "HF_HUB_ENABLE_HF_TRANSFER=1"
   echo set "HF_HUB_DOWNLOAD_TIMEOUT=120"
   echo set "PYTHONPATH=%REPO_DIR%;%%PYTHONPATH%%"
-  echo call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --workers 1
+  echo call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --app-dir "%REPO_DIR%"
+  echo set "EC=%%ERRORLEVEL%%"
+  echo if not "%%EC%%"=="0" ^(
+  echo   echo.
+  echo   echo Inference API failed ^(error %%EC%%^).
+  echo   echo Check Python and dependency logs above.
+  echo   pause
+  echo ^)
 ) > "%INFER_RUNNER%"
 
 (
   echo @echo off
   echo cd /d "%REPO_DIR%"
   echo set "PYTHONPATH=%REPO_DIR%;%%PYTHONPATH%%"
-  echo call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_webapp.backend.main:app --host 127.0.0.1 --port 8080 --workers 1 --app-dir "%REPO_DIR%"
+  echo call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_webapp.backend.main:app --host 127.0.0.1 --port 8080 --app-dir "%REPO_DIR%"
+  echo set "EC=%%ERRORLEVEL%%"
+  echo if not "%%EC%%"=="0" ^(
+  echo   echo.
+  echo   echo Classic UI failed ^(error %%EC%%^).
+  echo   echo Check Python and dependency logs above.
+  echo   pause
+  echo ^)
 ) > "%CLASSIC_RUNNER%"
 
 echo Starting services in separate windows...
-start "SCAL Inference API" cmd /k call "%INFER_RUNNER%"
+start "SCAL Inference API" "%INFER_RUNNER%"
 
 timeout /t 2 /nobreak >nul
 
-start "SCAL Classic UI" cmd /k call "%CLASSIC_RUNNER%"
+set "INFER_OK=0"
+for /L %%I in (1,1,20) do (
+  powershell -NoProfile -Command "try { Invoke-WebRequest 'http://127.0.0.1:8010/v1/health' -UseBasicParsing -TimeoutSec 2 ^| Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
+  if not errorlevel 1 (
+    set "INFER_OK=1"
+    goto :infer_ready
+  )
+  timeout /t 1 /nobreak >nul
+)
+
+:infer_ready
+if "%INFER_OK%"=="0" (
+  echo WARNING: Inference API did not become healthy on 8010. Check the "SCAL Inference API" window.
+) else (
+  echo Inference API is healthy on 8010.
+)
+
+start "SCAL Classic UI" "%CLASSIC_RUNNER%"
 
 timeout /t 3 /nobreak >nul
 
 echo Starting rebuild webapp in this window...
 set "SCAL_INFERENCE_API_URL=http://127.0.0.1:8010"
-call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_rebuild_webapp.main:app --host 127.0.0.1 --port 8092 --workers 1
+call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_rebuild_webapp.main:app --host 127.0.0.1 --port 8092 --app-dir "%REPO_DIR%"
 goto :eof
 
 :deps_fail

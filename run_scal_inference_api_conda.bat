@@ -5,6 +5,7 @@ set "ENV_NAME=%~1"
 if "%ENV_NAME%"=="" set "ENV_NAME=olmocr"
 
 cd /d "%~dp0"
+set "REPO_DIR=%CD%"
 
 set "CONDA_BAT="
 if exist "%USERPROFILE%\miniconda3\condabin\conda.bat" set "CONDA_BAT=%USERPROFILE%\miniconda3\condabin\conda.bat"
@@ -40,10 +41,12 @@ if errorlevel 1 (
 echo Installing/updating dependencies...
 if "%USE_CONDA_RUN%"=="1" (
   call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip wheel "setuptools<82"
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install fastapi uvicorn[standard] pydantic transformers torch hf_transfer
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install fastapi uvicorn[standard] pydantic "transformers==4.57.3" hf_transfer
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0
 ) else (
   python -m pip install --upgrade pip wheel "setuptools<82"
-  python -m pip install fastapi uvicorn[standard] pydantic transformers torch hf_transfer
+  python -m pip install fastapi uvicorn[standard] pydantic "transformers==4.57.3" hf_transfer
+  python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0
 )
 
 echo Configuring Hugging Face download settings...
@@ -54,9 +57,10 @@ set "HF_HUB_DOWNLOAD_TIMEOUT=120"
 echo Starting local inference API...
 echo Open http://127.0.0.1:8010/v1/health
 if "%USE_CONDA_RUN%"=="1" (
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --workers 1
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --app-dir "%REPO_DIR%"
 ) else (
-  python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --workers 1
+  set "PYTHONPATH=%REPO_DIR%;%PYTHONPATH%"
+  python -m uvicorn scal_inference_api.main:app --host 127.0.0.1 --port 8010 --app-dir "%REPO_DIR%"
 )
 
 endlocal
