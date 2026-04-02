@@ -236,6 +236,28 @@ def session_to_text(session: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def recent_session_context(session_id: str | None, max_messages: int = 8) -> str:
+    sid = str(session_id or "").strip()
+    if not sid:
+        return ""
+    s = get_session(sid)
+    if not s:
+        return ""
+    msgs = list(s.get("messages", []))[-max_messages:]
+    if not msgs:
+        return ""
+    lines: list[str] = []
+    for m in msgs:
+        role = str(m.get("role") or "assistant").lower()
+        if role not in {"user", "assistant"}:
+            continue
+        text = str(m.get("content") or "").strip()
+        if not text:
+            continue
+        lines.append(f"{role}: {text}")
+    return "\n".join(lines)
+
+
 def append_session_messages(session_id: str, new_messages: list[dict[str, Any]]):
     data = _load_sessions()
     found = None
@@ -1126,6 +1148,11 @@ def api_page_view(doc_name: str, page: int):
     if not R.docs:
         R.docs = scan_docs(R.data_root)
 
+    sid = req.session_id
+    if not sid:
+        sid = create_session("SCAL Chat").get("id")
+    history = recent_session_context(sid, max_messages=8)
+
     if is_database_count_query(req.question):
         stats = database_summary()
         global_index_ready = bool(load_index(ns("__ALL__")))
@@ -1583,7 +1610,10 @@ async def api_chat_stream(req: ChatReq):
             "You are a friendly SCAL assistant. For casual chat, respond naturally and briefly. "
             "Do not cite files unless asked document questions."
         )
-        user_prompt = req.question
+        if history:
+            user_prompt = f"Recent chat:\n{history}\n\nUser now: {req.question}"
+        else:
+            user_prompt = req.question
         prefix = ""
     elif not hits:
         system = (
@@ -1598,7 +1628,10 @@ async def api_chat_stream(req: ChatReq):
             )
         else:
             prefix = "(No retrieved matches found for this query in current RAG chunks.)\n\n"
-        user_prompt = req.question
+        if history:
+            user_prompt = f"Recent chat:\n{history}\n\nUser now: {req.question}"
+        else:
+            user_prompt = req.question
     else:
         ctx = []
         for i, h in enumerate(hits, start=1):
@@ -1620,15 +1653,12 @@ async def api_chat_stream(req: ChatReq):
             "use retrieved evidence only, and cite [1],[2] references in answers."
         )
         task_hint = (req.prompt_template or "").strip()
+        hist_block = f"\n\nRecent chat:\n{history}" if history else ""
         if task_hint:
-            user_prompt = f"Task:\n{task_hint}\n\nQuestion:\n{req.question}\n\nEvidence:\n{context}"
+            user_prompt = f"Task:\n{task_hint}\n\nQuestion:\n{req.question}\n\nEvidence:\n{context}{hist_block}"
         else:
-            user_prompt = f"Question:\n{req.question}\n\nEvidence:\n{context}"
+            user_prompt = f"Question:\n{req.question}\n\nEvidence:\n{context}{hist_block}"
         prefix = ""
-
-    sid = req.session_id
-    if not sid:
-        sid = create_session("SCAL Chat").get("id")
 
     payload = {
         "system_prompt": system,
