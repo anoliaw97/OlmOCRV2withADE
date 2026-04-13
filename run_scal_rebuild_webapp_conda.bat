@@ -41,13 +41,13 @@ if errorlevel 1 (
 echo Installing/updating dependencies...
 if "%USE_CONDA_RUN%"=="1" (
   call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install --upgrade pip wheel "setuptools<82"
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install fastapi uvicorn[standard] pydantic scikit-learn joblib beautifulsoup4
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" python -m pip install fastapi uvicorn[standard] pydantic scikit-learn joblib beautifulsoup4 langchain langchain-core
 ) else (
   python -m pip install --upgrade pip wheel "setuptools<82"
-  python -m pip install fastapi uvicorn[standard] pydantic scikit-learn joblib beautifulsoup4
+  python -m pip install fastapi uvicorn[standard] pydantic scikit-learn joblib beautifulsoup4 langchain langchain-core
 )
 
-set "SCAL_INFERENCE_API_URL=http://127.0.0.1:8010"
+if "%SCAL_LLAMACPP_BASE_URL%"=="" set "SCAL_LLAMACPP_BASE_URL=http://127.0.0.1:8081"
 
 echo Starting SCAL rebuild web app...
 echo Open http://127.0.0.1:8092
