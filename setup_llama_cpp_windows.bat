@@ -5,6 +5,7 @@ cd /d "%~dp0"
 set "REPO_DIR=%CD%"
 set "LLAMA_DIR=%REPO_DIR%\llama.cpp"
 set "BUILD_DIR=%LLAMA_DIR%\build"
+set "CMAKE_EXE=cmake"
 
 where git >nul 2>&1
 if errorlevel 1 (
@@ -15,10 +16,24 @@ if errorlevel 1 (
 
 where cmake >nul 2>&1
 if errorlevel 1 (
-  echo ERROR: cmake is not installed or not on PATH.
-  echo Install CMake first, then rerun this script.
-  pause
-  exit /b 1
+  if exist "C:\Program Files\CMake\bin\cmake.exe" set "CMAKE_EXE=C:\Program Files\CMake\bin\cmake.exe"
+  if exist "C:\Program Files (x86)\CMake\bin\cmake.exe" set "CMAKE_EXE=C:\Program Files (x86)\CMake\bin\cmake.exe"
+)
+
+if not exist "%CMAKE_EXE%" if /I not "%CMAKE_EXE%"=="cmake" (
+  echo Using CMake from:
+  echo   %CMAKE_EXE%
+)
+
+if /I "%CMAKE_EXE%"=="cmake" (
+  where cmake >nul 2>&1
+  if errorlevel 1 (
+    echo ERROR: cmake is not installed or not on PATH.
+    echo Install CMake first, then rerun this script.
+    echo If CMake is already installed, reopen Anaconda Prompt after installation.
+    pause
+    exit /b 1
+  )
 )
 
 if exist "%LLAMA_DIR%\.git" (
@@ -38,7 +53,7 @@ if errorlevel 1 (
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
 echo Configuring llama.cpp with CMake...
-cmake -S "%LLAMA_DIR%" -B "%BUILD_DIR%" -DGGML_CUDA=OFF
+"%CMAKE_EXE%" -S "%LLAMA_DIR%" -B "%BUILD_DIR%" -DGGML_CUDA=OFF
 if errorlevel 1 (
   echo ERROR: CMake configure failed.
   pause
@@ -46,7 +61,7 @@ if errorlevel 1 (
 )
 
 echo Building llama.cpp...
-cmake --build "%BUILD_DIR%" --config Release -j 8
+"%CMAKE_EXE%" --build "%BUILD_DIR%" --config Release -j 8
 if errorlevel 1 (
   echo ERROR: Build failed.
   pause
