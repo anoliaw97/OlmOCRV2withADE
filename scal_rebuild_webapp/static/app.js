@@ -1,6 +1,6 @@
 const state = {
   app: {},
-  settings: { backend: "inference_api", ui_mode: "layman", data_root: "" },
+  settings: { backend: "llama_cpp", ui_mode: "layman", data_root: "" },
   model: {},
   progress: {},
   services: {},
@@ -83,7 +83,7 @@ function updateModelStatus() {
       ? `Model: ${m.model_name || "ready"} (${m.backend || state.settings.backend}${ctxLabel})`
       : `Model: idle (${state.settings.backend})`;
   $("modelStatus").textContent = status;
-  const canPull = state.settings.backend === "ollama" || state.settings.backend === "localai";
+  const canPull = state.settings.backend === "ollama";
   $("pullModelBtn").style.display = canPull ? "" : "none";
 }
 
@@ -148,7 +148,7 @@ async function loadState() {
 
   $("buildChip").textContent = `build: ${state.app.build || "-"}`;
   $("uiModeSelect").value = state.settings.ui_mode || "layman";
-  $("backendSelect").value = state.settings.backend || "inference_api";
+  $("backendSelect").value = state.settings.backend || "llama_cpp";
   $("dataRoot").value = state.settings.data_root || "";
   applyUiMode(state.settings.ui_mode || "layman");
   updateModelStatus();

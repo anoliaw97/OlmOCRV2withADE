@@ -54,9 +54,8 @@ INDEX_DIR = ROOT / "scal_rebuild_index"
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
 SESSION_FILE = ROOT / "scal_rebuild_sessions.json"
 SETTINGS_FILE = ROOT / "scal_rebuild_settings.json"
-INFERENCE_API_URL = os.environ.get("SCAL_INFERENCE_API_URL", "http://127.0.0.1:8010").rstrip("/")
 OLLAMA_BASE_URL = os.environ.get("SCAL_OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
-LOCALAI_BASE_URL = os.environ.get("SCAL_LOCALAI_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
+LLAMACPP_BASE_URL = os.environ.get("SCAL_LLAMACPP_BASE_URL", "http://127.0.0.1:8081").rstrip("/")
 
 
 def _git_commit_short() -> str:
@@ -82,7 +81,7 @@ class Runtime:
         self.index_meta: list[dict[str, Any]] = []
 
         self.settings = {
-            "backend": "inference_api",  # inference_api | ollama | localai
+            "backend": "llama_cpp",  # llama_cpp | ollama
             "ui_mode": "layman",  # layman | advanced
             "data_root": str(DATA_ROOT),
         }
@@ -93,7 +92,7 @@ class Runtime:
             "target_model": "",
             "loading": False,
             "last_error": "",
-            "backend": "inference_api",
+            "backend": "llama_cpp",
         }
         self.progress = {
             "index": {"running": False, "percent": 0, "stage": "idle", "detail": ""},
@@ -135,7 +134,7 @@ def _save_sessions(data: dict[str, Any]):
 
 def _load_settings() -> dict[str, Any]:
     defaults = {
-        "backend": "inference_api",
+        "backend": "llama_cpp",
         "ui_mode": "layman",
         "data_root": str(DATA_ROOT),
     }
@@ -148,7 +147,7 @@ def _load_settings() -> dict[str, Any]:
         backend = str(data.get("backend", defaults["backend"]))
         ui_mode = str(data.get("ui_mode", defaults["ui_mode"]))
         data_root = str(data.get("data_root", defaults["data_root"]))
-        if backend not in {"inference_api", "ollama", "localai"}:
+        if backend not in {"ollama", "llama_cpp"}:
             backend = defaults["backend"]
         if ui_mode not in {"layman", "advanced"}:
             ui_mode = defaults["ui_mode"]
@@ -164,7 +163,7 @@ def _save_settings(data: dict[str, Any]):
 R = Runtime()
 R.settings = _load_settings()
 R.data_root = Path(R.settings.get("data_root", str(DATA_ROOT)))
-R.model["backend"] = R.settings.get("backend", "inference_api")
+R.model["backend"] = R.settings.get("backend", "llama_cpp")
 
 _SEARCH_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="rebuild_search")
 _DIALOG_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rebuild_dialog")
@@ -671,71 +670,48 @@ def _json_request(base_url: str, method: str, path: str, payload: dict[str, Any]
         raise RuntimeError(f"Service unavailable at {base_url}: {e}")
 
 
-def _inference_request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
-    return _json_request(INFERENCE_API_URL, method, path, payload, timeout)
-
-
 def _ollama_request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
     return _json_request(OLLAMA_BASE_URL, method, path, payload, timeout)
 
 
-def _localai_request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
-    return _json_request(LOCALAI_BASE_URL, method, path, payload, timeout)
+def _llamacpp_request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 20) -> dict[str, Any]:
+    return _json_request(LLAMACPP_BASE_URL, method, path, payload, timeout)
 
 
-def _localai_models_list(timeout: int = 8) -> list[str]:
-    # LocalAI commonly exposes /v1/models; some setups expose /models.
+def _llamacpp_models(timeout: int = 8) -> dict[str, Any]:
     try:
-        resp = _localai_request("GET", "/v1/models", timeout=timeout)
-        if isinstance(resp, dict):
-            out = [str(m.get("id") or "") for m in resp.get("data", []) if isinstance(m, dict)]
-            out = [x for x in out if x]
-            if out:
-                return out
+        resp = _llamacpp_request("GET", "/v1/models", timeout=timeout)
+        data = resp.get("data") if isinstance(resp, dict) else None
+        models = []
+        if isinstance(data, list):
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("id") or item.get("name") or "").strip()
+                if not name:
+                    continue
+                models.append({"name": name, "label": name})
+        active = models[0]["name"] if models else ""
+        return {"models": models, "active": active, "default": active}
     except Exception:
         pass
 
     try:
-        resp = _localai_request("GET", "/models", timeout=timeout)
-        if isinstance(resp, list):
-            out = []
-            for m in resp:
-                if isinstance(m, str):
-                    out.append(m)
-                elif isinstance(m, dict):
-                    out.append(str(m.get("id") or m.get("name") or ""))
-            return [x for x in out if x]
-        if isinstance(resp, dict):
-            out = [str(m.get("id") or m.get("name") or "") for m in resp.get("data", []) if isinstance(m, dict)]
-            return [x for x in out if x]
-    except Exception:
-        pass
-    return []
-
-
-def _inference_stream_events(path: str, payload: dict[str, Any], timeout: int = 600):
-    url = f"{INFERENCE_API_URL}{path}"
-    data = json.dumps(payload).encode("utf-8")
-    headers = {"Accept": "text/event-stream", "Content-Type": "application/json"}
-    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            for raw in resp:
-                line = raw.decode("utf-8", errors="ignore").strip()
-                if not line.startswith("data:"):
-                    continue
-                data_line = line[5:].strip()
-                if not data_line or data_line == "[DONE]":
-                    continue
-                try:
-                    yield json.loads(data_line)
-                except Exception:
-                    continue
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"Inference API HTTP {e.code}: {detail or e.reason}")
+        props = _llamacpp_request("GET", "/props", timeout=timeout)
+        meta = props.get("model") if isinstance(props, dict) and isinstance(props.get("model"), dict) else props
+        name = str((meta or {}).get("model_path") or (meta or {}).get("path") or (meta or {}).get("name") or "llama.cpp").strip()
+        short = Path(name).name if name else "llama.cpp"
+        models = [{"name": short, "label": short}]
+        return {"models": models, "active": short, "default": short, "props": props}
     except Exception as e:
-        raise RuntimeError(f"Inference API stream unavailable at {INFERENCE_API_URL}: {e}")
+        raise RuntimeError(f"llama.cpp unavailable at {LLAMACPP_BASE_URL}: {e}")
+
+
+def _llamacpp_props(timeout: int = 8) -> dict[str, Any]:
+    try:
+        return _llamacpp_request("GET", "/props", timeout=timeout)
+    except Exception:
+        return {}
 
 
 def _ollama_stream_generate(payload: dict[str, Any], timeout: int = 600):
@@ -789,26 +765,6 @@ def _compat_stream_chat(base_url: str, payload: dict[str, Any], timeout: int = 1
         raise RuntimeError(f"Local compatible API unavailable at {base_url}: {e}")
 
 
-def _sync_model_state_inference() -> dict[str, Any]:
-    st = _inference_request("GET", "/v1/health", timeout=5)
-    R.model = {
-        "loaded": bool(st.get("loaded", False)),
-        "model_name": str(st.get("model_name") or ""),
-        "target_model": str(st.get("target_model") or ""),
-        "loading": bool(st.get("busy", False) or st.get("state") in {"loading", "unloading"}),
-        "last_error": str(st.get("last_error") or ""),
-        "backend": "inference_api",
-    }
-    p = st.get("progress") or {}
-    R.progress["model"] = {
-        "running": R.model["loading"],
-        "percent": int(p.get("percent", 0) or 0),
-        "stage": str(p.get("stage", st.get("state", "idle"))),
-        "detail": str(p.get("detail", "")),
-    }
-    return st
-
-
 def _sync_model_state_ollama() -> dict[str, Any]:
     tags = _ollama_request("GET", "/api/tags", timeout=8)
     names = [str(m.get("name") or "") for m in tags.get("models", []) if isinstance(m, dict)]
@@ -831,35 +787,37 @@ def _sync_model_state_ollama() -> dict[str, Any]:
     return {"models": names}
 
 
-def _sync_model_state_localai() -> dict[str, Any]:
-    names = _localai_models_list(timeout=8)
-    current = str(R.model.get("model_name") or "")
-    loaded = bool(current and current in names)
+def _sync_model_state_llamacpp() -> dict[str, Any]:
+    info = _llamacpp_models(timeout=8)
+    models = list(info.get("models") or [])
+    active = str(R.model.get("model_name") or info.get("active") or info.get("default") or "")
+    names = {str(m.get("name") or "") for m in models if isinstance(m, dict)}
+    if active not in names:
+        active = str(info.get("active") or info.get("default") or (models[0]["name"] if models else ""))
+    loaded = bool(active)
     R.model = {
         "loaded": loaded,
-        "model_name": current,
+        "model_name": active,
         "target_model": "",
         "loading": False,
         "last_error": "",
-        "backend": "localai",
+        "backend": "llama_cpp",
     }
     R.progress["model"] = {
         "running": False,
         "percent": 100 if loaded else 0,
         "stage": "loaded" if loaded else "idle",
-        "detail": f"LocalAI models available: {len(names)}",
+        "detail": f"llama.cpp server models available: {len(models)}",
     }
-    return {"models": names}
+    return info
 
 
 def sync_model_state() -> dict[str, Any]:
-    backend = str(R.settings.get("backend", "inference_api"))
+    backend = str(R.settings.get("backend", "llama_cpp"))
     try:
         if backend == "ollama":
             return _sync_model_state_ollama()
-        if backend == "localai":
-            return _sync_model_state_localai()
-        return _sync_model_state_inference()
+        return _sync_model_state_llamacpp()
     except Exception as e:
         R.model["loaded"] = False
         R.model["loading"] = False
@@ -1035,7 +993,7 @@ def _guess_context_limit_from_name(model_name: str) -> int:
 
 
 def detect_model_context_limit() -> dict[str, Any]:
-    backend = str(R.settings.get("backend", "inference_api"))
+    backend = str(R.settings.get("backend", "llama_cpp"))
     model_name = str(R.model.get("model_name") or R.model.get("target_model") or "")
     source = "heuristic"
     limit = _guess_context_limit_from_name(model_name)
@@ -1047,18 +1005,12 @@ def detect_model_context_limit() -> dict[str, Any]:
             if vals:
                 limit = max(vals)
                 source = "ollama"
-        elif backend == "localai":
-            data = _localai_request("GET", "/v1/models", timeout=8)
+        elif backend == "llama_cpp":
+            data = _llamacpp_props(timeout=8)
             vals = _collect_context_candidates(data)
             if vals:
                 limit = max(vals)
-                source = "localai"
-        else:
-            data = _inference_request("GET", "/v1/models", timeout=8)
-            vals = _collect_context_candidates(data)
-            if vals:
-                limit = max(vals)
-                source = "inference_api"
+                source = "llama_cpp"
     except Exception:
         pass
 
@@ -1204,7 +1156,7 @@ class ChatReq(BaseModel):
 
 
 class SettingsReq(BaseModel):
-    backend: str | None = None  # inference_api | ollama | localai
+    backend: str | None = None  # llama_cpp | ollama
     ui_mode: str | None = None  # layman | advanced
     data_root: str | None = None
 
@@ -1240,9 +1192,8 @@ def api_state():
         "progress": R.progress,
         "doc_count": len(R.docs),
         "services": {
-            "inference_api_url": INFERENCE_API_URL,
             "ollama_url": OLLAMA_BASE_URL,
-            "localai_url": LOCALAI_BASE_URL,
+            "llamacpp_url": LLAMACPP_BASE_URL,
         },
     }
 
@@ -1257,8 +1208,8 @@ def api_settings_set(req: SettingsReq):
     data = dict(R.settings)
     if req.backend is not None:
         backend = str(req.backend).strip().lower()
-        if backend not in {"inference_api", "ollama", "localai"}:
-            raise HTTPException(status_code=400, detail="backend must be inference_api, ollama, or localai")
+        if backend not in {"ollama", "llama_cpp"}:
+            raise HTTPException(status_code=400, detail="backend must be ollama or llama_cpp")
         data["backend"] = backend
     if req.ui_mode is not None:
         ui_mode = str(req.ui_mode).strip().lower()
@@ -1272,7 +1223,7 @@ def api_settings_set(req: SettingsReq):
 
     R.settings = data
     R.data_root = Path(data.get("data_root", str(DATA_ROOT)))
-    R.model["backend"] = data.get("backend", "inference_api")
+    R.model["backend"] = data.get("backend", "llama_cpp")
     _save_settings(data)
     return {"ok": True, "settings": data}
 
@@ -1500,7 +1451,7 @@ def api_tables_export(req: ExportTablesReq):
 
 @app.get("/api/models/options")
 def api_models_options():
-    backend = str(R.settings.get("backend", "inference_api"))
+    backend = str(R.settings.get("backend", "llama_cpp"))
     try:
         if backend == "ollama":
             resp = _ollama_request("GET", "/api/tags", timeout=8)
@@ -1519,24 +1470,16 @@ def api_models_options():
                 "backend": "ollama",
             }
 
-        if backend == "localai":
-            names = _localai_models_list(timeout=8)
-            models = [{"name": n, "label": n} for n in names]
-            active_name = str(R.model.get("model_name") or "")
+        if backend == "llama_cpp":
+            info = _llamacpp_models(timeout=8)
             return {
-                "models": models,
-                "default": active_name or (models[0]["name"] if models else ""),
-                "active": active_name,
-                "backend": "localai",
+                "models": info.get("models", []),
+                "default": info.get("default", ""),
+                "active": str(R.model.get("model_name") or info.get("active") or info.get("default") or ""),
+                "backend": "llama_cpp",
             }
 
-        resp = _inference_request("GET", "/v1/models", timeout=8)
-        return {
-            "models": resp.get("models", []),
-            "default": resp.get("default", ""),
-            "active": resp.get("active", ""),
-            "backend": "inference_api",
-        }
+        return {"models": [], "default": "", "active": "", "backend": backend}
     except Exception as e:
         return {"models": [], "default": "", "active": "", "backend": backend, "error": str(e)}
 
@@ -1558,9 +1501,9 @@ def _ollama_pull_worker(model_name: str):
 
 @app.post("/api/models/pull")
 def api_models_pull(model_name: str = Form(...)):
-    backend = str(R.settings.get("backend", "inference_api"))
-    if backend not in {"ollama", "localai"}:
-        return {"ok": False, "message": "Model pull uses Ollama and is available for backend=ollama or localai"}
+    backend = str(R.settings.get("backend", "llama_cpp"))
+    if backend != "ollama":
+        return {"ok": False, "message": "Model pull is only available for backend=ollama"}
     name = (model_name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="model_name required")
@@ -1572,7 +1515,7 @@ def api_models_pull(model_name: str = Form(...)):
 
 @app.post("/api/models/switch")
 def api_models_switch(model_name: str = Form(...)):
-    backend = str(R.settings.get("backend", "inference_api"))
+    backend = str(R.settings.get("backend", "llama_cpp"))
     name = (model_name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="model_name required")
@@ -1593,51 +1536,46 @@ def api_models_switch(model_name: str = Form(...)):
             R.model.update({"loaded": False, "last_error": str(e), "backend": "ollama"})
             return {"ok": False, "message": str(e), "backend": "ollama"}
 
-    if backend == "localai":
+    if backend == "llama_cpp":
         try:
-            names = set(_localai_models_list(timeout=8))
-            if name not in names:
+            info = _llamacpp_models(timeout=8)
+            names = {str(m.get("name") or "") for m in info.get("models", []) if isinstance(m, dict)}
+            if names and name not in names:
                 return {
                     "ok": False,
-                    "message": f"Model {name} not found in LocalAI model list",
-                    "backend": "localai",
+                    "message": f"Model {name} not found in llama.cpp server model list. Start llama-server with that model.",
+                    "backend": "llama_cpp",
                 }
-            R.model.update({"model_name": name, "loaded": True, "loading": False, "target_model": "", "last_error": "", "backend": "localai"})
-            set_progress("model", 100, "completed", f"Active model: {name} (LocalAI)")
-            return {"ok": True, "message": f"Switched model to {name} (LocalAI)", "backend": "localai"}
+            R.model.update({"model_name": name or str(info.get("active") or ""), "loaded": True, "loading": False, "target_model": "", "last_error": "", "backend": "llama_cpp"})
+            set_progress("model", 100, "completed", f"Active model: {R.model.get('model_name', '')} (llama.cpp)")
+            return {
+                "ok": True,
+                "message": f"Using llama.cpp server model: {R.model.get('model_name', '')}",
+                "backend": "llama_cpp",
+            }
         except Exception as e:
-            R.model.update({"loaded": False, "last_error": str(e), "backend": "localai"})
-            return {"ok": False, "message": str(e), "backend": "localai"}
+            R.model.update({"loaded": False, "last_error": str(e), "backend": "llama_cpp"})
+            return {"ok": False, "message": str(e), "backend": "llama_cpp"}
 
-    try:
-        resp = _inference_request("POST", "/v1/models/load", {"model_name": name}, timeout=15)
-        sync_model_state()
-        return {"ok": bool(resp.get("ok", False)), "message": resp.get("message", ""), "backend": "inference_api"}
-    except Exception as e:
-        return {"ok": False, "message": str(e), "backend": "inference_api"}
+    return {"ok": False, "message": f"Unsupported backend: {backend}", "backend": backend}
 
 
 @app.post("/api/models/unload")
 def api_models_unload():
-    backend = str(R.settings.get("backend", "inference_api"))
+    backend = str(R.settings.get("backend", "llama_cpp"))
     if backend == "ollama":
         old = R.model.get("model_name", "")
         R.model.update({"loaded": False, "model_name": "", "target_model": "", "loading": False, "last_error": "", "backend": "ollama"})
         set_progress("model", 0, "idle", "No active Ollama model")
         return {"ok": True, "message": f"Ollama model context cleared ({old})"}
 
-    if backend == "localai":
+    if backend == "llama_cpp":
         old = R.model.get("model_name", "")
-        R.model.update({"loaded": False, "model_name": "", "target_model": "", "loading": False, "last_error": "", "backend": "localai"})
-        set_progress("model", 0, "idle", "No active LocalAI model")
-        return {"ok": True, "message": f"LocalAI model context cleared ({old})"}
+        R.model.update({"loaded": False, "model_name": "", "target_model": "", "loading": False, "last_error": "", "backend": "llama_cpp"})
+        set_progress("model", 0, "idle", "No active llama.cpp model in UI state")
+        return {"ok": True, "message": f"llama.cpp UI model context cleared ({old})"}
 
-    try:
-        resp = _inference_request("POST", "/v1/models/unload", {}, timeout=15)
-        sync_model_state()
-        return {"ok": bool(resp.get("ok", False)), "message": resp.get("message", "")}
-    except Exception as e:
-        return {"ok": False, "message": str(e)}
+    return {"ok": False, "message": f"Unsupported backend: {backend}"}
 
 
 @app.get("/api/chat/sessions")
@@ -1702,7 +1640,7 @@ def api_chat_session_export(session_id: str):
 @app.post("/api/chat/stream")
 async def api_chat_stream(req: ChatReq):
     t_total0 = datetime.now()
-    backend = str(R.settings.get("backend", "inference_api"))
+    backend = str(R.settings.get("backend", "llama_cpp"))
     log("debug", f"chat.stream backend={backend} scope={req.scope} mode={req.response_mode}")
     filters = {"extraction_type": req.filter_extraction_type}
     mode = (req.response_mode or "fast").lower()
@@ -1963,42 +1901,30 @@ async def api_chat_stream(req: ChatReq):
                             "tokens_per_sec": round(tok_s, 2),
                         }
                         break
-            elif backend == "localai":
+            elif backend == "llama_cpp":
                 model_name = str(R.model.get("model_name") or "").strip()
                 if not model_name:
-                    names = _localai_models_list(timeout=8)
-                    if not names:
-                        raise RuntimeError("No LocalAI models found. Start LocalAI and load at least one model.")
-                    model_name = names[0]
-                    R.model.update({"model_name": model_name, "loaded": True, "backend": "localai"})
+                    info = _llamacpp_models(timeout=8)
+                    model_name = str(info.get("active") or info.get("default") or "").strip()
+                    if model_name:
+                        R.model.update({"model_name": model_name, "loaded": True, "backend": "llama_cpp"})
 
                 cpayload = {
                     "model": model_name,
-                    "messages": [],
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": final_user_prompt},
+                    ],
                     "stream": True,
                     "temperature": float(gen_cfg.get("temperature", 0.2)),
                     "top_p": float(gen_cfg.get("top_p", 0.9)),
                     "max_tokens": int(gen_cfg.get("max_new_tokens", 420)),
                 }
-                if req.use_pdf_vision and vision_images:
-                    cpayload["messages"] = [
-                        {"role": "system", "content": system},
-                        {
-                            "role": "user",
-                            "content": [{"type": "text", "text": final_user_prompt}]
-                            + [{"type": "image_url", "image_url": {"url": u}} for u in vision_images],
-                        },
-                    ]
-                else:
-                    cpayload["messages"] = [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": final_user_prompt},
-                    ]
 
                 t_gen0 = datetime.now()
                 first_token_ms = None
                 seen_tokens = 0
-                for obj in _compat_stream_chat(LOCALAI_BASE_URL, cpayload, timeout=1200):
+                for obj in _compat_stream_chat(LLAMACPP_BASE_URL, cpayload, timeout=1200):
                     choices = obj.get("choices", []) if isinstance(obj, dict) else []
                     if choices and isinstance(choices[0], dict):
                         delta = choices[0].get("delta") or {}
@@ -2030,16 +1956,7 @@ async def api_chat_stream(req: ChatReq):
                         "tokens_per_sec": round(answer_tokens / max(gen_ms / 1000.0, 1e-6), 2),
                     }
             else:
-                for ev in _inference_stream_events("/v1/chat/stream", payload, timeout=600):
-                    if ev.get("type") == "token":
-                        piece = str(ev.get("text") or "")
-                        if piece:
-                            answer_parts.append(piece)
-                            yield _sse({"type": "token", "text": piece})
-                    elif ev.get("type") == "metrics":
-                        infer_metrics = ev.get("metrics") or {}
-                    elif ev.get("type") == "error":
-                        raise RuntimeError(str(ev.get("message") or "Inference stream error"))
+                raise RuntimeError(f"Unsupported backend: {backend}")
 
             answer = "".join(answer_parts).strip()
             append_session_messages(
