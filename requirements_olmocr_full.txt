@@ -15,4 +15,6 @@ nicegui
 scikit-learn
 joblib
 beautifulsoup4
+langchain>=0.3,<0.4
+langchain-core>=0.3,<0.4
 setuptools<82

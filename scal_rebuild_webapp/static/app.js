@@ -75,10 +75,12 @@ function applyUiMode(mode) {
 
 function updateModelStatus() {
   const m = state.model || {};
+  const ctx = Number(m.context_limit || 0);
+  const ctxLabel = ctx > 0 ? `, ctx ${ctx}` : "";
   const status = m.loading
     ? `Model: loading ${m.target_model || ""}`
     : m.loaded
-      ? `Model: ${m.model_name || "ready"} (${m.backend || state.settings.backend})`
+      ? `Model: ${m.model_name || "ready"} (${m.backend || state.settings.backend}${ctxLabel})`
       : `Model: idle (${state.settings.backend})`;
   $("modelStatus").textContent = status;
   const canPull = state.settings.backend === "ollama" || state.settings.backend === "localai";
@@ -312,6 +314,7 @@ function renderDocs() {
       state.currentDoc = name;
       renderDocs();
       populatePreviewPages();
+      loadPreview().catch((e) => systemMsg(`Preview error: ${e.message || e}`));
       if ($("scopeSelect").value === "selected") {
         systemMsg(`Selected doc: ${name}`);
       }
@@ -334,6 +337,9 @@ async function refreshDocs() {
   state.pagesMap = data.pages_map || {};
   $("dataRoot").value = data.data_root || root;
   renderDocs();
+  if (state.currentDoc && ($("previewPageSelect").value || "")) {
+    await loadPreview();
+  }
 }
 
 function populatePreviewPages() {
@@ -368,12 +374,36 @@ async function loadPreview() {
   }
   const data = await apiJson(`/api/page/view?doc_name=${encodeURIComponent(doc)}&page=${encodeURIComponent(page)}`);
   const files = data.files || {};
+  const pdfFrame = $("previewPdfFrame");
+  const imageFrame = $("previewImageFrame");
+  const status = $("previewPdfStatus");
 
-  $("previewPdfFrame").src = files.pdf_url || "about:blank";
+  if (files.pdf_url) {
+    pdfFrame.src = `${files.pdf_url}#view=FitH`;
+    pdfFrame.classList.remove("hidden");
+    imageFrame.classList.add("hidden");
+    imageFrame.removeAttribute("src");
+    status.classList.add("hidden");
+    status.textContent = "";
+  } else if (files.image_url) {
+    pdfFrame.src = "about:blank";
+    pdfFrame.classList.add("hidden");
+    imageFrame.src = files.image_url;
+    imageFrame.classList.remove("hidden");
+    status.classList.remove("hidden");
+    status.textContent = "PDF page file not found for this page. Showing extracted image preview instead.";
+  } else {
+    pdfFrame.src = "about:blank";
+    pdfFrame.classList.remove("hidden");
+    imageFrame.classList.add("hidden");
+    imageFrame.removeAttribute("src");
+    status.classList.remove("hidden");
+    status.textContent = "No PDF or image preview available for this page.";
+  }
   $("previewJsonPane").textContent = data.raw_json || data.raw_text || "(empty)";
   $("previewHtmlPane").innerHTML = (data.tables || []).join("\n") || "<div class='small-text'>No HTML table found on this page.</div>";
 
-  if (state.previewTab === "pdf" && !files.pdf_url) switchPreviewTab(files.json_url || files.md_url ? "json" : "html");
+  if (state.previewTab === "pdf" && !files.pdf_url && !files.image_url) switchPreviewTab(files.json_url || files.md_url ? "json" : "html");
 }
 
 function renderSources(list) {
@@ -524,10 +554,13 @@ async function runChatStream(payload) {
         `backend:${m.backend || ""}`,
         `mode:${m.response_mode || ""}`,
         `hits:${m.hits ?? "-"}`,
+        `ctx:${m.context_limit ?? "-"}`,
+        `prompt:${m.prompt_tokens ?? "-"}`,
+        `compact:${m.session_compacted ? "yes" : "no"}`,
         `tps:${m.tokens_per_sec ?? "-"}`,
         `ms:${m.total_ms ?? "-"}`,
       ].map((x) => `<span class='badge'>${esc(x)}</span>`).join("");
-      $("perfHint").textContent = `Last: ${m.total_ms || "-"} ms | hits ${m.hits || 0} | ${m.tokens_per_sec || "-"} tok/s`;
+      $("perfHint").textContent = `Last: ${m.total_ms || "-"} ms | hits ${m.hits || 0} | ctx ${m.context_limit || "-"} | ${m.tokens_per_sec || "-"} tok/s`;
     }
     if (doneEvent.session_id) state.currentSessionId = doneEvent.session_id;
     renderSources(doneEvent.sources || []);
@@ -704,8 +737,11 @@ function bindEvents() {
   });
 
   $("refreshPreviewBtn").addEventListener("click", loadPreview);
+  $("previewPageSelect").addEventListener("change", loadPreview);
   $("popoutPdfBtn").addEventListener("click", () => {
-    const src = $("previewPdfFrame").src || "";
+    const src = !$("previewPdfFrame").classList.contains("hidden")
+      ? ($("previewPdfFrame").src || "")
+      : ($("previewImageFrame").src || "");
     if (!src || src === "about:blank") {
       systemMsg("Load a PDF page preview first.");
       return;

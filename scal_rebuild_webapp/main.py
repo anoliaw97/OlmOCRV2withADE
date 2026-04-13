@@ -27,6 +27,15 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
 try:
+    from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, trim_messages
+
+    LANGCHAIN_OK = True
+except Exception:
+    AIMessage = BaseMessage = HumanMessage = SystemMessage = None
+    trim_messages = None
+    LANGCHAIN_OK = False
+
+try:
     from bs4 import BeautifulSoup
 
     BS4_OK = True
@@ -938,6 +947,249 @@ def approx_token_count(text: str) -> int:
     return len(re.findall(r"\w+|[^\w\s]", t, flags=re.UNICODE))
 
 
+def _message_content_to_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    parts.append(str(item.get("text") or ""))
+                elif item.get("type") == "image_url":
+                    parts.append("[image]")
+                else:
+                    parts.append(json.dumps(item, ensure_ascii=False))
+            else:
+                parts.append(str(item))
+        return "\n".join(x for x in parts if x)
+    if content is None:
+        return ""
+    return str(content)
+
+
+def _message_token_count(obj: Any) -> int:
+    if isinstance(obj, str):
+        return approx_token_count(obj)
+    if isinstance(obj, list):
+        return sum(_message_token_count(x) for x in obj)
+    content = getattr(obj, "content", "")
+    return approx_token_count(_message_content_to_text(content))
+
+
+def _collect_context_candidates(obj: Any) -> list[int]:
+    keys = (
+        "context",
+        "ctx",
+        "window",
+        "max_input",
+        "max_position",
+        "num_ctx",
+        "n_ctx",
+        "num_context",
+    )
+    found: list[int] = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            kk = str(k).lower()
+            if any(key in kk for key in keys):
+                try:
+                    val = int(float(v))
+                    if 512 <= val <= 10_000_000:
+                        found.append(val)
+                except Exception:
+                    pass
+            found.extend(_collect_context_candidates(v))
+    elif isinstance(obj, list):
+        for item in obj:
+            found.extend(_collect_context_candidates(item))
+    elif isinstance(obj, str):
+        for m in re.finditer(r"(?i)(?:context|ctx|window|max[_ -]?input|num[_ -]?ctx|n[_ -]?ctx)[^0-9]{0,20}(\d{3,7})", obj):
+            try:
+                val = int(m.group(1))
+                if 512 <= val <= 10_000_000:
+                    found.append(val)
+            except Exception:
+                pass
+    return found
+
+
+def _guess_context_limit_from_name(model_name: str) -> int:
+    name = str(model_name or "").lower()
+    for marker, value in (
+        ("1000k", 1_000_000),
+        ("512k", 524_288),
+        ("256k", 262_144),
+        ("200k", 200_000),
+        ("131k", 131_072),
+        ("128k", 131_072),
+        ("64k", 65_536),
+        ("32k", 32_768),
+        ("16k", 16_384),
+        ("8k", 8_192),
+        ("4k", 4_096),
+    ):
+        if marker in name:
+            return value
+    return 8_192
+
+
+def detect_model_context_limit() -> dict[str, Any]:
+    backend = str(R.settings.get("backend", "inference_api"))
+    model_name = str(R.model.get("model_name") or R.model.get("target_model") or "")
+    source = "heuristic"
+    limit = _guess_context_limit_from_name(model_name)
+
+    try:
+        if backend == "ollama" and model_name:
+            data = _ollama_request("POST", "/api/show", {"name": model_name}, timeout=12)
+            vals = _collect_context_candidates(data)
+            if vals:
+                limit = max(vals)
+                source = "ollama"
+        elif backend == "localai":
+            data = _localai_request("GET", "/v1/models", timeout=8)
+            vals = _collect_context_candidates(data)
+            if vals:
+                limit = max(vals)
+                source = "localai"
+        else:
+            data = _inference_request("GET", "/v1/models", timeout=8)
+            vals = _collect_context_candidates(data)
+            if vals:
+                limit = max(vals)
+                source = "inference_api"
+    except Exception:
+        pass
+
+    return {
+        "backend": backend,
+        "model_name": model_name,
+        "context_limit": int(limit),
+        "context_limit_source": source,
+    }
+
+
+def _session_record_to_langchain_message(msg: dict[str, Any]) -> BaseMessage | None:
+    if not LANGCHAIN_OK:
+        return None
+    role = str(msg.get("role") or "assistant").lower().strip()
+    content = str(msg.get("content") or "")
+    if not content:
+        return None
+    if role == "user":
+        return HumanMessage(content=content)
+    if role == "system":
+        return SystemMessage(content=content)
+    return AIMessage(content=content)
+
+
+def _format_langchain_messages(messages: list[BaseMessage], include_system: bool = False) -> str:
+    blocks: list[str] = []
+    for i, msg in enumerate(messages):
+        if not include_system and i == 0 and isinstance(msg, SystemMessage):
+            continue
+        role = "assistant"
+        if isinstance(msg, SystemMessage):
+            role = "system"
+        elif isinstance(msg, HumanMessage):
+            role = "user"
+        blocks.append(f"{role.title()}:\n{_message_content_to_text(msg.content).strip()}")
+    return "\n\n".join(x for x in blocks if x.strip())
+
+
+def _compact_messages_summary(messages: list[BaseMessage], token_budget: int) -> str:
+    remaining = max(80, int(token_budget))
+    lines: list[str] = []
+    for msg in messages:
+        role = "Assistant"
+        if isinstance(msg, HumanMessage):
+            role = "User"
+        elif isinstance(msg, SystemMessage):
+            role = "System"
+        text = re.sub(r"\s+", " ", _message_content_to_text(msg.content)).strip()
+        if not text:
+            continue
+        if approx_token_count(text) > 120:
+            words = text.split()
+            text = " ".join(words[:120]).strip() + " ..."
+        line = f"{role}: {text}"
+        cost = approx_token_count(line)
+        if lines and cost > remaining:
+            break
+        lines.append(line)
+        remaining -= cost
+        if remaining <= 0:
+            break
+    return "\n".join(lines)
+
+
+def build_session_prompt_bundle(
+    session_messages: list[dict[str, Any]],
+    system_prompt: str,
+    user_prompt: str,
+    context_limit: int,
+    max_new_tokens: int,
+) -> dict[str, Any]:
+    if not LANGCHAIN_OK or trim_messages is None:
+        raise RuntimeError("LangChain is required for chat session compaction. Install langchain/langchain-core.")
+
+    history: list[BaseMessage] = []
+    for msg in session_messages:
+        lc = _session_record_to_langchain_message(msg)
+        if lc is not None:
+            history.append(lc)
+
+    input_budget = max(1024, int(context_limit) - int(max_new_tokens) - 256)
+    recent_history = history
+    summary_text = ""
+    compacted = False
+
+    if history and _message_token_count(history) + approx_token_count(user_prompt) > input_budget:
+        compacted = True
+        target_recent_budget = max(300, input_budget // 2)
+        recent_rev: list[BaseMessage] = []
+        used = 0
+        for msg in reversed(history):
+            cost = _message_token_count(msg)
+            if recent_rev and used + cost > target_recent_budget:
+                break
+            recent_rev.append(msg)
+            used += cost
+        recent_history = list(reversed(recent_rev))
+        older_count = max(0, len(history) - len(recent_history))
+        if older_count > 0:
+            summary_text = _compact_messages_summary(history[:older_count], max(160, input_budget // 5))
+
+    assembled: list[BaseMessage] = [SystemMessage(content=system_prompt)]
+    if summary_text:
+        assembled.append(SystemMessage(content=f"Compacted earlier conversation context:\n{summary_text}"))
+    assembled.extend(recent_history)
+    assembled.append(HumanMessage(content=user_prompt))
+
+    trimmed = trim_messages(
+        assembled,
+        max_tokens=input_budget,
+        token_counter=_message_token_count,
+        strategy="last",
+        include_system=True,
+        start_on="human",
+        allow_partial=False,
+    )
+    backend_prompt = _format_langchain_messages(trimmed, include_system=False)
+    return {
+        "messages": trimmed,
+        "backend_prompt": backend_prompt,
+        "prompt_tokens": _message_token_count(trimmed),
+        "input_budget": input_budget,
+        "context_limit": int(context_limit),
+        "session_messages_total": len(history),
+        "session_messages_used": max(0, len(trimmed) - 2),
+        "session_compacted": compacted,
+        "compaction_summary": summary_text,
+    }
+
+
 class ChatReq(BaseModel):
     question: str
     session_id: str | None = None
@@ -979,10 +1231,12 @@ def index_page():
 @app.get("/api/state")
 def api_state():
     sync_model_state()
+    model_info = dict(R.model)
+    model_info.update(detect_model_context_limit())
     return {
         "app": {"build": APP_BUILD, "started_at": APP_STARTED_AT},
         "settings": R.settings,
-        "model": R.model,
+        "model": model_info,
         "progress": R.progress,
         "doc_count": len(R.docs),
         "services": {
@@ -1125,57 +1379,6 @@ def api_page_view(doc_name: str, page: int):
         raise HTTPException(status_code=400, detail="doc_name required")
     if not R.docs:
         R.docs = scan_docs(R.data_root)
-
-    if is_database_count_query(req.question):
-        stats = database_summary()
-        global_index_ready = bool(load_index(ns("__ALL__")))
-        msg = (
-            f"Current database has {stats['documents']} PDF document(s). "
-            f"Total pages: {stats['total_pages']}. "
-            f"Extracted JSON/MD pages: {stats['extracted_pages']} "
-            f"(missing extraction: {stats['missing_pages']}). "
-            f"Pages containing HTML tables: {stats['html_table_pages']}. "
-            f"Global RAG index: {'ready' if global_index_ready else 'not built'}."
-        )
-
-        sid = req.session_id
-        if not sid:
-            sid = create_session("SCAL Chat").get("id")
-        append_session_messages(
-            sid,
-            [
-                {"role": "user", "content": req.question, "time": now()},
-                {"role": "assistant", "content": msg, "time": now(), "sources": []},
-            ],
-        )
-
-        def quick_stream():
-            evt = {
-                "type": "done",
-                "session_id": sid,
-                "answer": msg,
-                "reasoning": [],
-                "sources": [],
-                "tables": [],
-                "raw_hits": [],
-                "vision_images_used": 0,
-                "metrics": {
-                    "backend": backend,
-                    "response_mode": mode,
-                    "model_name": R.model.get("model_name", ""),
-                    "retrieval_ms": 0,
-                    "generation_ms": 0,
-                    "first_token_ms": 0,
-                    "total_ms": round((datetime.now() - t_total0).total_seconds() * 1000.0, 2),
-                    "answer_tokens": approx_token_count(msg),
-                    "tokens_per_sec": 0,
-                    "hits": 0,
-                    "max_new_tokens": 0,
-                },
-            }
-            yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
-
-        return StreamingResponse(quick_stream(), media_type="text/event-stream")
     info = page_content_for(doc, int(page))
     if not info:
         raise HTTPException(status_code=404, detail="Page not found")
@@ -1515,6 +1718,64 @@ async def api_chat_stream(req: ChatReq):
     if scope == "selected" and doc_name:
         target_doc = doc_name
 
+    sid = req.session_id
+    if not sid:
+        sid = create_session("SCAL Chat").get("id")
+
+    if is_database_count_query(req.question):
+        stats = database_summary()
+        global_index_ready = bool(load_index(ns("__ALL__")))
+        msg = (
+            f"Current database has {stats['documents']} PDF document(s). "
+            f"Total pages: {stats['total_pages']}. "
+            f"Extracted JSON/MD pages: {stats['extracted_pages']} "
+            f"(missing extraction: {stats['missing_pages']}). "
+            f"Pages containing HTML tables: {stats['html_table_pages']}. "
+            f"Global RAG index: {'ready' if global_index_ready else 'not built'}."
+        )
+        append_session_messages(
+            sid,
+            [
+                {"role": "user", "content": req.question, "time": now()},
+                {"role": "assistant", "content": msg, "time": now(), "sources": []},
+            ],
+        )
+
+        def quick_stream():
+            ctx_info = detect_model_context_limit()
+            evt = {
+                "type": "done",
+                "session_id": sid,
+                "answer": msg,
+                "reasoning": [],
+                "sources": [],
+                "tables": [],
+                "raw_hits": [],
+                "vision_images_used": 0,
+                "metrics": {
+                    "backend": backend,
+                    "response_mode": mode,
+                    "model_name": R.model.get("model_name", ""),
+                    "context_limit": int(ctx_info.get("context_limit", 0) or 0),
+                    "context_limit_source": ctx_info.get("context_limit_source", "heuristic"),
+                    "prompt_tokens": approx_token_count(req.question),
+                    "session_messages_total": 0,
+                    "session_messages_used": 0,
+                    "session_compacted": False,
+                    "retrieval_ms": 0,
+                    "generation_ms": 0,
+                    "first_token_ms": 0,
+                    "total_ms": round((datetime.now() - t_total0).total_seconds() * 1000.0, 2),
+                    "answer_tokens": approx_token_count(msg),
+                    "tokens_per_sec": 0,
+                    "hits": 0,
+                    "max_new_tokens": 0,
+                },
+            }
+            yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+
+        return StreamingResponse(quick_stream(), media_type="text/event-stream")
+
     retrieval_t0 = datetime.now()
     hits: list[dict[str, Any]] = []
     if not is_casual_chat(req.question):
@@ -1626,13 +1887,20 @@ async def api_chat_stream(req: ChatReq):
             user_prompt = f"Question:\n{req.question}\n\nEvidence:\n{context}"
         prefix = ""
 
-    sid = req.session_id
-    if not sid:
-        sid = create_session("SCAL Chat").get("id")
+    session = get_session(sid) or {"messages": []}
+    ctx_info = detect_model_context_limit()
+    bundle = build_session_prompt_bundle(
+        list(session.get("messages", [])),
+        system_prompt=system,
+        user_prompt=user_prompt,
+        context_limit=int(ctx_info.get("context_limit", 8192) or 8192),
+        max_new_tokens=int(gen_cfg.get("max_new_tokens", 420)),
+    )
+    final_user_prompt = str(bundle.get("backend_prompt") or user_prompt)
 
     payload = {
         "system_prompt": system,
-        "user_prompt": user_prompt,
+        "user_prompt": final_user_prompt,
         "max_new_tokens": int(gen_cfg.get("max_new_tokens", 420)),
         "temperature": float(gen_cfg.get("temperature", 0.2)),
         "top_p": float(gen_cfg.get("top_p", 0.9)),
@@ -1660,7 +1928,7 @@ async def api_chat_stream(req: ChatReq):
                     model_name = models[0]
                     R.model.update({"model_name": model_name, "loaded": True, "backend": "ollama"})
 
-                prompt = f"System:\n{system}\n\nUser:\n{user_prompt}"
+                prompt = f"System:\n{system}\n\nUser:\n{final_user_prompt}"
                 opayload = {
                     "model": model_name,
                     "prompt": prompt,
@@ -1717,14 +1985,14 @@ async def api_chat_stream(req: ChatReq):
                         {"role": "system", "content": system},
                         {
                             "role": "user",
-                            "content": [{"type": "text", "text": user_prompt}]
+                            "content": [{"type": "text", "text": final_user_prompt}]
                             + [{"type": "image_url", "image_url": {"url": u}} for u in vision_images],
                         },
                     ]
                 else:
                     cpayload["messages"] = [
                         {"role": "system", "content": system},
-                        {"role": "user", "content": user_prompt},
+                        {"role": "user", "content": final_user_prompt},
                     ]
 
                 t_gen0 = datetime.now()
@@ -1802,6 +2070,12 @@ async def api_chat_stream(req: ChatReq):
                         "backend": backend,
                         "response_mode": mode,
                         "model_name": R.model.get("model_name", ""),
+                        "context_limit": int(bundle.get("context_limit", 0) or 0),
+                        "context_limit_source": ctx_info.get("context_limit_source", "heuristic"),
+                        "prompt_tokens": int(bundle.get("prompt_tokens", 0) or 0),
+                        "session_messages_total": int(bundle.get("session_messages_total", 0) or 0),
+                        "session_messages_used": int(bundle.get("session_messages_used", 0) or 0),
+                        "session_compacted": bool(bundle.get("session_compacted", False)),
                         "retrieval_ms": round(retrieval_ms, 2),
                         "generation_ms": round(generation_ms, 2),
                         "first_token_ms": round(float(infer_metrics.get("first_token_ms", generation_ms) or generation_ms), 2),

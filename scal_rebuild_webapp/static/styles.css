@@ -257,6 +257,17 @@ button { cursor: pointer; }
   background: #0f1420;
 }
 
+#previewImageFrame {
+  width: 100%;
+  display: block;
+  object-fit: contain;
+  background: #0f1420;
+}
+
+#previewPdfStatus {
+  padding: 8px 4px 2px 4px;
+}
+
 #previewJsonPane {
   white-space: pre-wrap;
   font-family: Consolas, "Cascadia Code", monospace;
