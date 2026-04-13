@@ -794,6 +794,11 @@ def _wait_for_llamacpp_server(timeout_s: int = 60) -> bool:
     return False
 
 
+def _is_llamacpp_unreachable_error(err: Exception) -> bool:
+    msg = str(err or "")
+    return "127.0.0.1:8081" in msg or "WinError 10061" in msg or "Connection refused" in msg or "actively refused" in msg
+
+
 def _stop_managed_llamacpp_server() -> bool:
     proc = R.llama_proc
     R.llama_proc = None
@@ -995,6 +1000,33 @@ def sync_model_state() -> dict[str, Any]:
             return _sync_model_state_ollama()
         return _sync_model_state_llamacpp()
     except Exception as e:
+        if backend == "llama_cpp" and _is_llamacpp_unreachable_error(e):
+            prior = dict(R.progress.get("model") or {})
+            stage = str(prior.get("stage") or "idle")
+            detail = str(prior.get("detail") or "")
+            if stage in {"downloading", "downloaded", "preparing", "starting"}:
+                R.model.update({
+                    "loaded": False,
+                    "loading": True,
+                    "last_error": "",
+                    "backend": backend,
+                    "model_path": str(R.settings.get("llama_model_path") or R.llama_proc_model_path or ""),
+                })
+                R.progress["model"].update({"running": True})
+                return {}
+            R.model.update({
+                "loaded": False,
+                "loading": False,
+                "last_error": "",
+                "backend": backend,
+                "model_path": str(R.settings.get("llama_model_path") or R.llama_proc_model_path or ""),
+            })
+            R.progress["model"].update({
+                "running": False,
+                "stage": "idle",
+                "detail": detail or "llama.cpp server not running yet",
+            })
+            return {}
         R.model["loaded"] = False
         R.model["loading"] = False
         R.model["last_error"] = str(e)
@@ -1524,12 +1556,21 @@ def api_llamacpp_default_model():
 
 @app.post("/api/llama_cpp/download-default")
 def api_llamacpp_download_default():
+    R.model.update({"loading": True, "loaded": False, "target_model": LLAMACPP_DEFAULT_MODEL_FILE, "last_error": "", "backend": "llama_cpp"})
+    R.progress["model"]["running"] = True
     set_progress("model", 5, "preparing", "Preparing default GGUF download")
-    path = _download_default_llamacpp_model()
-    R.settings["llama_model_path"] = str(path)
-    R.settings["llama_model_dir"] = str(path.parent)
-    _save_settings(R.settings)
-    return {"ok": True, "message": f"Default GGUF ready: {path.name}", "path": str(path), "default_model": default_llamacpp_model_info()}
+    try:
+        path = _download_default_llamacpp_model()
+        R.settings["llama_model_path"] = str(path)
+        R.settings["llama_model_dir"] = str(path.parent)
+        _save_settings(R.settings)
+        R.model.update({"loading": False, "loaded": False, "target_model": "", "last_error": "", "model_path": str(path)})
+        R.progress["model"].update({"running": False})
+        return {"ok": True, "message": f"Default GGUF ready: {path.name}", "path": str(path), "default_model": default_llamacpp_model_info()}
+    except Exception as e:
+        R.model.update({"loading": False, "loaded": False, "target_model": "", "last_error": str(e), "backend": "llama_cpp"})
+        R.progress["model"].update({"running": False, "stage": "failed", "detail": str(e)})
+        raise
 
 
 @app.get("/api/docs")
@@ -1779,6 +1820,8 @@ def api_models_switch(model_name: str = Form(...)):
 
     if backend == "llama_cpp":
         try:
+            R.model.update({"loading": True, "loaded": False, "target_model": name or LLAMACPP_DEFAULT_MODEL_FILE, "last_error": "", "backend": "llama_cpp"})
+            R.progress["model"]["running"] = True
             requested = name or str(R.settings.get("llama_model_path") or "")
             if requested and (requested.endswith(".gguf") or "\\" in requested or "/" in requested or ":" in requested):
                 R.settings["llama_model_path"] = requested
@@ -1790,6 +1833,7 @@ def api_models_switch(model_name: str = Form(...)):
             info = _llamacpp_models(timeout=8)
             active = str(info.get("active") or Path(model_path).name)
             R.model.update({"model_name": active, "loaded": True, "loading": False, "target_model": "", "last_error": "", "backend": "llama_cpp", "model_path": str(model_path)})
+            R.progress["model"]["running"] = False
             set_progress("model", 100, "completed", f"Active model: {active} (llama.cpp)")
             return {
                 "ok": True,
@@ -1798,7 +1842,8 @@ def api_models_switch(model_name: str = Form(...)):
                 "model_path": str(model_path),
             }
         except Exception as e:
-            R.model.update({"loaded": False, "last_error": str(e), "backend": "llama_cpp"})
+            R.model.update({"loaded": False, "loading": False, "target_model": "", "last_error": str(e), "backend": "llama_cpp"})
+            R.progress["model"].update({"running": False, "stage": "failed", "detail": str(e)})
             return {"ok": False, "message": str(e), "backend": "llama_cpp"}
 
     return {"ok": False, "message": f"Unsupported backend: {backend}", "backend": backend}
