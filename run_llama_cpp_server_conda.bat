@@ -34,7 +34,7 @@ if errorlevel 1 (
 )
 
 if "%LLAMA_SERVER_EXE%"=="" set "LLAMA_SERVER_EXE=%REPO_DIR%\llama.cpp\build\bin\Release\llama-server.exe"
-if "%LLAMA_MODEL_PATH%"=="" set "LLAMA_MODEL_PATH=%REPO_DIR%\models\model.gguf"
+if "%LLAMA_MODEL_PATH%"=="" set "LLAMA_MODEL_PATH=D:\models\Qwen2.5-32B-Instruct-Q4_K_M.gguf"
 if "%LLAMA_CTX_SIZE%"=="" set "LLAMA_CTX_SIZE=16384"
 if "%LLAMA_HOST%"=="" set "LLAMA_HOST=127.0.0.1"
 if "%LLAMA_PORT%"=="" set "LLAMA_PORT=8081"

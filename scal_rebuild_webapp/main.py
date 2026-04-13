@@ -5,6 +5,7 @@ import base64
 import json
 import os
 import re
+import time
 import subprocess
 import tempfile
 import threading
@@ -56,6 +57,10 @@ SESSION_FILE = ROOT / "scal_rebuild_sessions.json"
 SETTINGS_FILE = ROOT / "scal_rebuild_settings.json"
 OLLAMA_BASE_URL = os.environ.get("SCAL_OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 LLAMACPP_BASE_URL = os.environ.get("SCAL_LLAMACPP_BASE_URL", "http://127.0.0.1:8081").rstrip("/")
+LLAMACPP_DEFAULT_MODEL_REPO = "bartowski/Qwen2.5-32B-Instruct-GGUF"
+LLAMACPP_DEFAULT_MODEL_FILE = "Qwen2.5-32B-Instruct-Q4_K_M.gguf"
+LLAMACPP_DEFAULT_MODEL_DIR = Path(os.environ.get("SCAL_LLAMACPP_MODEL_DIR", r"D:\models"))
+LLAMACPP_DEFAULT_SERVER_EXE = Path(os.environ.get("SCAL_LLAMACPP_SERVER_EXE", str(ROOT / "llama.cpp" / "build" / "bin" / "Release" / "llama-server.exe")))
 
 
 def _git_commit_short() -> str:
@@ -68,6 +73,17 @@ def _git_commit_short() -> str:
 
 APP_BUILD = os.environ.get("SCAL_BUILD", _git_commit_short())
 APP_STARTED_AT = datetime.now().isoformat(timespec="seconds")
+
+
+def default_llamacpp_model_info() -> dict[str, Any]:
+    return {
+        "repo_id": LLAMACPP_DEFAULT_MODEL_REPO,
+        "filename": LLAMACPP_DEFAULT_MODEL_FILE,
+        "label": "Qwen2.5-32B-Instruct Q4_K_M",
+        "recommended_for": "RTX A6000 48GB",
+        "download_dir": str(LLAMACPP_DEFAULT_MODEL_DIR),
+        "target_path": str(LLAMACPP_DEFAULT_MODEL_DIR / LLAMACPP_DEFAULT_MODEL_FILE),
+    }
 
 
 class Runtime:
@@ -84,6 +100,11 @@ class Runtime:
             "backend": "llama_cpp",  # llama_cpp | ollama
             "ui_mode": "layman",  # layman | advanced
             "data_root": str(DATA_ROOT),
+            "llama_server_exe": str(LLAMACPP_DEFAULT_SERVER_EXE),
+            "llama_model_dir": str(LLAMACPP_DEFAULT_MODEL_DIR),
+            "llama_model_path": str(LLAMACPP_DEFAULT_MODEL_DIR / LLAMACPP_DEFAULT_MODEL_FILE),
+            "llama_ctx_size": 16384,
+            "llama_auto_download": True,
         }
 
         self.model = {
@@ -104,6 +125,9 @@ class Runtime:
             "error": deque(maxlen=300),
         }
         self.lock = threading.Lock()
+        self.llama_proc: subprocess.Popen | None = None
+        self.llama_proc_model_path = ""
+        self.llama_proc_log_path = ""
 
 
 def now() -> str:
@@ -137,6 +161,11 @@ def _load_settings() -> dict[str, Any]:
         "backend": "llama_cpp",
         "ui_mode": "layman",
         "data_root": str(DATA_ROOT),
+        "llama_server_exe": str(LLAMACPP_DEFAULT_SERVER_EXE),
+        "llama_model_dir": str(LLAMACPP_DEFAULT_MODEL_DIR),
+        "llama_model_path": str(LLAMACPP_DEFAULT_MODEL_DIR / LLAMACPP_DEFAULT_MODEL_FILE),
+        "llama_ctx_size": 16384,
+        "llama_auto_download": True,
     }
     if not SETTINGS_FILE.exists():
         return defaults
@@ -147,11 +176,28 @@ def _load_settings() -> dict[str, Any]:
         backend = str(data.get("backend", defaults["backend"]))
         ui_mode = str(data.get("ui_mode", defaults["ui_mode"]))
         data_root = str(data.get("data_root", defaults["data_root"]))
+        llama_server_exe = str(data.get("llama_server_exe", defaults["llama_server_exe"]))
+        llama_model_dir = str(data.get("llama_model_dir", defaults["llama_model_dir"]))
+        llama_model_path = str(data.get("llama_model_path", defaults["llama_model_path"]))
+        try:
+            llama_ctx_size = max(1024, int(data.get("llama_ctx_size", defaults["llama_ctx_size"])))
+        except Exception:
+            llama_ctx_size = int(defaults["llama_ctx_size"])
+        llama_auto_download = bool(data.get("llama_auto_download", defaults["llama_auto_download"]))
         if backend not in {"ollama", "llama_cpp"}:
             backend = defaults["backend"]
         if ui_mode not in {"layman", "advanced"}:
             ui_mode = defaults["ui_mode"]
-        return {"backend": backend, "ui_mode": ui_mode, "data_root": data_root}
+        return {
+            "backend": backend,
+            "ui_mode": ui_mode,
+            "data_root": data_root,
+            "llama_server_exe": llama_server_exe,
+            "llama_model_dir": llama_model_dir,
+            "llama_model_path": llama_model_path,
+            "llama_ctx_size": llama_ctx_size,
+            "llama_auto_download": llama_auto_download,
+        }
     except Exception:
         return defaults
 
@@ -714,6 +760,135 @@ def _llamacpp_props(timeout: int = 8) -> dict[str, Any]:
         return {}
 
 
+def _llamacpp_proc_running() -> bool:
+    return R.llama_proc is not None and R.llama_proc.poll() is None
+
+
+def _llamacpp_resolve_paths() -> tuple[Path, Path]:
+    exe = Path(str(R.settings.get("llama_server_exe") or LLAMACPP_DEFAULT_SERVER_EXE)).expanduser()
+    model_path = Path(str(R.settings.get("llama_model_path") or (LLAMACPP_DEFAULT_MODEL_DIR / LLAMACPP_DEFAULT_MODEL_FILE))).expanduser()
+    return exe, model_path
+
+
+def _llamacpp_host_port() -> tuple[str, int]:
+    parsed = urllib.parse.urlparse(LLAMACPP_BASE_URL)
+    host = parsed.hostname or "127.0.0.1"
+    port = int(parsed.port or (443 if parsed.scheme == "https" else 80))
+    return host, port
+
+
+def _wait_for_llamacpp_server(timeout_s: int = 60) -> bool:
+    deadline = time.time() + max(1, timeout_s)
+    last_err = ""
+    while time.time() < deadline:
+        if R.llama_proc is not None and R.llama_proc.poll() is not None:
+            return False
+        try:
+            _llamacpp_models(timeout=3)
+            return True
+        except Exception as e:
+            last_err = str(e)
+            time.sleep(1.0)
+    if last_err:
+        log("error", f"llama.cpp startup check failed: {last_err}")
+    return False
+
+
+def _stop_managed_llamacpp_server() -> bool:
+    proc = R.llama_proc
+    R.llama_proc = None
+    R.llama_proc_model_path = ""
+    if proc is None:
+        return False
+    try:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=8)
+            except Exception:
+                proc.kill()
+        return True
+    except Exception:
+        return False
+
+
+def _download_default_llamacpp_model() -> Path:
+    info = default_llamacpp_model_info()
+    target = Path(str(R.settings.get("llama_model_path") or info["target_path"]))
+    if target.exists():
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    set_progress("model", 15, "downloading", f"Downloading default GGUF: {info['label']}")
+    try:
+        from huggingface_hub import hf_hub_download
+    except Exception as e:
+        raise RuntimeError(f"huggingface_hub is required to auto-download GGUF models: {e}")
+    path = hf_hub_download(
+        repo_id=info["repo_id"],
+        filename=info["filename"],
+        local_dir=str(target.parent),
+        local_dir_use_symlinks=False,
+    )
+    downloaded = Path(path)
+    if downloaded != target:
+        try:
+            downloaded.replace(target)
+        except Exception:
+            target.write_bytes(downloaded.read_bytes())
+    set_progress("model", 60, "downloaded", f"Default GGUF ready: {target.name}")
+    return target
+
+
+def _ensure_llamacpp_model_path() -> Path:
+    _, model_path = _llamacpp_resolve_paths()
+    if model_path.exists():
+        return model_path
+    if bool(R.settings.get("llama_auto_download", True)):
+        return _download_default_llamacpp_model()
+    raise RuntimeError(f"llama.cpp model file not found: {model_path}")
+
+
+def _start_managed_llamacpp_server(model_path: Path) -> dict[str, Any]:
+    exe, _ = _llamacpp_resolve_paths()
+    if not exe.exists():
+        raise RuntimeError(f"llama-server executable not found: {exe}")
+    model_path = Path(model_path)
+    if not model_path.exists():
+        raise RuntimeError(f"GGUF model file not found: {model_path}")
+
+    model_path_str = str(model_path)
+    if _llamacpp_proc_running() and Path(R.llama_proc_model_path) == model_path:
+        if _wait_for_llamacpp_server(timeout_s=5):
+            return {"started": False, "model_path": model_path_str}
+
+    if _llamacpp_proc_running():
+        _stop_managed_llamacpp_server()
+
+    host, port = _llamacpp_host_port()
+    ctx = max(1024, int(R.settings.get("llama_ctx_size", 16384) or 16384))
+    log_dir = ROOT / "scal_runtime_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "llama_cpp_server.log"
+    with open(log_path, "ab") as lf:
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        proc = subprocess.Popen(
+            [str(exe), "-m", model_path_str, "--host", host, "--port", str(port), "-c", str(ctx)],
+            cwd=str(exe.parent),
+            stdout=lf,
+            stderr=subprocess.STDOUT,
+            creationflags=creationflags,
+        )
+    R.llama_proc = proc
+    R.llama_proc_model_path = model_path_str
+    R.llama_proc_log_path = str(log_path)
+    set_progress("model", 75, "starting", f"Starting llama.cpp server for {model_path.name}")
+    if not _wait_for_llamacpp_server(timeout_s=60):
+        rc = proc.poll()
+        raise RuntimeError(f"llama.cpp server failed to start for {model_path.name} (exit={rc})")
+    set_progress("model", 100, "completed", f"llama.cpp ready: {model_path.name}")
+    return {"started": True, "model_path": model_path_str}
+
+
 def _ollama_stream_generate(payload: dict[str, Any], timeout: int = 600):
     url = f"{OLLAMA_BASE_URL}/api/generate"
     data = json.dumps(payload).encode("utf-8")
@@ -802,6 +977,7 @@ def _sync_model_state_llamacpp() -> dict[str, Any]:
         "loading": False,
         "last_error": "",
         "backend": "llama_cpp",
+        "model_path": str(R.settings.get("llama_model_path") or R.llama_proc_model_path or ""),
     }
     R.progress["model"] = {
         "running": False,
@@ -1159,6 +1335,15 @@ class SettingsReq(BaseModel):
     backend: str | None = None  # llama_cpp | ollama
     ui_mode: str | None = None  # layman | advanced
     data_root: str | None = None
+    llama_server_exe: str | None = None
+    llama_model_dir: str | None = None
+    llama_model_path: str | None = None
+    llama_ctx_size: int | None = None
+    llama_auto_download: bool | None = None
+
+
+class LlamaCppPathReq(BaseModel):
+    model_path: str = ""
 
 
 class SessionTitleReq(BaseModel):
@@ -1185,6 +1370,8 @@ def api_state():
     sync_model_state()
     model_info = dict(R.model)
     model_info.update(detect_model_context_limit())
+    model_info["llama_managed_running"] = _llamacpp_proc_running()
+    model_info["llama_managed_model_path"] = R.llama_proc_model_path
     return {
         "app": {"build": APP_BUILD, "started_at": APP_STARTED_AT},
         "settings": R.settings,
@@ -1194,6 +1381,9 @@ def api_state():
         "services": {
             "ollama_url": OLLAMA_BASE_URL,
             "llamacpp_url": LLAMACPP_BASE_URL,
+        },
+        "defaults": {
+            "llama_cpp_model": default_llamacpp_model_info(),
         },
     }
 
@@ -1220,6 +1410,25 @@ def api_settings_set(req: SettingsReq):
         root = str(req.data_root).strip()
         if root:
             data["data_root"] = root
+    if req.llama_server_exe is not None:
+        data["llama_server_exe"] = str(req.llama_server_exe or "").strip()
+    if req.llama_model_dir is not None:
+        model_dir = str(req.llama_model_dir or "").strip()
+        if model_dir:
+            data["llama_model_dir"] = model_dir
+            current_path = Path(str(data.get("llama_model_path") or ""))
+            default_path = Path(str(R.settings.get("llama_model_path") or ""))
+            if not str(current_path) or current_path == default_path or current_path.parent == default_path.parent:
+                data["llama_model_path"] = str(Path(model_dir) / LLAMACPP_DEFAULT_MODEL_FILE)
+    if req.llama_model_path is not None:
+        path = str(req.llama_model_path or "").strip()
+        if path:
+            data["llama_model_path"] = path
+            data["llama_model_dir"] = str(Path(path).expanduser().parent)
+    if req.llama_ctx_size is not None:
+        data["llama_ctx_size"] = max(1024, int(req.llama_ctx_size))
+    if req.llama_auto_download is not None:
+        data["llama_auto_download"] = bool(req.llama_auto_download)
 
     R.settings = data
     R.data_root = Path(data.get("data_root", str(DATA_ROOT)))
@@ -1299,6 +1508,28 @@ async def api_browse_file(payload: dict = {}):
     loop = asyncio.get_event_loop()
     path = await loop.run_in_executor(_DIALOG_EXECUTOR, _tkdialog_file, accept)
     return {"path": path}
+
+
+@app.get("/api/llama_cpp/default-model")
+def api_llamacpp_default_model():
+    info = default_llamacpp_model_info()
+    target = Path(str(R.settings.get("llama_model_path") or info["target_path"]))
+    return {
+        **info,
+        "configured_path": str(target),
+        "exists": target.exists(),
+        "managed_running": _llamacpp_proc_running(),
+    }
+
+
+@app.post("/api/llama_cpp/download-default")
+def api_llamacpp_download_default():
+    set_progress("model", 5, "preparing", "Preparing default GGUF download")
+    path = _download_default_llamacpp_model()
+    R.settings["llama_model_path"] = str(path)
+    R.settings["llama_model_dir"] = str(path.parent)
+    _save_settings(R.settings)
+    return {"ok": True, "message": f"Default GGUF ready: {path.name}", "path": str(path), "default_model": default_llamacpp_model_info()}
 
 
 @app.get("/api/docs")
@@ -1471,12 +1702,22 @@ def api_models_options():
             }
 
         if backend == "llama_cpp":
-            info = _llamacpp_models(timeout=8)
+            configured_path = str(R.settings.get("llama_model_path") or "")
+            try:
+                info = _llamacpp_models(timeout=8)
+            except Exception:
+                model_name = Path(configured_path).name if configured_path else ""
+                info = {
+                    "models": [{"name": model_name, "label": model_name}] if model_name else [],
+                    "default": model_name,
+                    "active": model_name if _llamacpp_proc_running() else "",
+                }
             return {
                 "models": info.get("models", []),
                 "default": info.get("default", ""),
                 "active": str(R.model.get("model_name") or info.get("active") or info.get("default") or ""),
                 "backend": "llama_cpp",
+                "configured_model_path": configured_path,
             }
 
         return {"models": [], "default": "", "active": "", "backend": backend}
@@ -1517,7 +1758,7 @@ def api_models_pull(model_name: str = Form(...)):
 def api_models_switch(model_name: str = Form(...)):
     backend = str(R.settings.get("backend", "llama_cpp"))
     name = (model_name or "").strip()
-    if not name:
+    if not name and backend != "llama_cpp":
         raise HTTPException(status_code=400, detail="model_name required")
 
     if backend == "ollama":
@@ -1538,20 +1779,23 @@ def api_models_switch(model_name: str = Form(...)):
 
     if backend == "llama_cpp":
         try:
+            requested = name or str(R.settings.get("llama_model_path") or "")
+            if requested and (requested.endswith(".gguf") or "\\" in requested or "/" in requested or ":" in requested):
+                R.settings["llama_model_path"] = requested
+                R.settings["llama_model_dir"] = str(Path(requested).expanduser().parent)
+                _save_settings(R.settings)
+            model_path = _ensure_llamacpp_model_path()
+            set_progress("model", 65, "preparing", f"Preparing llama.cpp model: {model_path.name}")
+            _start_managed_llamacpp_server(model_path)
             info = _llamacpp_models(timeout=8)
-            names = {str(m.get("name") or "") for m in info.get("models", []) if isinstance(m, dict)}
-            if names and name not in names:
-                return {
-                    "ok": False,
-                    "message": f"Model {name} not found in llama.cpp server model list. Start llama-server with that model.",
-                    "backend": "llama_cpp",
-                }
-            R.model.update({"model_name": name or str(info.get("active") or ""), "loaded": True, "loading": False, "target_model": "", "last_error": "", "backend": "llama_cpp"})
-            set_progress("model", 100, "completed", f"Active model: {R.model.get('model_name', '')} (llama.cpp)")
+            active = str(info.get("active") or Path(model_path).name)
+            R.model.update({"model_name": active, "loaded": True, "loading": False, "target_model": "", "last_error": "", "backend": "llama_cpp", "model_path": str(model_path)})
+            set_progress("model", 100, "completed", f"Active model: {active} (llama.cpp)")
             return {
                 "ok": True,
-                "message": f"Using llama.cpp server model: {R.model.get('model_name', '')}",
+                "message": f"Using llama.cpp model: {active}",
                 "backend": "llama_cpp",
+                "model_path": str(model_path),
             }
         except Exception as e:
             R.model.update({"loaded": False, "last_error": str(e), "backend": "llama_cpp"})
@@ -1571,9 +1815,10 @@ def api_models_unload():
 
     if backend == "llama_cpp":
         old = R.model.get("model_name", "")
+        stopped = _stop_managed_llamacpp_server()
         R.model.update({"loaded": False, "model_name": "", "target_model": "", "loading": False, "last_error": "", "backend": "llama_cpp"})
-        set_progress("model", 0, "idle", "No active llama.cpp model in UI state")
-        return {"ok": True, "message": f"llama.cpp UI model context cleared ({old})"}
+        set_progress("model", 0, "idle", "No active llama.cpp model")
+        return {"ok": True, "message": f"llama.cpp {'server stopped' if stopped else 'state cleared'} ({old})"}
 
     return {"ok": False, "message": f"Unsupported backend: {backend}"}
 
@@ -1903,11 +2148,16 @@ async def api_chat_stream(req: ChatReq):
                         break
             elif backend == "llama_cpp":
                 model_name = str(R.model.get("model_name") or "").strip()
-                if not model_name:
+                try:
                     info = _llamacpp_models(timeout=8)
+                except Exception:
+                    model_path = _ensure_llamacpp_model_path()
+                    _start_managed_llamacpp_server(model_path)
+                    info = _llamacpp_models(timeout=8)
+                if not model_name:
                     model_name = str(info.get("active") or info.get("default") or "").strip()
                     if model_name:
-                        R.model.update({"model_name": model_name, "loaded": True, "backend": "llama_cpp"})
+                        R.model.update({"model_name": model_name, "loaded": True, "backend": "llama_cpp", "model_path": str(R.settings.get("llama_model_path") or "")})
 
                 cpayload = {
                     "model": model_name,

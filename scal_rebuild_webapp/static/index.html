@@ -59,6 +59,32 @@
         <button id="refreshDocsBtn" class="btn-muted">Refresh Docs</button>
       </div>
 
+      <div id="llamaCppPanel" class="advanced-only">
+        <div class="section-head"><h3>llama.cpp</h3></div>
+        <div class="row">
+          <input id="llamaServerExe" type="text" placeholder="llama-server.exe path" />
+          <button id="browseLlamaServerBtn" class="btn-muted">Browse EXE</button>
+        </div>
+        <div class="row">
+          <input id="llamaModelDir" type="text" placeholder="Model folder (e.g. D:\models)" />
+          <button id="browseLlamaModelDirBtn" class="btn-muted">Browse Folder</button>
+        </div>
+        <div class="row">
+          <input id="llamaModelPath" type="text" placeholder="GGUF model path" />
+          <button id="browseLlamaModelBtn" class="btn-muted">Browse GGUF</button>
+        </div>
+        <div class="row">
+          <label for="llamaCtxInput">Ctx</label>
+          <input id="llamaCtxInput" type="number" min="1024" step="1024" value="16384" />
+          <label><input id="llamaAutoDownloadChk" type="checkbox" checked /> auto-download default</label>
+        </div>
+        <div class="row">
+          <button id="saveLlamaSettingsBtn" class="btn-muted">Save llama.cpp</button>
+          <button id="downloadDefaultLlamaBtn" class="btn-primary">Download Default GGUF</button>
+        </div>
+        <div id="llamaDefaultHint" class="small-text"></div>
+      </div>
+
       <div class="section-head"><h3>Documents</h3></div>
       <div id="docsList" class="docs-list"></div>
 

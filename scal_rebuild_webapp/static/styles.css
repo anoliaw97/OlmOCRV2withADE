@@ -222,6 +222,10 @@ textarea { width: 100%; resize: vertical; min-height: 80px; }
 
 #modelInput { min-width: 220px; }
 #topKInput { width: 82px; }
+#llamaServerExe,
+#llamaModelDir,
+#llamaModelPath { flex: 1 1 220px; min-width: 220px; }
+#llamaCtxInput { width: 110px; }
 
 button { cursor: pointer; }
 .btn-primary { background: #195086; border-color: #2d73b6; color: #eaf4ff; }

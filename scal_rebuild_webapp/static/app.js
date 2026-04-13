@@ -1,9 +1,19 @@
 const state = {
   app: {},
-  settings: { backend: "llama_cpp", ui_mode: "layman", data_root: "" },
+  settings: {
+    backend: "llama_cpp",
+    ui_mode: "layman",
+    data_root: "",
+    llama_server_exe: "",
+    llama_model_dir: "D:\\models",
+    llama_model_path: "D:\\models\\Qwen2.5-32B-Instruct-Q4_K_M.gguf",
+    llama_ctx_size: 16384,
+    llama_auto_download: true,
+  },
   model: {},
   progress: {},
   services: {},
+  defaults: {},
   sessions: [],
   currentSessionId: "",
   currentDoc: "",
@@ -87,6 +97,28 @@ function updateModelStatus() {
   $("pullModelBtn").style.display = canPull ? "" : "none";
 }
 
+function updateBackendUi() {
+  const isLlama = (state.settings.backend || "") === "llama_cpp";
+  $("llamaCppPanel").classList.toggle("hidden", !isLlama || state.settings.ui_mode !== "advanced");
+  $("downloadDefaultLlamaBtn").disabled = !isLlama;
+}
+
+function applySettingsToInputs() {
+  $("dataRoot").value = state.settings.data_root || "";
+  $("llamaServerExe").value = state.settings.llama_server_exe || "";
+  $("llamaModelDir").value = state.settings.llama_model_dir || "";
+  $("llamaModelPath").value = state.settings.llama_model_path || "";
+  $("llamaCtxInput").value = Number(state.settings.llama_ctx_size || 16384);
+  $("llamaAutoDownloadChk").checked = !!state.settings.llama_auto_download;
+}
+
+function updateDefaultLlamaHint() {
+  const d = state.defaults?.llama_cpp_model || {};
+  const path = state.settings.llama_model_path || d.target_path || "";
+  const label = d.label || "Default GGUF";
+  $("llamaDefaultHint").textContent = `${label} | recommended: ${d.recommended_for || "-"} | path: ${path}`;
+}
+
 function maybeReportModelProgress() {
   const p = state.progress?.model || {};
   const m = state.model || {};
@@ -145,12 +177,15 @@ async function loadState() {
   state.model = s.model || {};
   state.progress = s.progress || state.progress;
   state.services = s.services || {};
+  state.defaults = s.defaults || state.defaults;
 
   $("buildChip").textContent = `build: ${state.app.build || "-"}`;
   $("uiModeSelect").value = state.settings.ui_mode || "layman";
   $("backendSelect").value = state.settings.backend || "llama_cpp";
-  $("dataRoot").value = state.settings.data_root || "";
+  applySettingsToInputs();
   applyUiMode(state.settings.ui_mode || "layman");
+  updateBackendUi();
+  updateDefaultLlamaHint();
   updateModelStatus();
   maybeReportModelProgress();
 }
@@ -482,7 +517,9 @@ async function refreshModels() {
   const pick = data.active || data.default || "";
   if (pick) {
     select.value = pick;
-    $("modelInput").value = pick;
+    $("modelInput").value = data.backend === "llama_cpp"
+      ? (data.configured_model_path || state.settings.llama_model_path || pick)
+      : pick;
   }
 }
 
@@ -670,12 +707,77 @@ function bindEvents() {
     await refreshDocs();
   });
 
+  $("browseLlamaServerBtn").addEventListener("click", async () => {
+    const r = await apiJson("/api/browse/file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accept: ".exe" }),
+    });
+    if (r.path) $("llamaServerExe").value = r.path;
+  });
+  $("browseLlamaModelDirBtn").addEventListener("click", async () => {
+    const r = await apiJson("/api/browse/folder", { method: "POST" });
+    if (r.path) {
+      $("llamaModelDir").value = r.path;
+      const cur = ($("llamaModelPath").value || "").trim();
+      if (!cur || cur === (state.settings.llama_model_path || "")) {
+        $("llamaModelPath").value = `${r.path.replace(/[\\/]$/, "")}\\Qwen2.5-32B-Instruct-Q4_K_M.gguf`;
+      }
+    }
+  });
+  $("browseLlamaModelBtn").addEventListener("click", async () => {
+    const r = await apiJson("/api/browse/file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accept: ".gguf" }),
+    });
+    if (r.path) {
+      $("llamaModelPath").value = r.path;
+      const parts = r.path.split(/[/\\]/);
+      parts.pop();
+      $("llamaModelDir").value = parts.join("\\");
+    }
+  });
+  $("saveLlamaSettingsBtn").addEventListener("click", async () => {
+    await saveSettings({
+      llama_server_exe: $("llamaServerExe").value.trim(),
+      llama_model_dir: $("llamaModelDir").value.trim(),
+      llama_model_path: $("llamaModelPath").value.trim(),
+      llama_ctx_size: Number($("llamaCtxInput").value || 16384),
+      llama_auto_download: !!$("llamaAutoDownloadChk").checked,
+    });
+    applySettingsToInputs();
+    updateDefaultLlamaHint();
+    systemMsg("llama.cpp settings saved.");
+  });
+  $("downloadDefaultLlamaBtn").addEventListener("click", async () => {
+    await saveSettings({
+      llama_server_exe: $("llamaServerExe").value.trim(),
+      llama_model_dir: $("llamaModelDir").value.trim(),
+      llama_model_path: $("llamaModelPath").value.trim(),
+      llama_ctx_size: Number($("llamaCtxInput").value || 16384),
+      llama_auto_download: !!$("llamaAutoDownloadChk").checked,
+    });
+    const r = await apiForm("/api/llama_cpp/download-default", {});
+    if (r.path) {
+      $("llamaModelPath").value = r.path;
+      const parts = r.path.split(/[/\\]/);
+      parts.pop();
+      $("llamaModelDir").value = parts.join("\\");
+      state.settings.llama_model_path = r.path;
+      state.settings.llama_model_dir = parts.join("\\");
+    }
+    updateDefaultLlamaHint();
+    systemMsg(r.message || "Default GGUF downloaded.");
+  });
+
   $("buildRagAllBtn").addEventListener("click", () => buildRag("all"));
   $("buildRagSelectedBtn").addEventListener("click", () => buildRag("selected"));
 
   $("uiModeSelect").addEventListener("change", async () => {
     await saveSettings({ ui_mode: $("uiModeSelect").value });
     applyUiMode(state.settings.ui_mode);
+    updateBackendUi();
   });
   $("backendSelect").addEventListener("change", async () => {
     await saveSettings({ backend: $("backendSelect").value });
@@ -689,10 +791,21 @@ function bindEvents() {
   });
 
   $("switchModelBtn").addEventListener("click", async () => {
-    const modelName = ($("modelInput").value || "").trim() || $("modelSelect").value || "";
+    const modelName = state.settings.backend === "llama_cpp"
+      ? (($("llamaModelPath").value || "").trim() || ($("modelInput").value || "").trim())
+      : (($("modelInput").value || "").trim() || $("modelSelect").value || "");
     if (!modelName) {
-      systemMsg("Enter or select a model name first.");
+      systemMsg(state.settings.backend === "llama_cpp" ? "Set a GGUF model path first." : "Enter or select a model name first.");
       return;
+    }
+    if (state.settings.backend === "llama_cpp") {
+      await saveSettings({
+        llama_server_exe: $("llamaServerExe").value.trim(),
+        llama_model_dir: $("llamaModelDir").value.trim(),
+        llama_model_path: modelName,
+        llama_ctx_size: Number($("llamaCtxInput").value || 16384),
+        llama_auto_download: !!$("llamaAutoDownloadChk").checked,
+      });
     }
     const r = await apiForm("/api/models/switch", { model_name: modelName });
     systemMsg(r.message || "Switch complete");
