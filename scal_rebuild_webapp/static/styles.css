@@ -226,6 +226,8 @@ textarea { width: 100%; resize: vertical; min-height: 80px; }
 #llamaModelDir,
 #llamaModelPath { flex: 1 1 220px; min-width: 220px; }
 #llamaCtxInput { width: 110px; }
+#llamaGpuLayersInput,
+#llamaThreadsInput { width: 90px; }
 
 button { cursor: pointer; }
 .btn-primary { background: #195086; border-color: #2d73b6; color: #eaf4ff; }

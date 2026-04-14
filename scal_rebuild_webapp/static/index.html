@@ -75,7 +75,12 @@
         </div>
         <div class="row">
           <label for="llamaCtxInput">Ctx</label>
-          <input id="llamaCtxInput" type="number" min="1024" step="1024" value="16384" />
+          <input id="llamaCtxInput" type="number" min="1024" step="1024" value="8192" />
+          <label for="llamaGpuLayersInput">GPU Layers</label>
+          <input id="llamaGpuLayersInput" type="number" min="-1" step="1" value="999" />
+          <label for="llamaThreadsInput">Threads</label>
+          <input id="llamaThreadsInput" type="number" min="1" step="1" value="12" />
+          <label><input id="llamaFlashAttnChk" type="checkbox" /> flash-attn</label>
           <label><input id="llamaAutoDownloadChk" type="checkbox" checked /> auto-download default</label>
         </div>
         <div class="row">

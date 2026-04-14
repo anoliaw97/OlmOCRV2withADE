@@ -40,3 +40,10 @@ If using Ollama backend, ensure Ollama is running locally.
 - Data root is persisted in `scal_rebuild_settings.json` (and can be overridden via `SCAL_DATA_ROOT`).
 - Ollama URL defaults to `http://127.0.0.1:11434` and can be overridden via `SCAL_OLLAMA_BASE_URL`.
 - llama.cpp URL defaults to `http://127.0.0.1:8081` and can be overridden via `SCAL_LLAMACPP_BASE_URL`.
+
+## Performance tips (RTX A6000)
+
+- Build `llama.cpp` with CUDA enabled (`setup_llama_cpp_windows.bat` now defaults to `GGML_CUDA=ON`).
+- Start with `ctx=8192` instead of `16384` to reduce memory pressure and improve token speed.
+- Use `gpu_layers=999` to offload as much as possible to GPU.
+- If memory is still tight, switch to a smaller GGUF (for example 14B) for faster interactive chat.

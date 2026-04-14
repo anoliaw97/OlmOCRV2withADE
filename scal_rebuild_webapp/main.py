@@ -63,6 +63,24 @@ LLAMACPP_DEFAULT_MODEL_DIR = Path(os.environ.get("SCAL_LLAMACPP_MODEL_DIR", r"D:
 LLAMACPP_DEFAULT_SERVER_EXE = Path(os.environ.get("SCAL_LLAMACPP_SERVER_EXE", str(ROOT / "llama.cpp" / "build" / "bin" / "Release" / "llama-server.exe")))
 
 
+def _env_int(name: str, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
+    try:
+        value = int(os.environ.get(name, str(default)).strip())
+    except Exception:
+        value = int(default)
+    if min_value is not None:
+        value = max(int(min_value), value)
+    if max_value is not None:
+        value = min(int(max_value), value)
+    return value
+
+
+LLAMACPP_DEFAULT_CTX_SIZE = _env_int("SCAL_LLAMACPP_CTX_SIZE", 8192, min_value=1024, max_value=131072)
+LLAMACPP_DEFAULT_GPU_LAYERS = _env_int("SCAL_LLAMACPP_GPU_LAYERS", 999, min_value=-1, max_value=9999)
+LLAMACPP_DEFAULT_THREADS = _env_int("SCAL_LLAMACPP_THREADS", max(4, (os.cpu_count() or 8) - 2), min_value=1, max_value=256)
+LLAMACPP_DEFAULT_FLASH_ATTN = str(os.environ.get("SCAL_LLAMACPP_FLASH_ATTN", "0")).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _git_commit_short() -> str:
     try:
         out = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=str(ROOT), stderr=subprocess.DEVNULL)
@@ -103,7 +121,10 @@ class Runtime:
             "llama_server_exe": str(LLAMACPP_DEFAULT_SERVER_EXE),
             "llama_model_dir": str(LLAMACPP_DEFAULT_MODEL_DIR),
             "llama_model_path": str(LLAMACPP_DEFAULT_MODEL_DIR / LLAMACPP_DEFAULT_MODEL_FILE),
-            "llama_ctx_size": 16384,
+            "llama_ctx_size": LLAMACPP_DEFAULT_CTX_SIZE,
+            "llama_gpu_layers": LLAMACPP_DEFAULT_GPU_LAYERS,
+            "llama_threads": LLAMACPP_DEFAULT_THREADS,
+            "llama_flash_attn": LLAMACPP_DEFAULT_FLASH_ATTN,
             "llama_auto_download": True,
         }
 
@@ -164,7 +185,10 @@ def _load_settings() -> dict[str, Any]:
         "llama_server_exe": str(LLAMACPP_DEFAULT_SERVER_EXE),
         "llama_model_dir": str(LLAMACPP_DEFAULT_MODEL_DIR),
         "llama_model_path": str(LLAMACPP_DEFAULT_MODEL_DIR / LLAMACPP_DEFAULT_MODEL_FILE),
-        "llama_ctx_size": 16384,
+        "llama_ctx_size": LLAMACPP_DEFAULT_CTX_SIZE,
+        "llama_gpu_layers": LLAMACPP_DEFAULT_GPU_LAYERS,
+        "llama_threads": LLAMACPP_DEFAULT_THREADS,
+        "llama_flash_attn": LLAMACPP_DEFAULT_FLASH_ATTN,
         "llama_auto_download": True,
     }
     if not SETTINGS_FILE.exists():
@@ -183,6 +207,17 @@ def _load_settings() -> dict[str, Any]:
             llama_ctx_size = max(1024, int(data.get("llama_ctx_size", defaults["llama_ctx_size"])))
         except Exception:
             llama_ctx_size = int(defaults["llama_ctx_size"])
+        try:
+            llama_gpu_layers = int(data.get("llama_gpu_layers", defaults["llama_gpu_layers"]))
+            llama_gpu_layers = max(-1, min(9999, llama_gpu_layers))
+        except Exception:
+            llama_gpu_layers = int(defaults["llama_gpu_layers"])
+        try:
+            llama_threads = int(data.get("llama_threads", defaults["llama_threads"]))
+            llama_threads = max(1, min(256, llama_threads))
+        except Exception:
+            llama_threads = int(defaults["llama_threads"])
+        llama_flash_attn = bool(data.get("llama_flash_attn", defaults["llama_flash_attn"]))
         llama_auto_download = bool(data.get("llama_auto_download", defaults["llama_auto_download"]))
         if backend not in {"ollama", "llama_cpp"}:
             backend = defaults["backend"]
@@ -196,6 +231,9 @@ def _load_settings() -> dict[str, Any]:
             "llama_model_dir": llama_model_dir,
             "llama_model_path": llama_model_path,
             "llama_ctx_size": llama_ctx_size,
+            "llama_gpu_layers": llama_gpu_layers,
+            "llama_threads": llama_threads,
+            "llama_flash_attn": llama_flash_attn,
             "llama_auto_download": llama_auto_download,
         }
     except Exception:
@@ -870,14 +908,25 @@ def _start_managed_llamacpp_server(model_path: Path) -> dict[str, Any]:
         _stop_managed_llamacpp_server()
 
     host, port = _llamacpp_host_port()
-    ctx = max(1024, int(R.settings.get("llama_ctx_size", 16384) or 16384))
+    ctx = max(1024, int(R.settings.get("llama_ctx_size", LLAMACPP_DEFAULT_CTX_SIZE) or LLAMACPP_DEFAULT_CTX_SIZE))
+    gpu_layers = int(R.settings.get("llama_gpu_layers", LLAMACPP_DEFAULT_GPU_LAYERS) or LLAMACPP_DEFAULT_GPU_LAYERS)
+    gpu_layers = max(-1, min(9999, gpu_layers))
+    threads = int(R.settings.get("llama_threads", LLAMACPP_DEFAULT_THREADS) or LLAMACPP_DEFAULT_THREADS)
+    threads = max(1, min(256, threads))
+    flash_attn = bool(R.settings.get("llama_flash_attn", LLAMACPP_DEFAULT_FLASH_ATTN))
     log_dir = ROOT / "scal_runtime_logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "llama_cpp_server.log"
+    args = [str(exe), "-m", model_path_str, "--host", host, "--port", str(port), "-c", str(ctx), "-t", str(threads)]
+    if gpu_layers >= 0:
+        args.extend(["-ngl", str(gpu_layers)])
+    if flash_attn:
+        args.append("--flash-attn")
+    log("status", f"Starting llama.cpp with ctx={ctx} gpu_layers={gpu_layers} threads={threads} flash_attn={flash_attn}")
     with open(log_path, "ab") as lf:
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         proc = subprocess.Popen(
-            [str(exe), "-m", model_path_str, "--host", host, "--port", str(port), "-c", str(ctx)],
+            args,
             cwd=str(exe.parent),
             stdout=lf,
             stderr=subprocess.STDOUT,
@@ -1498,6 +1547,9 @@ class SettingsReq(BaseModel):
     llama_model_dir: str | None = None
     llama_model_path: str | None = None
     llama_ctx_size: int | None = None
+    llama_gpu_layers: int | None = None
+    llama_threads: int | None = None
+    llama_flash_attn: bool | None = None
     llama_auto_download: bool | None = None
 
 
@@ -1586,6 +1638,12 @@ def api_settings_set(req: SettingsReq):
             data["llama_model_dir"] = str(Path(path).expanduser().parent)
     if req.llama_ctx_size is not None:
         data["llama_ctx_size"] = max(1024, int(req.llama_ctx_size))
+    if req.llama_gpu_layers is not None:
+        data["llama_gpu_layers"] = max(-1, min(9999, int(req.llama_gpu_layers)))
+    if req.llama_threads is not None:
+        data["llama_threads"] = max(1, min(256, int(req.llama_threads)))
+    if req.llama_flash_attn is not None:
+        data["llama_flash_attn"] = bool(req.llama_flash_attn)
     if req.llama_auto_download is not None:
         data["llama_auto_download"] = bool(req.llama_auto_download)
 

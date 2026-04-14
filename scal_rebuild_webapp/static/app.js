@@ -7,7 +7,10 @@ const state = {
     llama_server_exe: "",
     llama_model_dir: "D:\\models",
     llama_model_path: "D:\\models\\Qwen2.5-32B-Instruct-Q4_K_M.gguf",
-    llama_ctx_size: 16384,
+    llama_ctx_size: 8192,
+    llama_gpu_layers: 999,
+    llama_threads: 12,
+    llama_flash_attn: false,
     llama_auto_download: true,
   },
   model: {},
@@ -108,15 +111,34 @@ function applySettingsToInputs() {
   $("llamaServerExe").value = state.settings.llama_server_exe || "";
   $("llamaModelDir").value = state.settings.llama_model_dir || "";
   $("llamaModelPath").value = state.settings.llama_model_path || "";
-  $("llamaCtxInput").value = Number(state.settings.llama_ctx_size || 16384);
+  $("llamaCtxInput").value = Number(state.settings.llama_ctx_size || 8192);
+  $("llamaGpuLayersInput").value = Number(state.settings.llama_gpu_layers ?? 999);
+  $("llamaThreadsInput").value = Number(state.settings.llama_threads ?? 12);
+  $("llamaFlashAttnChk").checked = !!state.settings.llama_flash_attn;
   $("llamaAutoDownloadChk").checked = !!state.settings.llama_auto_download;
+}
+
+function collectLlamaSettingsPatch(overrides = {}) {
+  return {
+    llama_server_exe: $("llamaServerExe").value.trim(),
+    llama_model_dir: $("llamaModelDir").value.trim(),
+    llama_model_path: $("llamaModelPath").value.trim(),
+    llama_ctx_size: Number($("llamaCtxInput").value || 8192),
+    llama_gpu_layers: Number($("llamaGpuLayersInput").value || 999),
+    llama_threads: Number($("llamaThreadsInput").value || 12),
+    llama_flash_attn: !!$("llamaFlashAttnChk").checked,
+    llama_auto_download: !!$("llamaAutoDownloadChk").checked,
+    ...overrides,
+  };
 }
 
 function updateDefaultLlamaHint() {
   const d = state.defaults?.llama_cpp_model || {};
   const path = state.settings.llama_model_path || d.target_path || "";
   const label = d.label || "Default GGUF";
-  $("llamaDefaultHint").textContent = `${label} | recommended: ${d.recommended_for || "-"} | path: ${path}`;
+  const ctx = Number(state.settings.llama_ctx_size || 8192);
+  const ngl = Number(state.settings.llama_gpu_layers ?? 999);
+  $("llamaDefaultHint").textContent = `${label} | recommended: ${d.recommended_for || "-"} | ctx ${ctx} | ngl ${ngl} | path: ${path}`;
 }
 
 function maybeReportModelProgress() {
@@ -741,25 +763,13 @@ function bindEvents() {
     }
   });
   $("saveLlamaSettingsBtn").addEventListener("click", async () => {
-    await saveSettings({
-      llama_server_exe: $("llamaServerExe").value.trim(),
-      llama_model_dir: $("llamaModelDir").value.trim(),
-      llama_model_path: $("llamaModelPath").value.trim(),
-      llama_ctx_size: Number($("llamaCtxInput").value || 16384),
-      llama_auto_download: !!$("llamaAutoDownloadChk").checked,
-    });
+    await saveSettings(collectLlamaSettingsPatch());
     applySettingsToInputs();
     updateDefaultLlamaHint();
     systemMsg("llama.cpp settings saved.");
   });
   $("downloadDefaultLlamaBtn").addEventListener("click", async () => {
-    await saveSettings({
-      llama_server_exe: $("llamaServerExe").value.trim(),
-      llama_model_dir: $("llamaModelDir").value.trim(),
-      llama_model_path: $("llamaModelPath").value.trim(),
-      llama_ctx_size: Number($("llamaCtxInput").value || 16384),
-      llama_auto_download: !!$("llamaAutoDownloadChk").checked,
-    });
+    await saveSettings(collectLlamaSettingsPatch());
     const r = await apiForm("/api/llama_cpp/download-default", {});
     if (r.path) {
       $("llamaModelPath").value = r.path;
@@ -801,13 +811,7 @@ function bindEvents() {
       return;
     }
     if (state.settings.backend === "llama_cpp") {
-      await saveSettings({
-        llama_server_exe: $("llamaServerExe").value.trim(),
-        llama_model_dir: $("llamaModelDir").value.trim(),
-        llama_model_path: modelName,
-        llama_ctx_size: Number($("llamaCtxInput").value || 16384),
-        llama_auto_download: !!$("llamaAutoDownloadChk").checked,
-      });
+      await saveSettings(collectLlamaSettingsPatch({ llama_model_path: modelName }));
     }
     const r = await apiForm("/api/models/switch", { model_name: modelName });
     systemMsg(r.message || "Switch complete");

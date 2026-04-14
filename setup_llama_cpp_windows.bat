@@ -52,8 +52,11 @@ if errorlevel 1 (
 
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
+if "%LLAMA_ENABLE_CUDA%"=="" set "LLAMA_ENABLE_CUDA=ON"
+echo Build option: GGML_CUDA=%LLAMA_ENABLE_CUDA%
+
 echo Configuring llama.cpp with CMake...
-"%CMAKE_EXE%" -S "%LLAMA_DIR%" -B "%BUILD_DIR%" -DGGML_CUDA=OFF
+"%CMAKE_EXE%" -S "%LLAMA_DIR%" -B "%BUILD_DIR%" -DGGML_CUDA=%LLAMA_ENABLE_CUDA%
 if errorlevel 1 (
   echo ERROR: CMake configure failed.
   pause

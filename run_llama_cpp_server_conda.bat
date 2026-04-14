@@ -35,7 +35,9 @@ if errorlevel 1 (
 
 if "%LLAMA_SERVER_EXE%"=="" set "LLAMA_SERVER_EXE=%REPO_DIR%\llama.cpp\build\bin\Release\llama-server.exe"
 if "%LLAMA_MODEL_PATH%"=="" set "LLAMA_MODEL_PATH=D:\models\Qwen2.5-32B-Instruct-Q4_K_M.gguf"
-if "%LLAMA_CTX_SIZE%"=="" set "LLAMA_CTX_SIZE=16384"
+if "%LLAMA_CTX_SIZE%"=="" set "LLAMA_CTX_SIZE=8192"
+if "%LLAMA_GPU_LAYERS%"=="" set "LLAMA_GPU_LAYERS=999"
+if "%LLAMA_THREADS%"=="" set "LLAMA_THREADS=%NUMBER_OF_PROCESSORS%"
 if "%LLAMA_HOST%"=="" set "LLAMA_HOST=127.0.0.1"
 if "%LLAMA_PORT%"=="" set "LLAMA_PORT=8081"
 
@@ -61,11 +63,14 @@ echo Starting llama.cpp server...
 echo EXE : %LLAMA_SERVER_EXE%
 echo MODEL: %LLAMA_MODEL_PATH%
 echo URL  : http://%LLAMA_HOST%:%LLAMA_PORT%
+echo CTX  : %LLAMA_CTX_SIZE%
+echo GPU  : %LLAMA_GPU_LAYERS% layers
+echo CPU  : %LLAMA_THREADS% threads
 
 if "%USE_CONDA_RUN%"=="1" (
-  call "%CONDA_BAT%" run -n "%ENV_NAME%" "%LLAMA_SERVER_EXE%" -m "%LLAMA_MODEL_PATH%" --host %LLAMA_HOST% --port %LLAMA_PORT% -c %LLAMA_CTX_SIZE%
+  call "%CONDA_BAT%" run -n "%ENV_NAME%" "%LLAMA_SERVER_EXE%" -m "%LLAMA_MODEL_PATH%" --host %LLAMA_HOST% --port %LLAMA_PORT% -c %LLAMA_CTX_SIZE% -ngl %LLAMA_GPU_LAYERS% -t %LLAMA_THREADS%
 ) else (
-  "%LLAMA_SERVER_EXE%" -m "%LLAMA_MODEL_PATH%" --host %LLAMA_HOST% --port %LLAMA_PORT% -c %LLAMA_CTX_SIZE%
+  "%LLAMA_SERVER_EXE%" -m "%LLAMA_MODEL_PATH%" --host %LLAMA_HOST% --port %LLAMA_PORT% -c %LLAMA_CTX_SIZE% -ngl %LLAMA_GPU_LAYERS% -t %LLAMA_THREADS%
 )
 
 endlocal
