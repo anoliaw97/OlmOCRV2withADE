@@ -23,6 +23,12 @@ This is a clean reconstruction branch/folder inspired by Open WebUI interaction 
 
 ## Run
 
+For full step-by-step Windows + Anaconda + CUDA + llama.cpp setup, use the repository root guide:
+
+- `README.md`
+
+Quick run:
+
 Use one command to launch `llama.cpp` + rebuilt UI:
 
 `run_scal_rebuild_stack_conda.bat`
