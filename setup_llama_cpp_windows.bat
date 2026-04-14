@@ -55,8 +55,32 @@ if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 if "%LLAMA_ENABLE_CUDA%"=="" set "LLAMA_ENABLE_CUDA=ON"
 echo Build option: GGML_CUDA=%LLAMA_ENABLE_CUDA%
 
+set "CMAKE_EXTRA_ARGS="
+if /I "%LLAMA_ENABLE_CUDA%"=="ON" (
+  if not defined CUDAToolkit_ROOT (
+    if defined CONDA_PREFIX (
+      if exist "%CONDA_PREFIX%\Library\lib\cudart.lib" (
+        set "CUDAToolkit_ROOT=%CONDA_PREFIX%"
+      )
+    )
+  )
+  if not defined CUDA_PATH if defined CUDAToolkit_ROOT set "CUDA_PATH=%CUDAToolkit_ROOT%"
+  if defined CUDAToolkit_ROOT (
+    echo Using CUDAToolkit_ROOT=%CUDAToolkit_ROOT%
+    set "CMAKE_EXTRA_ARGS=-DCUDAToolkit_ROOT=%CUDAToolkit_ROOT%"
+  ) else (
+    if defined CONDA_PREFIX (
+      if not exist "%CONDA_PREFIX%\Library\lib\cudart.lib" (
+        echo WARNING: cudart.lib not found in conda env: %CONDA_PREFIX%\Library\lib\cudart.lib
+        echo Install CUDA dev libs with:
+        echo   conda install -c nvidia cuda-cudart-dev cuda-libraries-dev -y
+      )
+    )
+  )
+)
+
 echo Configuring llama.cpp with CMake...
-"%CMAKE_EXE%" -S "%LLAMA_DIR%" -B "%BUILD_DIR%" -DGGML_CUDA=%LLAMA_ENABLE_CUDA%
+"%CMAKE_EXE%" -S "%LLAMA_DIR%" -B "%BUILD_DIR%" -DGGML_CUDA=%LLAMA_ENABLE_CUDA% %CMAKE_EXTRA_ARGS%
 if errorlevel 1 (
   echo ERROR: CMake configure failed.
   pause
