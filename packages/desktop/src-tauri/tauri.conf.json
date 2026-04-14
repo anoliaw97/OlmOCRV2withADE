@@ -1,0 +1,31 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "OCRLLMVLMMLPETROAFRO",
+  "version": "0.1.0",
+  "identifier": "com.petroafro.ocrllmvlmml",
+  "build": {
+    "beforeDevCommand": "bun run --cwd ../app dev:tauri",
+    "beforeBuildCommand": "bun run --cwd ../app build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../app/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "OCRLLMVLMMLPETROAFRO Desktop",
+        "width": 1440,
+        "height": 920,
+        "resizable": true,
+        "minWidth": 1100,
+        "minHeight": 720
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all"
+  }
+}

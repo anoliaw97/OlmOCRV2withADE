@@ -1,0 +1,12 @@
+node_modules/
+.turbo/
+
+packages/app/dist/
+packages/app/.vite/
+
+packages/desktop/src-tauri/target/
+packages/desktop/src-tauri/gen/
+
+*.log
+*.tmp
+*.bak

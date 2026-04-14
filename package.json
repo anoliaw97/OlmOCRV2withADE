@@ -1,0 +1,21 @@
+{
+  "name": "ocrllmvlmmlpetroafro",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "bun@1.2.21",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run dev:desktop",
+    "dev:app": "bun run --cwd packages/app dev",
+    "dev:desktop": "bun run --cwd packages/desktop dev",
+    "build": "turbo run build",
+    "build:app": "bun run --cwd packages/app build",
+    "build:desktop": "bun run --cwd packages/desktop build",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  }
+}
