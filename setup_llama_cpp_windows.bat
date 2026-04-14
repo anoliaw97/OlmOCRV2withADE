@@ -60,7 +60,7 @@ if /I "%LLAMA_ENABLE_CUDA%"=="ON" (
   if "%CUDAToolkit_ROOT%"=="" (
     if not "%CONDA_PREFIX%"=="" (
       if exist "%CONDA_PREFIX%\Library\lib\cudart.lib" (
-        set "CUDAToolkit_ROOT=%CONDA_PREFIX%"
+        set "CUDAToolkit_ROOT=%CONDA_PREFIX%\Library"
       )
     )
   )
@@ -93,6 +93,14 @@ if /I "%LLAMA_ENABLE_CUDA%"=="ON" (
       )
     )
   )
+)
+
+if exist "%BUILD_DIR%\CMakeCache.txt" (
+  echo Removing stale CMake cache...
+  del /f /q "%BUILD_DIR%\CMakeCache.txt" >nul 2>&1
+)
+if exist "%BUILD_DIR%\CMakeFiles" (
+  rmdir /s /q "%BUILD_DIR%\CMakeFiles" >nul 2>&1
 )
 
 echo Configuring llama.cpp with CMake...
