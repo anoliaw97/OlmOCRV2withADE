@@ -57,19 +57,35 @@ echo Build option: GGML_CUDA=%LLAMA_ENABLE_CUDA%
 
 set "CMAKE_EXTRA_ARGS="
 if /I "%LLAMA_ENABLE_CUDA%"=="ON" (
-  if not defined CUDAToolkit_ROOT (
-    if defined CONDA_PREFIX (
+  if "%CUDAToolkit_ROOT%"=="" (
+    if not "%CONDA_PREFIX%"=="" (
       if exist "%CONDA_PREFIX%\Library\lib\cudart.lib" (
         set "CUDAToolkit_ROOT=%CONDA_PREFIX%"
       )
     )
   )
-  if not defined CUDA_PATH if defined CUDAToolkit_ROOT set "CUDA_PATH=%CUDAToolkit_ROOT%"
-  if defined CUDAToolkit_ROOT (
+  if "%CUDAToolkit_ROOT%"=="" (
+    if not "%CUDA_PATH%"=="" (
+      set "CUDAToolkit_ROOT=%CUDA_PATH%"
+    )
+  )
+  if "%CUDAToolkit_ROOT%"=="" (
+    if exist "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6" set "CUDAToolkit_ROOT=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6"
+    if "%CUDAToolkit_ROOT%"=="" if exist "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5" set "CUDAToolkit_ROOT=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5"
+    if "%CUDAToolkit_ROOT%"=="" if exist "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4" set "CUDAToolkit_ROOT=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
+  )
+
+  if not "%CONDA_PREFIX%"=="" (
+    if exist "%CONDA_PREFIX%\Library\bin\nvcc.exe" (
+      set "PATH=%CONDA_PREFIX%\Library\bin;%CONDA_PREFIX%\bin;%PATH%"
+    )
+  )
+
+  if not "%CUDAToolkit_ROOT%"=="" (
     echo Using CUDAToolkit_ROOT=%CUDAToolkit_ROOT%
     set "CMAKE_EXTRA_ARGS=-DCUDAToolkit_ROOT=%CUDAToolkit_ROOT%"
   ) else (
-    if defined CONDA_PREFIX (
+    if not "%CONDA_PREFIX%"=="" (
       if not exist "%CONDA_PREFIX%\Library\lib\cudart.lib" (
         echo WARNING: cudart.lib not found in conda env: %CONDA_PREFIX%\Library\lib\cudart.lib
         echo Install CUDA dev libs with:
