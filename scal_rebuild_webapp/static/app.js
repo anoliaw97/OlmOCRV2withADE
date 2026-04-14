@@ -590,14 +590,16 @@ async function runChatStream(payload) {
       assistantItem.querySelector(".meta").innerHTML = [
         `backend:${m.backend || ""}`,
         `mode:${m.response_mode || ""}`,
+        `table:${m.table_mode ? "yes" : "no"}`,
         `hits:${m.hits ?? "-"}`,
+        `used:${m.evidence_hits_used ?? "-"}`,
         `ctx:${m.context_limit ?? "-"}`,
         `prompt:${m.prompt_tokens ?? "-"}`,
         `compact:${m.session_compacted ? "yes" : "no"}`,
         `tps:${m.tokens_per_sec ?? "-"}`,
         `ms:${m.total_ms ?? "-"}`,
       ].map((x) => `<span class='badge'>${esc(x)}</span>`).join("");
-      $("perfHint").textContent = `Last: ${m.total_ms || "-"} ms | hits ${m.hits || 0} | ctx ${m.context_limit || "-"} | ${m.tokens_per_sec || "-"} tok/s`;
+      $("perfHint").textContent = `Last: ${m.total_ms || "-"} ms | hits ${m.hits || 0} used ${m.evidence_hits_used || 0} | ctx ${m.context_limit || "-"} | ${m.tokens_per_sec || "-"} tok/s`;
     }
     if (doneEvent.session_id) state.currentSessionId = doneEvent.session_id;
     renderSources(doneEvent.sources || []);

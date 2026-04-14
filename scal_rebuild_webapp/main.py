@@ -1113,6 +1113,133 @@ def approx_token_count(text: str) -> int:
     return len(re.findall(r"\w+|[^\w\s]", t, flags=re.UNICODE))
 
 
+def is_structured_table_request(question: str) -> bool:
+    q = str(question or "").strip().lower()
+    if not q:
+        return False
+    cues = [
+        r"\bextract\b",
+        r"\btable\b",
+        r"\bstructured\b",
+        r"\bcsv\b",
+        r"\brows?\b",
+        r"\bcolumns?\b",
+        r"\bfrom\s+the\s+pdf\b",
+        r"\btabular\b",
+    ]
+    score = sum(1 for pat in cues if re.search(pat, q))
+    if "extract data" in q or "structured table" in q:
+        score += 2
+    return score >= 2
+
+
+def build_evidence_context(
+    hits: list[dict[str, Any]],
+    include_table_html: bool,
+    token_budget: int,
+    text_char_limit: int,
+    html_char_limit: int,
+) -> tuple[str, int, int]:
+    total_tokens = 0
+    used_blocks = 0
+    blocks: list[str] = []
+
+    for i, h in enumerate(hits, start=1):
+        m = h.get("meta") or {}
+        txt = re.sub(r"\s+", " ", str(h.get("text") or "")).strip()
+        if len(txt) > text_char_limit:
+            txt = txt[:text_char_limit].rstrip() + " ..."
+        block = f"[{i}] file={m.get('file_name')} page={m.get('page_number')} table={m.get('table_id')}\n{txt}"
+
+        raw_html = str(m.get("raw_html") or "").strip()
+        if include_table_html and raw_html:
+            compact_html = re.sub(r"\s+", " ", raw_html)
+            if len(compact_html) > html_char_limit:
+                compact_html = compact_html[:html_char_limit].rstrip() + " ..."
+            block += f"\n\nHTML_TABLE:\n{compact_html}"
+
+        block_tokens = approx_token_count(block)
+        if blocks and total_tokens + block_tokens > max(600, token_budget):
+            break
+        blocks.append(block)
+        used_blocks += 1
+        total_tokens += block_tokens
+
+    return "\n\n".join(blocks), used_blocks, total_tokens
+
+
+def _table_to_markdown(table: dict[str, Any], max_rows: int = 16) -> str:
+    rows = list(table.get("rows") or [])
+    if not rows:
+        return ""
+    cols = list(table.get("columns") or [])
+    if not cols:
+        cols = list(rows[0].keys()) if isinstance(rows[0], dict) else []
+    if not cols:
+        return ""
+
+    def esc_cell(v: Any) -> str:
+        return str(v if v is not None else "").replace("|", "\\|").replace("\n", " ").strip()
+
+    header = "| " + " | ".join(esc_cell(c) for c in cols) + " |"
+    sep = "| " + " | ".join("---" for _ in cols) + " |"
+    body = []
+    for r in rows[: max(1, max_rows)]:
+        if isinstance(r, dict):
+            body.append("| " + " | ".join(esc_cell(r.get(c, "")) for c in cols) + " |")
+    if not body:
+        return ""
+    return "\n".join([header, sep, *body])
+
+
+def build_fallback_answer(
+    question: str,
+    hits: list[dict[str, Any]],
+    tables: list[dict[str, Any]],
+    table_mode: bool,
+) -> str:
+    if table_mode and tables:
+        out = [
+            "The model returned an empty completion, so here is a direct structured extraction from retrieved tables.",
+            "",
+        ]
+        for i, t in enumerate(tables[:3], start=1):
+            title = f"Table {i} - {t.get('file_name') or '?'} page {t.get('page_number') or '?'}"
+            if t.get("table_id"):
+                title += f" ({t.get('table_id')})"
+            out.append(f"### {title}")
+            md = _table_to_markdown(t)
+            if md:
+                out.append(md)
+            else:
+                snippet = re.sub(r"\s+", " ", str(t.get("raw_html") or "")).strip()
+                out.append(snippet[:700] + (" ..." if len(snippet) > 700 else ""))
+            out.append("")
+        return "\n".join(out).strip()
+
+    if hits:
+        lines = [
+            "The model returned an empty completion. Here are the top retrieved evidence snippets:",
+            "",
+        ]
+        for i, h in enumerate(hits[:4], start=1):
+            m = h.get("meta") or {}
+            snippet = re.sub(r"\s+", " ", str(h.get("text") or "")).strip()
+            if len(snippet) > 280:
+                snippet = snippet[:280].rstrip() + " ..."
+            lines.append(f"[{i}] {m.get('file_name') or '?'} page {m.get('page_number') or '?'}: {snippet}")
+        lines.append("")
+        lines.append("Try switching response mode to Deep for more complete extraction output.")
+        return "\n".join(lines).strip()
+
+    q = str(question or "").strip()
+    return (
+        "I could not find matching extracted evidence for this request, and the model returned an empty completion.\n"
+        "Please run RAG Build and retry, or ask with a specific document/page target.\n"
+        f"Request: {q}"
+    )
+
+
 def _message_content_to_text(content: Any) -> str:
     if isinstance(content, str):
         return content
@@ -1936,6 +2063,12 @@ async def api_chat_stream(req: ChatReq):
     mode = (req.response_mode or "fast").lower()
     gen_cfg = llm_generation_settings(mode)
     top_k = max(1, int(req.top_k or 24))
+    table_mode = is_structured_table_request(req.question)
+    if table_mode:
+        top_k = max(top_k, 28)
+        if int(gen_cfg.get("max_new_tokens", 0) or 0) < 700:
+            gen_cfg = dict(gen_cfg)
+            gen_cfg.update({"max_new_tokens": 700, "temperature": 0.1, "top_p": 0.95, "do_sample": False})
 
     if not R.docs:
         R.docs = scan_docs(R.data_root)
@@ -2067,6 +2200,9 @@ async def api_chat_stream(req: ChatReq):
             if len(vision_images) >= 4:
                 break
 
+    evidence_hits_used = 0
+    evidence_tokens = 0
+
     if is_casual_chat(req.question):
         system = (
             "You are a friendly SCAL assistant. For casual chat, respond naturally and briefly. "
@@ -2089,30 +2225,44 @@ async def api_chat_stream(req: ChatReq):
             prefix = "(No retrieved matches found for this query in current RAG chunks.)\n\n"
         user_prompt = req.question
     else:
-        ctx = []
-        for i, h in enumerate(hits, start=1):
-            m = h["meta"]
-            txt = h["text"]
-            if len(txt) > 1400:
-                txt = txt[:1400] + "..."
-            block = f"[{i}] file={m.get('file_name')} page={m.get('page_number')} table={m.get('table_id')}\n{txt}"
-            raw_html = str(m.get("raw_html") or "")
-            if req.include_table_html and raw_html:
-                if len(raw_html) > 2200:
-                    raw_html = raw_html[:2200] + "..."
-                block += f"\n\nHTML_TABLE:\n{raw_html}"
-            ctx.append(block)
-        context = "\n\n".join(ctx)
-        system = (
-            "You are a SCAL assistant focused on PDF extraction results. "
-            "Treat HTML tables inside <table>...</table> as primary source structure, "
-            "use retrieved evidence only, and cite [1],[2] references in answers."
+        evidence_budget = 5200 if table_mode else 3400
+        text_limit = 1100 if table_mode else 700
+        html_limit = 1400 if table_mode else 700
+        context, used_hits, context_tokens = build_evidence_context(
+            hits,
+            include_table_html=bool(req.include_table_html),
+            token_budget=evidence_budget,
+            text_char_limit=text_limit,
+            html_char_limit=html_limit,
         )
+        evidence_hits_used = int(used_hits)
+        evidence_tokens = int(context_tokens)
+        if table_mode:
+            system = (
+                "You are a SCAL extraction assistant. Produce structured data tables from PDF evidence. "
+                "When evidence is tabular, return markdown tables with clear headers and rows. "
+                "Do not invent values not present in evidence. Include source references like [1],[2]."
+            )
+        else:
+            system = (
+                "You are a SCAL assistant focused on PDF extraction results. "
+                "Treat HTML tables inside <table>...</table> as primary source structure, "
+                "use retrieved evidence only, and cite [1],[2] references in answers."
+            )
         task_hint = (req.prompt_template or "").strip()
         if task_hint:
-            user_prompt = f"Task:\n{task_hint}\n\nQuestion:\n{req.question}\n\nEvidence:\n{context}"
+            user_prompt = (
+                f"Task:\n{task_hint}\n\n"
+                f"Question:\n{req.question}\n\n"
+                f"Evidence (top {used_hits}/{len(hits)} hits, ~{context_tokens} tokens):\n{context}"
+            )
         else:
-            user_prompt = f"Question:\n{req.question}\n\nEvidence:\n{context}"
+            default_task = "Extract and arrange structured tables from the evidence." if table_mode else "Answer the question using evidence."
+            user_prompt = (
+                f"Task:\n{default_task}\n\n"
+                f"Question:\n{req.question}\n\n"
+                f"Evidence (top {used_hits}/{len(hits)} hits, ~{context_tokens} tokens):\n{context}"
+            )
         prefix = ""
 
     session = get_session(sid) or {"messages": []}
@@ -2141,6 +2291,7 @@ async def api_chat_stream(req: ChatReq):
     def streamer():
         answer_parts: list[str] = []
         infer_metrics: dict[str, Any] = {}
+        model_output_seen = False
         try:
             if prefix:
                 answer_parts.append(prefix)
@@ -2178,6 +2329,7 @@ async def api_chat_stream(req: ChatReq):
                         if first_token_ms is None:
                             first_token_ms = (datetime.now() - t_gen0).total_seconds() * 1000.0
                         answer_parts.append(piece)
+                        model_output_seen = True
                         yield _sse({"type": "token", "text": piece})
                     if obj.get("done"):
                         eval_count = int(obj.get("eval_count") or 0)
@@ -2229,6 +2381,7 @@ async def api_chat_stream(req: ChatReq):
                                 first_token_ms = (datetime.now() - t_gen0).total_seconds() * 1000.0
                             seen_tokens += approx_token_count(piece)
                             answer_parts.append(piece)
+                            model_output_seen = True
                             yield _sse({"type": "token", "text": piece})
 
                     usage = obj.get("usage") if isinstance(obj, dict) else None
@@ -2254,6 +2407,8 @@ async def api_chat_stream(req: ChatReq):
                 raise RuntimeError(f"Unsupported backend: {backend}")
 
             answer = "".join(answer_parts).strip()
+            if not model_output_seen:
+                answer = build_fallback_answer(req.question, hits, tables, table_mode)
             append_session_messages(
                 sid,
                 [
@@ -2281,6 +2436,7 @@ async def api_chat_stream(req: ChatReq):
                     "metrics": {
                         "backend": backend,
                         "response_mode": mode,
+                        "table_mode": bool(table_mode),
                         "model_name": R.model.get("model_name", ""),
                         "context_limit": int(bundle.get("context_limit", 0) or 0),
                         "context_limit_source": ctx_info.get("context_limit_source", "heuristic"),
@@ -2295,6 +2451,8 @@ async def api_chat_stream(req: ChatReq):
                         "answer_tokens": answer_tokens,
                         "tokens_per_sec": round(tok_s, 2) if tok_s else round((answer_tokens / max(generation_ms / 1000.0, 1e-6)), 2),
                         "hits": len(hits),
+                        "evidence_hits_used": evidence_hits_used,
+                        "evidence_tokens": evidence_tokens,
                         "max_new_tokens": int(gen_cfg.get("max_new_tokens", 0)),
                     },
                 }
