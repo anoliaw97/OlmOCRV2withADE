@@ -247,6 +247,32 @@ Export files are generated under:
 
 - `data/exports/`
 
+You can also choose custom save destination:
+
+- In chat requests, destination uses the Step 6 output folder input when provided
+- If destination is a folder, file name is auto-generated
+- If destination is a full file path, that exact path is used
+
+Chat export supports:
+
+- Excel (`.xlsx`)
+- CSV (`.csv`)
+- Word (`.docx`)
+
+## Poppler configuration in app
+
+If PDF preview reports missing `pdftoppm`, use the ML Analytics tab controls:
+
+1. Set full Poppler path (for example `C:\tools\poppler\Library\bin\pdftoppm.exe`)
+2. Click `Set Poppler`
+3. Click `Check` to verify resolved executable
+
+You can still use bootstrap command:
+
+```bat
+python bootstrap_tools.py
+```
+
 Added dependencies:
 
 - `scikit-learn`

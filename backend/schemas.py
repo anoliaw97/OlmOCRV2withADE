@@ -77,6 +77,7 @@ class ChatAskRequest(BaseModel):
     mode: str = "direct"
     package_id: str | None = None
     session_id: str | None = None
+    export_destination: str = ""
     llm_settings: LLMSettingsPayload = Field(default_factory=LLMSettingsPayload)
 
 
@@ -266,6 +267,7 @@ class MlDatasetBuildResponse(BaseModel):
 class MlTrainRequest(BaseModel):
     target: str
     dataset_csv: str = "data/ml/structured_dataset.csv"
+    algorithm: str = "random_forest"
 
 
 class MlTrainResponse(BaseModel):
@@ -276,6 +278,18 @@ class MlTrainResponse(BaseModel):
     algorithm: str = ""
     metrics: dict[str, float] = Field(default_factory=dict)
     feature_columns: list[str] = Field(default_factory=list)
+
+
+class MlTrainBatchRequest(BaseModel):
+    targets: list[str] = Field(default_factory=list)
+    dataset_csv: str = "data/ml/structured_dataset.csv"
+    algorithm: str = "random_forest"
+
+
+class MlTrainBatchResponse(BaseModel):
+    ok: bool
+    message: str
+    trained: list[MlTrainResponse] = Field(default_factory=list)
 
 
 class MlPredictRequest(BaseModel):
@@ -301,15 +315,27 @@ class MlDashboardResponse(BaseModel):
     stats: dict[str, dict[str, float]] = Field(default_factory=dict)
     feature_importance: dict[str, float] = Field(default_factory=dict)
     chart_points: list[dict[str, float]] = Field(default_factory=list)
+    available_targets: list[str] = Field(default_factory=list)
 
 
 class MlPipelineRunRequest(BaseModel):
     pipeline_path: str = ""
     pipeline_yaml: str = ""
-    default_target: str = "permeability_mean"
+    default_target: str = "Swc"
 
 
 class MlPipelineRunResponse(BaseModel):
     ok: bool
     message: str
     steps: list[str] = Field(default_factory=list)
+
+
+class PopplerConfigRequest(BaseModel):
+    pdftoppm_path: str
+
+
+class PopplerStatusResponse(BaseModel):
+    ok: bool
+    configured_path: str = ""
+    resolved_path: str = ""
+    message: str = ""

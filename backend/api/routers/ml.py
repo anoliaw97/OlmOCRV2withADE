@@ -9,6 +9,8 @@ from backend.schemas import (
     MlDashboardResponse,
     MlDatasetBuildRequest,
     MlDatasetBuildResponse,
+    MlTrainBatchRequest,
+    MlTrainBatchResponse,
     MlPipelineRunRequest,
     MlPipelineRunResponse,
     MlPredictRequest,
@@ -50,7 +52,11 @@ def ml_train(request: MlTrainRequest) -> MlTrainResponse:
     dataset_csv = Path(request.dataset_csv).expanduser().resolve()
 
     try:
-        artifact = runtime.ml_service.train_model(dataset_csv=dataset_csv, target=request.target)
+        artifact = runtime.ml_service.train_model(
+            dataset_csv=dataset_csv,
+            target=request.target,
+            algorithm=request.algorithm,
+        )
     except Exception as exc:
         runtime.log("error", f"ML train failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to train model: {exc}") from exc
@@ -67,16 +73,59 @@ def ml_train(request: MlTrainRequest) -> MlTrainResponse:
     )
 
 
+@router.post("/train/batch", response_model=MlTrainBatchResponse)
+def ml_train_batch(request: MlTrainBatchRequest) -> MlTrainBatchResponse:
+    runtime = get_runtime()
+    dataset_csv = Path(request.dataset_csv).expanduser().resolve()
+    try:
+        artifacts = runtime.ml_service.train_batch(
+            dataset_csv=dataset_csv,
+            targets=request.targets,
+            algorithm=request.algorithm,
+        )
+    except Exception as exc:
+        runtime.log("error", f"ML batch train failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed batch training: {exc}") from exc
+
+    payload = [
+        MlTrainResponse(
+            ok=True,
+            message="Model trained successfully.",
+            model_path=str(item.model_path),
+            target=item.target,
+            algorithm=item.algorithm,
+            metrics=item.metrics,
+            feature_columns=item.feature_columns,
+        )
+        for item in artifacts
+    ]
+
+    runtime.log("status", f"ML batch training completed: {len(payload)} model(s).")
+    return MlTrainBatchResponse(
+        ok=True,
+        message=f"Batch training completed: {len(payload)} model(s).",
+        trained=payload,
+    )
+
+
 @router.post("/predict", response_model=MlPredictResponse)
 def ml_predict(request: MlPredictRequest) -> MlPredictResponse:
     runtime = get_runtime()
 
     model_path = Path(request.model_path).expanduser().resolve() if request.model_path else None
     try:
+        model_algo = "random_forest"
+        if model_path is not None:
+            lowered = model_path.name.lower()
+            for candidate in ["lightgbm", "xgboost", "svr", "decision_tree", "linear", "ridge", "lasso", "elasticnet", "random_forest"]:
+                if candidate in lowered:
+                    model_algo = candidate
+                    break
         prediction, used = runtime.ml_service.predict(
             target=request.target,
             features=request.features,
             model_path=model_path,
+            algorithm=model_algo,
         )
     except Exception as exc:
         runtime.log("error", f"ML predict failed: {exc}")
@@ -93,7 +142,7 @@ def ml_predict(request: MlPredictRequest) -> MlPredictResponse:
 
 
 @router.get("/dashboard", response_model=MlDashboardResponse)
-def ml_dashboard(dataset_csv: str = "data/ml/structured_dataset.csv", target: str = "permeability_mean") -> MlDashboardResponse:
+def ml_dashboard(dataset_csv: str = "data/ml/structured_dataset.csv", target: str = "Swc") -> MlDashboardResponse:
     runtime = get_runtime()
     path = Path(dataset_csv).expanduser().resolve()
 
@@ -112,6 +161,7 @@ def ml_dashboard(dataset_csv: str = "data/ml/structured_dataset.csv", target: st
         stats=payload["stats"],
         feature_importance=payload["feature_importance"],
         chart_points=payload["chart_points"],
+        available_targets=payload["available_targets"],
     )
 
 

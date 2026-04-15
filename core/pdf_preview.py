@@ -93,3 +93,34 @@ def _resolve_pdftoppm() -> Path:
         "Poppler pdftoppm executable not found. Install Poppler and add pdftoppm to PATH, "
         "or set POPPLER_PDFTOPPM to the full executable path."
     )
+
+
+def resolve_pdftoppm_status() -> tuple[bool, str, str]:
+    env = os.environ.get("POPPLER_PDFTOPPM", "").strip()
+    configured = env
+    if env:
+        candidate = Path(env).expanduser().resolve()
+        if candidate.exists() and candidate.is_file():
+            return True, configured, str(candidate)
+
+    which = shutil.which("pdftoppm")
+    if which:
+        return True, configured, str(Path(which).resolve())
+
+    for value in DEFAULT_PDFTOPPM_CANDIDATES:
+        candidate = Path(value)
+        if candidate.exists() and candidate.is_file():
+            return True, configured, str(candidate.resolve())
+
+    return False, configured, ""
+
+
+def set_pdftoppm_path(path: str) -> tuple[bool, str]:
+    raw = path.strip()
+    if not raw:
+        return False, "Path is empty."
+    candidate = Path(raw).expanduser().resolve()
+    if not candidate.exists() or not candidate.is_file():
+        return False, f"pdftoppm not found at: {candidate}"
+    os.environ["POPPLER_PDFTOPPM"] = str(candidate)
+    return True, str(candidate)

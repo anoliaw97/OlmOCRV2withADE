@@ -705,11 +705,13 @@ async function askChat() {
   $('sendBtn').textContent = '...';
 
   try {
+    const exportDestination = ($('outputDirInput')?.value || '').trim();
     const payload = {
       question,
       mode,
       package_id: S.currentPackageId || null,
       session_id: S.currentSessionId,
+      export_destination: exportDestination,
       llm_settings: {
         backend: $('backendSelect').value,
         model: $('modelInput').value.trim(),
@@ -797,6 +799,36 @@ async function exportChat(kind) {
   }
 }
 
+async function checkPopplerStatus() {
+  try {
+    const data = await apiFetch('/api/system/poppler/status');
+    if ($('popplerPathInput') && data.configured_path) {
+      $('popplerPathInput').value = data.configured_path;
+    }
+    addChatMsg('system', data.message + (data.resolved_path ? `\nResolved: ${data.resolved_path}` : ''));
+  } catch (error) {
+    addChatMsg('system', `Poppler status check failed: ${error.message}`);
+  }
+}
+
+async function setPopplerPath() {
+  const raw = ($('popplerPathInput')?.value || '').trim();
+  if (!raw) {
+    addChatMsg('system', 'Set a pdftoppm path first.');
+    return;
+  }
+  try {
+    const data = await apiFetch('/api/system/poppler/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pdftoppm_path: raw }),
+    });
+    addChatMsg('system', data.message + (data.resolved_path ? `\nResolved: ${data.resolved_path}` : ''));
+  } catch (error) {
+    addChatMsg('system', `Set Poppler failed: ${error.message}`);
+  }
+}
+
 async function mlBuildDataset() {
   try {
     const outputCsv = $('mlDatasetPathInput').value.trim() || 'data/ml/structured_dataset.csv';
@@ -816,15 +848,32 @@ async function mlTrain() {
   try {
     const datasetCsv = $('mlDatasetPathInput').value.trim() || 'data/ml/structured_dataset.csv';
     const target = $('mlTargetSelect').value;
+    const algorithm = $('mlAlgorithmSelect').value;
     const data = await apiFetch('/api/ml/train', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target, dataset_csv: datasetCsv }),
+      body: JSON.stringify({ target, dataset_csv: datasetCsv, algorithm }),
     });
     addChatMsg('system', `${data.message} target=${data.target}, r2=${Number(data.metrics?.r2 || 0).toFixed(4)}`);
     await mlLoadDashboard();
   } catch (error) {
     addChatMsg('system', `ML train failed: ${error.message}`);
+  }
+}
+
+async function mlTrainBatch() {
+  try {
+    const datasetCsv = $('mlDatasetPathInput').value.trim() || 'data/ml/structured_dataset.csv';
+    const algorithm = $('mlAlgorithmSelect').value;
+    const data = await apiFetch('/api/ml/train/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataset_csv: datasetCsv, targets: [], algorithm }),
+    });
+    addChatMsg('system', `${data.message}`);
+    await mlLoadDashboard();
+  } catch (error) {
+    addChatMsg('system', `ML batch train failed: ${error.message}`);
   }
 }
 
@@ -920,6 +969,19 @@ async function mlLoadDashboard() {
     const data = await apiFetch(
       `/api/ml/dashboard?dataset_csv=${encodeURIComponent(datasetCsv)}&target=${encodeURIComponent(target)}`,
     );
+
+    const targetSelect = $('mlTargetSelect');
+    if (targetSelect && Array.isArray(data.available_targets) && data.available_targets.length) {
+      const current = targetSelect.value;
+      targetSelect.innerHTML = '';
+      for (const t of data.available_targets) {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        targetSelect.appendChild(opt);
+      }
+      targetSelect.value = data.available_targets.includes(current) ? current : data.available_targets[0];
+    }
 
     const lines = [];
     lines.push(`Dataset: ${data.dataset_csv}`);
@@ -1054,6 +1116,7 @@ function wireEvents() {
   });
 
   $('exportExcelBtn').onclick = () => exportChat('excel');
+  $('exportCsvBtn').onclick = () => exportChat('csv');
   $('exportWordBtn').onclick = () => exportChat('word');
 
   $('renderPdfBtn').onclick = renderPdfPreview;
@@ -1065,6 +1128,9 @@ function wireEvents() {
   if ($('mlTrainBtn')) {
     $('mlTrainBtn').onclick = mlTrain;
   }
+  if ($('mlTrainBatchBtn')) {
+    $('mlTrainBatchBtn').onclick = mlTrainBatch;
+  }
   if ($('mlPredictBtn')) {
     $('mlPredictBtn').onclick = mlPredict;
   }
@@ -1073,6 +1139,13 @@ function wireEvents() {
   }
   if ($('mlRunPipelineBtn')) {
     $('mlRunPipelineBtn').onclick = mlRunPipeline;
+  }
+
+  if ($('setPopplerBtn')) {
+    $('setPopplerBtn').onclick = setPopplerPath;
+  }
+  if ($('checkPopplerBtn')) {
+    $('checkPopplerBtn').onclick = checkPopplerStatus;
   }
 }
 
@@ -1102,6 +1175,7 @@ async function init() {
   await pollState();
   await refreshLogs();
   await mlLoadDashboard();
+  await checkPopplerStatus();
 
   setInterval(() => {
     pollState();

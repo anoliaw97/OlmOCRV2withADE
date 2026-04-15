@@ -97,6 +97,7 @@
       </div>
       <div class="row-2">
         <button id="exportExcelBtn" class="btn-full">Export Excel</button>
+        <button id="exportCsvBtn" class="btn-full">Export CSV</button>
         <button id="exportWordBtn" class="btn-full">Export Word</button>
       </div>
     </div>
@@ -186,6 +187,13 @@
     <div id="tab-ml" class="tab-pane hidden">
       <div class="viewer-content full-width">
         <div class="json-toolbar">
+          <span class="tiny-label">Poppler pdftoppm path</span>
+          <input id="popplerPathInput" type="text" class="folder-input" value="" placeholder="C:\\tools\\poppler\\Library\\bin\\pdftoppm.exe" />
+          <button id="setPopplerBtn" class="btn-xs">Set Poppler</button>
+          <button id="checkPopplerBtn" class="btn-xs">Check</button>
+        </div>
+
+        <div class="json-toolbar">
           <span class="tiny-label">Dataset CSV</span>
           <input id="mlDatasetPathInput" type="text" class="folder-input" value="data/ml/structured_dataset.csv" />
           <button id="mlBuildDatasetBtn" class="btn-xs">Build Dataset</button>
@@ -195,14 +203,31 @@
         <div class="json-toolbar">
           <span class="tiny-label">Target</span>
           <select id="mlTargetSelect" class="filter-select">
-            <option value="permeability_mean">permeability_mean</option>
-            <option value="porosity_mean">porosity_mean</option>
-            <option value="swirr_mean">swirr_mean</option>
-            <option value="kro_end_mean">kro_end_mean</option>
-            <option value="krw_end_mean">krw_end_mean</option>
-            <option value="pc_entry_mean">pc_entry_mean</option>
+            <option value="Swc">Swc</option>
+            <option value="Sor">Sor</option>
+            <option value="Sgc">Sgc</option>
+            <option value="Sgr">Sgr</option>
+            <option value="Kro_max">Kro_max</option>
+            <option value="Krw_max">Krw_max</option>
+            <option value="Krg_max">Krg_max</option>
+            <option value="n_water">n_water</option>
+            <option value="m_oil">m_oil</option>
+            <option value="n_gas">n_gas</option>
+          </select>
+          <span class="tiny-label">Algorithm</span>
+          <select id="mlAlgorithmSelect" class="filter-select">
+            <option value="random_forest">random_forest</option>
+            <option value="decision_tree">decision_tree</option>
+            <option value="svr">svr</option>
+            <option value="linear">linear</option>
+            <option value="ridge">ridge</option>
+            <option value="lasso">lasso</option>
+            <option value="elasticnet">elasticnet</option>
+            <option value="xgboost">xgboost</option>
+            <option value="lightgbm">lightgbm</option>
           </select>
           <button id="mlTrainBtn" class="btn-xs btn-accent">Train Model</button>
+          <button id="mlTrainBatchBtn" class="btn-xs">Train All Targets</button>
         </div>
 
         <div class="json-toolbar">

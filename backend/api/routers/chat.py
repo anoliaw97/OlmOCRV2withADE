@@ -103,6 +103,7 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
             export_format=export_intent.export_format,
             package=package,
             package_id=request.package_id,
+            destination=request.export_destination,
         )
 
         if export_result.ok:
@@ -383,6 +384,11 @@ def _to_session_payload(session: dict) -> ChatSessionPayload:
 
 def _runtime_metadata_answer(question: str, runtime) -> str | None:
     q = " ".join(str(question or "").lower().split())
+    if "set poppler" in q or "configure poppler" in q or "pdftoppm path" in q:
+        return (
+            "Use the ML Analytics tab Poppler controls to set/check pdftoppm path, or run: "
+            "python bootstrap_tools.py"
+        )
     if "how many reports" in q and "database" in q:
         loaded = len(runtime.packages)
         return f"You currently have {loaded} report package(s) loaded in this session."

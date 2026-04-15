@@ -31,6 +31,7 @@ class ChatExportAgent:
         export_format: str,
         package: DocumentPackage | None,
         package_id: str | None,
+        destination: str = "",
     ) -> ChatExportResult:
         cleaned = question.strip()
         chunks = self._retrieve_for_export(cleaned, package, package_id)
@@ -45,21 +46,21 @@ class ChatExportAgent:
                 matched_chunks=0,
             )
 
-        destination = self._build_output_path(export_format)
+        destination_path = self._build_output_path(export_format, destination)
         records = self._chunks_to_records(question, chunks)
 
         if export_format == "excel":
-            ok, message = self._export_excel(chunks, destination)
+            ok, message = self._export_excel(chunks, destination_path)
         elif export_format == "csv":
-            ok, message = self._export_csv(chunks, destination)
+            ok, message = self._export_csv(chunks, destination_path)
         else:
-            ok, message = self.export_service.export_chat_records(records, destination)
+            ok, message = self.export_service.export_chat_records(records, destination_path)
 
         if not ok:
             return ChatExportResult(
                 ok=False,
                 message=message,
-                file_path=str(destination),
+                file_path=str(destination_path),
                 export_format=export_format,
                 matched_chunks=len(chunks),
             )
@@ -67,7 +68,7 @@ class ChatExportAgent:
         return ChatExportResult(
             ok=True,
             message=message,
-            file_path=str(destination),
+            file_path=str(destination_path),
             export_format=export_format,
             matched_chunks=len(chunks),
         )
@@ -176,7 +177,21 @@ class ChatExportAgent:
         pd.DataFrame(rows).to_csv(destination, index=False)
         return True, f"Exported CSV: {destination}"
 
-    def _build_output_path(self, export_format: str) -> Path:
+    def _build_output_path(self, export_format: str, destination: str) -> Path:
+        if destination.strip():
+            path = Path(destination.strip()).expanduser().resolve()
+            if path.suffix:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                return path
+            ext = {
+                "excel": "xlsx",
+                "word": "docx",
+                "csv": "csv",
+            }.get(export_format, "xlsx")
+            path.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            return path / f"chat_export_{stamp}.{ext}"
+
         root = Path("data/exports").resolve()
         root.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")

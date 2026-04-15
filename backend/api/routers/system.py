@@ -14,8 +14,11 @@ from backend.schemas import (
     ModelOptionsResponse,
     RuntimeLogsResponse,
     RuntimeStateResponse,
+    PopplerConfigRequest,
+    PopplerStatusResponse,
 )
 from core.model_registry import discover_llamacpp_models, list_ollama_models
+from core.pdf_preview import resolve_pdftoppm_status, set_pdftoppm_path
 
 
 router = APIRouter(prefix="/api/system", tags=["system"])
@@ -125,6 +128,45 @@ def clear_logs(kind: str = Query(default="all")) -> dict[str, bool]:
     runtime.clear_logs(kind=kind)
     runtime.log("status", f"Logs cleared for kind='{kind}'.")
     return {"ok": True}
+
+
+@router.get("/poppler/status", response_model=PopplerStatusResponse)
+def poppler_status() -> PopplerStatusResponse:
+    ok, configured, resolved = resolve_pdftoppm_status()
+    if ok:
+        return PopplerStatusResponse(
+            ok=True,
+            configured_path=configured,
+            resolved_path=resolved,
+            message="Poppler pdftoppm is available.",
+        )
+    return PopplerStatusResponse(
+        ok=False,
+        configured_path=configured,
+        resolved_path=resolved,
+        message=(
+            "Poppler pdftoppm executable not found. Configure full path in settings, "
+            "for example C:\\tools\\poppler\\Library\\bin\\pdftoppm.exe"
+        ),
+    )
+
+
+@router.post("/poppler/config", response_model=PopplerStatusResponse)
+def poppler_config(request: PopplerConfigRequest) -> PopplerStatusResponse:
+    runtime = get_runtime()
+    ok, payload = set_pdftoppm_path(request.pdftoppm_path)
+    if not ok:
+        runtime.log("error", f"Poppler config failed: {payload}")
+        raise HTTPException(status_code=400, detail=payload)
+
+    runtime.log("status", f"Poppler path configured: {payload}")
+    status_ok, configured, resolved = resolve_pdftoppm_status()
+    return PopplerStatusResponse(
+        ok=status_ok,
+        configured_path=configured,
+        resolved_path=resolved,
+        message="Poppler path configured successfully.",
+    )
 
 
 def _resolve_default_browse_root() -> Path:

@@ -18,20 +18,105 @@ except Exception:
     yaml = None
 
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
+from sklearn.tree import DecisionTreeRegressor
+
+try:
+    import xgboost as xgb
+
+    XGBOOST_AVAILABLE = True
+except Exception:
+    xgb = None
+    XGBOOST_AVAILABLE = False
+
+try:
+    import lightgbm as lgb
+
+    LIGHTGBM_AVAILABLE = True
+except Exception:
+    lgb = None
+    LIGHTGBM_AVAILABLE = False
 
 
 NUMBER_PATTERN = re.compile(r"[-+]?\d+(?:\.\d+)?")
 
-FEATURE_COLUMNS = [
-    "porosity_mean",
-    "permeability_mean",
-    "swirr_mean",
-    "kro_end_mean",
-    "krw_end_mean",
-    "pc_entry_mean",
+TARGET_COLUMNS = [
+    "Swc",
+    "Sor",
+    "Sgc",
+    "Sgr",
+    "Kro_max",
+    "Krw_max",
+    "Krg_max",
+    "n_water",
+    "m_oil",
+    "n_gas",
 ]
+
+SUPPLEMENTAL_TARGET_COLUMNS = [
+    "Kklin_md",
+    "phi",
+    "RQI",
+]
+
+BASE_FEATURE_COLUMNS = [
+    "Depth",
+    "Kklin_md",
+    "phi",
+    "RQI",
+    "Swc",
+    "Sor",
+    "Sgc",
+    "Sgr",
+    "Kro_max",
+    "Krw_max",
+    "Krg_max",
+]
+
+MODEL_HYPERPARAMS = {
+    "random_forest": {
+        "n_estimators": 250,
+        "max_depth": 15,
+        "min_samples_split": 5,
+        "random_state": 42,
+        "n_jobs": -1,
+    },
+    "decision_tree": {
+        "max_depth": 10,
+        "min_samples_leaf": 4,
+        "random_state": 42,
+    },
+    "svr": {
+        "kernel": "rbf",
+        "C": 1.0,
+        "epsilon": 0.08,
+        "gamma": "scale",
+    },
+    "linear": {},
+    "ridge": {"alpha": 1.0, "random_state": 42},
+    "lasso": {"alpha": 0.01, "random_state": 42},
+    "elasticnet": {"alpha": 0.01, "l1_ratio": 0.5, "random_state": 42},
+    "xgboost": {
+        "n_estimators": 250,
+        "max_depth": 6,
+        "learning_rate": 0.07,
+        "random_state": 42,
+        "n_jobs": -1,
+        "verbosity": 0,
+    },
+    "lightgbm": {
+        "n_estimators": 250,
+        "max_depth": 6,
+        "learning_rate": 0.07,
+        "random_state": 42,
+        "n_jobs": -1,
+        "verbose": -1,
+    },
+}
 
 
 @dataclass(slots=True)
@@ -52,20 +137,20 @@ class MlPipelineService:
     def build_structured_dataset(self, packages: list[DocumentPackage], output_csv: Path) -> tuple[int, list[str]]:
         rows = []
         for package in packages:
-            parsed = self._extract_numeric_features(package)
-            if parsed:
+            parsed = self._extract_scal_features(package)
+            if parsed is not None:
                 rows.append(parsed)
 
         frame = pd.DataFrame(rows)
         if frame.empty:
-            frame = pd.DataFrame(columns=["package_id", "base_name", *FEATURE_COLUMNS])
+            frame = pd.DataFrame(columns=["package_id", "base_name", *BASE_FEATURE_COLUMNS, *TARGET_COLUMNS])
 
         output = output_csv.expanduser().resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         frame.to_csv(output, index=False)
         return len(frame), list(frame.columns)
 
-    def train_model(self, dataset_csv: Path, target: str) -> TrainArtifact:
+    def train_model(self, dataset_csv: Path, target: str, algorithm: str = "random_forest") -> TrainArtifact:
         csv_path = dataset_csv.expanduser().resolve()
         if not csv_path.exists():
             raise FileNotFoundError(f"Dataset file not found: {csv_path}")
@@ -76,16 +161,18 @@ class MlPipelineService:
         if target not in frame.columns:
             raise ValueError(f"Target column '{target}' not found in dataset.")
 
-        usable_features = [col for col in FEATURE_COLUMNS if col in frame.columns and col != target]
-        if not usable_features:
-            raise ValueError("No usable feature columns found for training.")
-
         train_frame = frame.copy()
-        for col in usable_features + [target]:
-            train_frame[col] = pd.to_numeric(train_frame[col], errors="coerce")
+        for col in BASE_FEATURE_COLUMNS + [target]:
+            if col in train_frame.columns:
+                train_frame[col] = pd.to_numeric(train_frame[col], errors="coerce")
+
+        usable_features = [col for col in BASE_FEATURE_COLUMNS if col in train_frame.columns and col != target]
+        if not usable_features:
+            raise ValueError("No usable feature columns available.")
+
         train_frame = train_frame.dropna(subset=[target])
         if train_frame.empty:
-            raise ValueError("No valid target values available after cleaning.")
+            raise ValueError("No valid target values available.")
 
         for col in usable_features:
             if train_frame[col].isna().all():
@@ -95,32 +182,28 @@ class MlPipelineService:
 
         X = train_frame[usable_features]
         y = train_frame[target]
-        if len(train_frame) < 6:
-            model = RandomForestRegressor(n_estimators=200, random_state=42)
-            model.fit(X, y)
-            y_pred = model.predict(X)
-            metrics = {
-                "r2": float(r2_score(y, y_pred)) if len(train_frame) > 1 else 0.0,
-                "mae": float(mean_absolute_error(y, y_pred)),
-                "rmse": float(np.sqrt(mean_squared_error(y, y_pred))),
-            }
+        if len(train_frame) < 12:
+            X_train, X_test, y_train, y_test = X, X, y, y
         else:
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
-            model = RandomForestRegressor(n_estimators=300, random_state=42)
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_test)
-            metrics = {
-                "r2": float(r2_score(y_test, y_pred)),
-                "mae": float(mean_absolute_error(y_test, y_pred)),
-                "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
-            }
 
-        model_path = self._default_model_path(target)
+        model, scaler = self._fit_model(algorithm, X_train, y_train)
+        X_eval = scaler.transform(X_test) if scaler is not None else X_test
+        y_pred = model.predict(X_eval)
+
+        metrics = {
+            "r2": float(r2_score(y_test, y_pred)) if len(y_test) > 1 else 0.0,
+            "mae": float(mean_absolute_error(y_test, y_pred)),
+            "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
+        }
+
+        model_path = self._default_model_path(target, algorithm)
         payload = {
             "target": target,
-            "algorithm": "RandomForestRegressor",
+            "algorithm": algorithm,
             "features": usable_features,
             "model": model,
+            "scaler": scaler,
             "metrics": metrics,
         }
         with model_path.open("wb") as handle:
@@ -129,21 +212,53 @@ class MlPipelineService:
         return TrainArtifact(
             model_path=model_path,
             target=target,
-            algorithm="RandomForestRegressor",
+            algorithm=algorithm,
             metrics=metrics,
             feature_columns=usable_features,
         )
 
-    def predict(self, target: str, features: dict[str, float], model_path: Path | None = None) -> tuple[float, dict[str, float]]:
-        path = model_path.expanduser().resolve() if model_path else self._default_model_path(target)
+    def train_batch(self, dataset_csv: Path, targets: list[str], algorithm: str) -> list[TrainArtifact]:
+        csv_path = dataset_csv.expanduser().resolve()
+        if not csv_path.exists():
+            raise FileNotFoundError(f"Dataset file not found: {csv_path}")
+
+        selected = [t for t in targets if t]
+        if not selected:
+            frame = pd.read_csv(csv_path)
+            selected = self._trainable_targets(frame)
+        if not selected:
+            raise ValueError("No trainable targets were found in dataset.")
+
+        artifacts = []
+        for target in selected:
+            try:
+                artifact = self.train_model(dataset_csv=dataset_csv, target=target, algorithm=algorithm)
+                artifacts.append(artifact)
+            except Exception:
+                continue
+        return artifacts
+
+    def predict(
+        self,
+        target: str,
+        features: dict[str, float],
+        model_path: Path | None = None,
+        algorithm: str = "random_forest",
+    ) -> tuple[float, dict[str, float]]:
+        path = model_path.expanduser().resolve() if model_path else self._default_model_path(target, algorithm)
         if not path.exists():
-            raise FileNotFoundError(f"Model not found: {path}. Train model first.")
+            candidates = sorted(self.ml_root.glob(f"model_{self._safe_target(target)}_*.pkl"))
+            if not candidates:
+                raise FileNotFoundError(f"Model not found: {path}")
+            path = candidates[-1]
 
         with path.open("rb") as handle:
             payload = pickle.load(handle)
 
         model = payload["model"]
+        scaler = payload.get("scaler")
         cols = list(payload.get("features", []))
+
         used = {}
         row = []
         for col in cols:
@@ -151,7 +266,10 @@ class MlPipelineService:
             used[col] = value
             row.append(value)
 
-        pred = float(model.predict([row])[0])
+        X = np.array([row], dtype=float)
+        if scaler is not None:
+            X = scaler.transform(X)
+        pred = float(model.predict(X)[0])
         return pred, used
 
     def dashboard(self, dataset_csv: Path, target: str) -> dict[str, Any]:
@@ -161,7 +279,7 @@ class MlPipelineService:
         frame = pd.read_csv(csv_path)
 
         stats: dict[str, dict[str, float]] = {}
-        for col in FEATURE_COLUMNS:
+        for col in [*BASE_FEATURE_COLUMNS, *TARGET_COLUMNS]:
             if col not in frame.columns:
                 continue
             series = pd.to_numeric(frame[col], errors="coerce").dropna()
@@ -175,9 +293,9 @@ class MlPipelineService:
             }
 
         importance = {}
-        model_path = self._default_model_path(target)
-        if model_path.exists():
-            with model_path.open("rb") as handle:
+        latest_model = self._latest_model_for_target(target)
+        if latest_model is not None:
+            with latest_model.open("rb") as handle:
                 payload = pickle.load(handle)
             model = payload.get("model")
             cols = payload.get("features", [])
@@ -188,13 +306,28 @@ class MlPipelineService:
                 }
 
         chart_points = []
-        if target in frame.columns:
-            for _, row in frame.head(300).iterrows():
-                x = float(pd.to_numeric(row.get("porosity_mean", np.nan), errors="coerce") or np.nan)
+        x_feature = "phi" if "phi" in frame.columns else "Kklin_md"
+        if target in frame.columns and x_feature in frame.columns:
+            for _, row in frame.head(500).iterrows():
+                x = float(pd.to_numeric(row.get(x_feature, np.nan), errors="coerce") or np.nan)
                 y = float(pd.to_numeric(row.get(target, np.nan), errors="coerce") or np.nan)
                 if np.isnan(x) or np.isnan(y):
                     continue
                 chart_points.append({"x": x, "y": y})
+
+        available_targets = self._trainable_targets(frame)
+
+        chosen_target = target if target in available_targets else (available_targets[0] if available_targets else target)
+        if chosen_target != target:
+            chart_points = []
+            x_feature = "phi" if "phi" in frame.columns else "Kklin_md"
+            if chosen_target in frame.columns and x_feature in frame.columns:
+                for _, row in frame.head(500).iterrows():
+                    x = float(pd.to_numeric(row.get(x_feature, np.nan), errors="coerce") or np.nan)
+                    y = float(pd.to_numeric(row.get(chosen_target, np.nan), errors="coerce") or np.nan)
+                    if np.isnan(x) or np.isnan(y):
+                        continue
+                    chart_points.append({"x": x, "y": y})
 
         return {
             "dataset_csv": str(csv_path),
@@ -203,7 +336,21 @@ class MlPipelineService:
             "stats": stats,
             "feature_importance": importance,
             "chart_points": chart_points,
+            "available_targets": available_targets,
+            "selected_target": chosen_target,
         }
+
+    def _trainable_targets(self, frame: pd.DataFrame) -> list[str]:
+        preferred = [*TARGET_COLUMNS, *SUPPLEMENTAL_TARGET_COLUMNS]
+        selected: list[str] = []
+        for col in preferred:
+            if col not in frame.columns:
+                continue
+            series = pd.to_numeric(frame[col], errors="coerce").dropna()
+            if series.empty:
+                continue
+            selected.append(col)
+        return selected
 
     def run_pipeline_definition(
         self,
@@ -220,6 +367,7 @@ class MlPipelineService:
         steps = []
         dataset_csv = self.ml_root / "structured_dataset.csv"
         target = default_target
+        algorithm = "random_forest"
 
         for component in components:
             if not isinstance(component, dict):
@@ -231,13 +379,16 @@ class MlPipelineService:
                 out = self._component_output_path(component, "processed_data", dataset_csv)
                 rows, cols = self.build_structured_dataset(packages, out)
                 dataset_csv = out
-                steps.append(f"{name}: built dataset rows={rows}, cols={len(cols)}")
+                steps.append(f"{name}: dataset built rows={rows}, cols={len(cols)}")
                 continue
 
             if "train" in name.lower() or "train" in script:
                 target = self._component_target(component, target)
-                artifact = self.train_model(dataset_csv, target)
-                steps.append(f"{name}: trained {artifact.algorithm} for target={target}")
+                algorithm = self._component_algorithm(component, algorithm)
+                artifact = self.train_model(dataset_csv, target, algorithm)
+                steps.append(
+                    f"{name}: trained {artifact.algorithm} target={target} r2={artifact.metrics.get('r2', 0.0):.4f}"
+                )
                 continue
 
             if "evaluate" in name.lower() or "evaluate" in script:
@@ -252,14 +403,22 @@ class MlPipelineService:
 
         return steps
 
-    def _extract_numeric_features(self, package: DocumentPackage) -> dict[str, Any] | None:
-        collected = {
-            "porosity_mean": [],
-            "permeability_mean": [],
-            "swirr_mean": [],
-            "kro_end_mean": [],
-            "krw_end_mean": [],
-            "pc_entry_mean": [],
+    def _extract_scal_features(self, package: DocumentPackage) -> dict[str, Any] | None:
+        collected: dict[str, list[float]] = {
+            "Depth": [],
+            "Kklin_md": [],
+            "phi": [],
+            "RQI": [],
+            "Swc": [],
+            "Sor": [],
+            "Sgc": [],
+            "Sgr": [],
+            "Kro_max": [],
+            "Krw_max": [],
+            "Krg_max": [],
+            "n_water": [],
+            "m_oil": [],
+            "n_gas": [],
         }
 
         for path in package.extracted_paths():
@@ -272,13 +431,21 @@ class MlPipelineService:
             "package_id": package.package_id,
             "base_name": package.base_name,
         }
+        for key in [*BASE_FEATURE_COLUMNS, *TARGET_COLUMNS]:
+            vals = collected.get(key, [])
+            row[key] = float(np.mean(vals)) if vals else np.nan
 
-        for key in FEATURE_COLUMNS:
-            values = collected.get(key, [])
-            row[key] = float(np.mean(values)) if values else np.nan
-
-        if all(np.isnan(row[col]) for col in FEATURE_COLUMNS):
+        if np.isnan(row.get("phi", np.nan)) and np.isnan(row.get("Kklin_md", np.nan)):
             return None
+
+        if np.isnan(row.get("RQI", np.nan)) and not np.isnan(row.get("phi", np.nan)) and not np.isnan(
+            row.get("Kklin_md", np.nan)
+        ):
+            phi = row["phi"]
+            k = row["Kklin_md"]
+            if phi > 0 and k > 0:
+                row["RQI"] = float(0.0314 * np.sqrt(k / phi))
+
         return row
 
     def _scan_text_for_values(self, text: str, bucket: dict[str, list[float]]) -> None:
@@ -288,22 +455,99 @@ class MlPipelineService:
             if not numbers:
                 continue
 
-            if "porosity" in lower:
-                bucket["porosity_mean"].extend(numbers)
-            if "perm" in lower:
-                bucket["permeability_mean"].extend(numbers)
-            if "swirr" in lower or "irreducible water" in lower:
-                bucket["swirr_mean"].extend(numbers)
-            if "kro" in lower:
-                bucket["kro_end_mean"].extend(numbers)
-            if "krw" in lower:
-                bucket["krw_end_mean"].extend(numbers)
-            if "pc" in lower and ("entry" in lower or "capillary" in lower):
-                bucket["pc_entry_mean"].extend(numbers)
+            if "depth" in lower:
+                bucket["Depth"].extend(numbers)
+            if "kklin" in lower or "kabs" in lower or "permeability" in lower:
+                bucket["Kklin_md"].extend(numbers)
+            if "porosity" in lower or "phi" in lower or "φ" in line:
+                bucket["phi"].extend(numbers)
+            if "rqi" in lower:
+                bucket["RQI"].extend(numbers)
+            if "swc" in lower:
+                bucket["Swc"].extend(numbers)
+            if "sor" in lower and "sorg" not in lower and "sorw" not in lower:
+                bucket["Sor"].extend(numbers)
+            if "sgc" in lower:
+                bucket["Sgc"].extend(numbers)
+            if "sgr" in lower:
+                bucket["Sgr"].extend(numbers)
+            if "kro" in lower and "max" in lower:
+                bucket["Kro_max"].extend(numbers)
+            if "krw" in lower and "max" in lower:
+                bucket["Krw_max"].extend(numbers)
+            if "krg" in lower and "max" in lower:
+                bucket["Krg_max"].extend(numbers)
+            if "n_water" in lower or "nw" in lower:
+                bucket["n_water"].extend(numbers)
+            if "m_oil" in lower or "mo" in lower:
+                bucket["m_oil"].extend(numbers)
+            if "n_gas" in lower or "ng" in lower:
+                bucket["n_gas"].extend(numbers)
 
-    def _default_model_path(self, target: str) -> Path:
-        safe = re.sub(r"[^a-zA-Z0-9_\-]", "_", target)
-        return self.ml_root / f"model_{safe}.pkl"
+    def _fit_model(self, algorithm: str, X_train: pd.DataFrame, y_train: pd.Series):
+        algo = (algorithm or "random_forest").strip().lower()
+        scaler = None
+
+        if algo == "linear":
+            model = LinearRegression(**MODEL_HYPERPARAMS["linear"])
+            model.fit(X_train, y_train)
+            return model, scaler
+
+        if algo == "ridge":
+            model = Ridge(**MODEL_HYPERPARAMS["ridge"])
+            model.fit(X_train, y_train)
+            return model, scaler
+
+        if algo == "lasso":
+            model = Lasso(**MODEL_HYPERPARAMS["lasso"])
+            model.fit(X_train, y_train)
+            return model, scaler
+
+        if algo == "elasticnet":
+            model = ElasticNet(**MODEL_HYPERPARAMS["elasticnet"])
+            model.fit(X_train, y_train)
+            return model, scaler
+
+        if algo == "decision_tree":
+            model = DecisionTreeRegressor(**MODEL_HYPERPARAMS["decision_tree"])
+            model.fit(X_train, y_train)
+            return model, scaler
+
+        if algo == "svr":
+            scaler = StandardScaler()
+            Xs = scaler.fit_transform(X_train)
+            model = SVR(**MODEL_HYPERPARAMS["svr"])
+            model.fit(Xs, y_train)
+            return model, scaler
+
+        if algo == "xgboost" and XGBOOST_AVAILABLE and xgb is not None:
+            model = xgb.XGBRegressor(**MODEL_HYPERPARAMS["xgboost"])
+            model.fit(X_train, y_train)
+            return model, scaler
+
+        if algo == "lightgbm" and LIGHTGBM_AVAILABLE and lgb is not None:
+            model = lgb.LGBMRegressor(**MODEL_HYPERPARAMS["lightgbm"])
+            model.fit(X_train, y_train)
+            return model, scaler
+
+        model = RandomForestRegressor(**MODEL_HYPERPARAMS["random_forest"])
+        model.fit(X_train, y_train)
+        return model, scaler
+
+    def _default_model_path(self, target: str, algorithm: str) -> Path:
+        safe_target = self._safe_target(target)
+        safe_algo = re.sub(r"[^a-zA-Z0-9_\-]", "_", algorithm or "random_forest")
+        return self.ml_root / f"model_{safe_target}_{safe_algo}.pkl"
+
+    def _latest_model_for_target(self, target: str) -> Path | None:
+        safe_target = self._safe_target(target)
+        matches = sorted(self.ml_root.glob(f"model_{safe_target}_*.pkl"))
+        if not matches:
+            return None
+        return matches[-1]
+
+    def _safe_target(self, target: str) -> str:
+        return re.sub(r"[^a-zA-Z0-9_\-]", "_", target)
 
     def _load_pipeline_definition(self, pipeline_path: str, pipeline_yaml_text: str) -> dict[str, Any]:
         if pipeline_yaml_text.strip():
@@ -351,11 +595,23 @@ class MlPipelineService:
             return str(inputs["target"]).strip() or default_target
         return default_target
 
+    def _component_algorithm(self, component: dict[str, Any], default_algorithm: str) -> str:
+        inputs = component.get("inputs")
+        if isinstance(inputs, list):
+            for item in inputs:
+                if not isinstance(item, dict):
+                    continue
+                if "algorithm" in item:
+                    return str(item["algorithm"]).strip() or default_algorithm
+        if isinstance(inputs, dict) and "algorithm" in inputs:
+            return str(inputs["algorithm"]).strip() or default_algorithm
+        return default_algorithm
+
     def _read_metrics_for_target(self, target: str) -> dict[str, float]:
-        path = self._default_model_path(target)
-        if not path.exists():
+        latest = self._latest_model_for_target(target)
+        if latest is None:
             return {}
-        with path.open("rb") as handle:
+        with latest.open("rb") as handle:
             payload = pickle.load(handle)
         metrics = payload.get("metrics", {})
         return {
