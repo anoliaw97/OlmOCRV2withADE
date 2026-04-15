@@ -112,6 +112,9 @@ class ChatAskResponse(BaseModel):
     route_type: str = "general"
     route_confidence: float = 0.0
     route_reason: str = ""
+    action_type: str = "chat"
+    export_file_path: str = ""
+    export_format: str = ""
 
 
 class RetrievalQueryRequest(BaseModel):

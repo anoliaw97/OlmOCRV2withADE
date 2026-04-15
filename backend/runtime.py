@@ -4,6 +4,7 @@ from pathlib import Path
 
 from backend.schemas import PreviewTable
 from core.chat_agent import ChatAgent
+from core.chat_export_agent import ChatExportAgent
 from core.chat_sessions import ChatSessionStore
 from core.export_service import ChatRecord, ExportService
 from core.llm_backends import LLMSettings
@@ -29,6 +30,7 @@ class WorkflowRuntime:
         self.retrieval_engine = RetrievalEngine(self.rag_index)
         self.chat_agent = ChatAgent(self.retrieval_engine)
         self.export_service = ExportService()
+        self.chat_export_agent = ChatExportAgent(self.retrieval_engine, self.export_service)
         self.ml_service = MlPipelineService(Path("."))
         self.session_store = ChatSessionStore(Path("data/chat_sessions.json"))
         self.logs = RuntimeLogs()

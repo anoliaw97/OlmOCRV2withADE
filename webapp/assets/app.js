@@ -557,6 +557,22 @@ function buildRouteBadge(routeType, routeConfidence, routeReason) {
   return `<div class="msg-meta"><span class=\"msg-badge\">${esc(text)}</span></div>`;
 }
 
+function buildExportBadge(data) {
+  if (!data) {
+    return '';
+  }
+  if (!data.action_type || !String(data.action_type).startsWith('export')) {
+    return '';
+  }
+  const format = (data.export_format || '').toUpperCase();
+  const path = data.export_file_path || '';
+  const chips = [`action=${data.action_type}`, `format=${format || '-'}`];
+  if (path) {
+    chips.push(`file=${path}`);
+  }
+  return `<div class="msg-meta">${chips.map((t) => `<span class=\"msg-badge\">${esc(t)}</span>`).join('')}</div>`;
+}
+
 function splitPipeRow(line) {
   const trimmed = line.trim().replace(/^\|/, '').replace(/\|$/, '');
   return trimmed.split('|').map((v) => v.trim());
@@ -717,9 +733,10 @@ async function askChat() {
 
     const metricsHtml = buildMetricsBadges(data.metrics);
     const routeHtml = buildRouteBadge(data.route_type, data.route_confidence, data.route_reason);
+    const exportHtml = buildExportBadge(data);
     const indicator = resolveResponseIndicator(data.route_type);
     addChatMsg('system', indicator);
-    addChatMsg('assistant', data.answer || '', metricsHtml + routeHtml);
+    addChatMsg('assistant', data.answer || '', metricsHtml + routeHtml + exportHtml);
 
     if ((data.citations || []).length) {
       const cites = data.citations.map((c) => `- ${c.source_file} (${c.source_type}, score=${Number(c.score).toFixed(2)})`);

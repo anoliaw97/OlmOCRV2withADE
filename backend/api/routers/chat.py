@@ -21,6 +21,7 @@ from backend.schemas import (
 )
 from core.llm_backends import DEFAULT_SYSTEM_PROMPT, LLMSettings
 from core.model_registry import detect_model_context_limit
+from core.export_intent_parser import parse_export_intent
 from core.query_router import QueryRouter
 
 
@@ -90,6 +91,72 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
 
     session_history = runtime.recent_session_messages(session_id=session_id, limit=8)
     package = runtime.get_package(request.package_id)
+
+    export_intent = parse_export_intent(request.question)
+    if export_intent.is_export:
+        runtime.log(
+            "status",
+            f"Export chat intent detected: format={export_intent.export_format}, confidence={export_intent.confidence:.2f}",
+        )
+        export_result = runtime.chat_export_agent.run_export(
+            question=request.question,
+            export_format=export_intent.export_format,
+            package=package,
+            package_id=request.package_id,
+        )
+
+        if export_result.ok:
+            answer = (
+                f"I found {export_result.matched_chunks} relevant extracted chunk(s) and generated a "
+                f"{export_result.export_format.upper()} file.\n"
+                f"Saved at: {export_result.file_path}"
+            )
+            runtime.log("status", answer)
+            return ChatAskResponse(
+                answer=answer,
+                citations=[],
+                mode=request.mode,
+                runtime="assistant",
+                model=settings_payload.model,
+                assistant_name=_assistant_name(settings_payload.model, "assistant"),
+                session_id=session_id,
+                reasoning_chain=[
+                    "Detected export intent from user prompt.",
+                    "Retrieved relevant extracted content.",
+                    f"Generated {export_result.export_format.upper()} export file.",
+                ],
+                metrics=ChatMetricsPayload(),
+                route_type="document",
+                route_confidence=float(export_intent.confidence),
+                route_reason=export_intent.reason,
+                action_type=f"export_{export_result.export_format}",
+                export_file_path=export_result.file_path,
+                export_format=export_result.export_format,
+            )
+
+        runtime.log("error", f"Export action failed: {export_result.message}")
+        return ChatAskResponse(
+            answer=export_result.message,
+            citations=[],
+            mode=request.mode,
+            runtime="assistant",
+            model=settings_payload.model,
+            assistant_name=_assistant_name(settings_payload.model, "assistant"),
+            session_id=session_id,
+            reasoning_chain=[
+                "Detected export intent from user prompt.",
+                "Tried to gather extracted content for export.",
+                "Export generation could not complete with available content.",
+            ],
+            metrics=ChatMetricsPayload(),
+            route_type="document",
+            route_confidence=float(export_intent.confidence),
+            route_reason=export_intent.reason,
+            action_type="export_failed",
+            export_file_path=export_result.file_path,
+            export_format=export_result.export_format,
+        )
+
     router = QueryRouter(runtime.retrieval_engine)
     route = router.route(
         question=request.question,
@@ -117,6 +184,7 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
             route_type="general",
             route_confidence=0.99,
             route_reason="runtime-metadata-question",
+            action_type="chat",
         )
 
     ml_hint = runtime.chat_agent.maybe_handle_ml_command(request.question, runtime.packages)
@@ -134,6 +202,7 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
             route_type="general",
             route_confidence=0.93,
             route_reason="ml-workflow-intent",
+            action_type="chat",
         )
 
     started = time.perf_counter()
@@ -245,6 +314,9 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
         route_type=response.route_type,
         route_confidence=float(response.route_confidence),
         route_reason=response.route_reason,
+        action_type="chat",
+        export_file_path="",
+        export_format="",
     )
 
 

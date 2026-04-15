@@ -228,6 +228,25 @@ Available API endpoints:
 - `GET /api/ml/dashboard`
 - `POST /api/ml/pipeline/run`
 
+## Chat-driven export actions (Step 6 upgraded)
+
+Export is now a first-class chat-agent action. You can request exports in natural language from chat, for example:
+
+- "Export all permeability tables to Excel"
+- "Compile all SCAL tables and save as xlsx"
+- "Summarize this report and export to Word"
+
+Behavior:
+
+1. Chat intent parser detects export action + target format
+2. Retrieval gathers relevant extracted JSON/MD/TXT chunks
+3. Export agent compiles content and generates file
+4. Chat returns success/failure with file path and action metadata
+
+Export files are generated under:
+
+- `data/exports/`
+
 Added dependencies:
 
 - `scikit-learn`
