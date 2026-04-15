@@ -12,6 +12,10 @@ from core.loaders import DocumentPackage
 SECTION_HEADING_PATTERN = re.compile(r"^#{1,6}\s+(?P<title>.+)$", re.MULTILINE)
 PAGE_PATTERN = re.compile(r"\bpage\s*(\d{1,4})\b", re.IGNORECASE)
 
+MAX_JSON_FLATTEN_LINES = 120000
+MAX_JSON_FLATTEN_DEPTH = 24
+MAX_JSON_VALUE_CHARS = 4000
+
 
 @dataclass(slots=True)
 class TextChunk:
@@ -59,7 +63,7 @@ def _chunk_json_file(package_id: str, path: Path, chunk_size: int, overlap: int)
     try:
         payload = json.loads(raw)
         flattened_lines: list[str] = []
-        _flatten_json(payload, flattened_lines, prefix="root")
+        _flatten_json(payload, flattened_lines, prefix="root", depth=0)
         normalized = "\n".join(flattened_lines)
     except json.JSONDecodeError:
         normalized = raw
@@ -75,18 +79,30 @@ def _chunk_json_file(package_id: str, path: Path, chunk_size: int, overlap: int)
     )
 
 
-def _flatten_json(value: Any, out: list[str], prefix: str) -> None:
+def _flatten_json(value: Any, out: list[str], prefix: str, depth: int) -> None:
+    if len(out) >= MAX_JSON_FLATTEN_LINES:
+        return
+    if depth > MAX_JSON_FLATTEN_DEPTH:
+        out.append(f"{prefix}: [truncated: max nesting depth reached]")
+        return
+
     if isinstance(value, dict):
         for key, nested in value.items():
-            _flatten_json(nested, out, f"{prefix}.{key}")
+            _flatten_json(nested, out, f"{prefix}.{key}", depth + 1)
+            if len(out) >= MAX_JSON_FLATTEN_LINES:
+                return
         return
 
     if isinstance(value, list):
         for idx, nested in enumerate(value):
-            _flatten_json(nested, out, f"{prefix}[{idx}]")
+            _flatten_json(nested, out, f"{prefix}[{idx}]", depth + 1)
+            if len(out) >= MAX_JSON_FLATTEN_LINES:
+                return
         return
 
     serialized = str(value)
+    if len(serialized) > MAX_JSON_VALUE_CHARS:
+        serialized = serialized[:MAX_JSON_VALUE_CHARS] + "...[truncated]"
     out.append(f"{prefix}: {serialized}")
 
 

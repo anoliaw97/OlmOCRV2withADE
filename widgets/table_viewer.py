@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.api_client import ApiPreviewTable
 from core.table_renderer import ExtractedTable
 
 
@@ -44,6 +45,34 @@ class TableViewer(QWidget):
 
             if isinstance(table.dataframe, pd.DataFrame) and not table.dataframe.empty:
                 widget = _dataframe_to_table_widget(table.dataframe)
+            else:
+                widget = QLabel("Table parsing fallback. Check raw view below.")
+                widget.setWordWrap(True)
+
+            self.tabs.addTab(widget, title)
+
+            raw_piece = table.raw_text.strip()
+            if raw_piece:
+                raw_blocks.append(f"[{title}]\n{raw_piece}")
+
+        self.raw_fallback.setPlainText("\n\n".join(raw_blocks))
+
+    def set_api_tables(self, tables: list[ApiPreviewTable]) -> None:
+        self.tabs.clear()
+        if not tables:
+            empty_widget = QLabel("No tables detected in JSON/Markdown for this package.")
+            empty_widget.setWordWrap(True)
+            self.tabs.addTab(empty_widget, "No tables")
+            self.raw_fallback.setPlainText("")
+            return
+
+        raw_blocks: list[str] = []
+        for index, table in enumerate(tables, start=1):
+            title = f"{index}. {table.title}"
+
+            if table.headers and table.rows:
+                frame = pd.DataFrame(table.rows, columns=table.headers)
+                widget = _dataframe_to_table_widget(frame)
             else:
                 widget = QLabel("Table parsing fallback. Check raw view below.")
                 widget.setWordWrap(True)

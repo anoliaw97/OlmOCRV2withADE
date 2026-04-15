@@ -1,6 +1,6 @@
 # Python Workflow Query Desktop
 
-Local Python desktop app for loading extracted document outputs and querying them with a grounded chat workflow.
+Local Python workflow app with a FastAPI backend plus a PySide6 desktop UI for loading extracted document outputs and querying them with a grounded chat workflow.
 
 This project is designed for Windows + Anaconda Prompt and keeps extraction separate from query/chat.
 
@@ -45,9 +45,25 @@ This can later be replaced by FAISS/Chroma without rewriting the UI.
 ```text
 G:\Python Based Workflow\
 |- app.py
+|- run_backend.py
 |- requirements.txt
 |- README.md
 |- .gitignore
+|- backend/
+|  |- __init__.py
+|  |- app.py
+|  |- dependencies.py
+|  |- runtime.py
+|  |- schemas.py
+|  |- utils.py
+|  `- api/
+|     |- __init__.py
+|     `- routers/
+|        |- chat.py
+|        |- export.py
+|        |- loaders.py
+|        |- retrieval.py
+|        `- __init__.py
 |- config/
 |- data/
 |- examples/
@@ -109,11 +125,21 @@ Install only if you want transformers local runtime:
 pip install transformers torch accelerate safetensors sentencepiece
 ```
 
-### 4) Run app
+### 4) Start FastAPI backend
+
+```bat
+python run_backend.py
+```
+
+Backend API is served at `http://127.0.0.1:8000`.
+
+### 5) Run desktop UI (separate Anaconda Prompt)
 
 ```bat
 python app.py
 ```
+
+The desktop UI calls backend APIs for loaders/chat/retrieval/export operations.
 
 ## First workflow (end-to-end)
 
@@ -156,6 +182,12 @@ Supported extensions:
 
 ### Working now
 
+- Modular FastAPI backend (`backend/app.py`) with API endpoints for:
+  - loaders
+  - preview
+  - retrieval/index
+  - chat ask
+  - export
 - Runnable PySide6 desktop app shell.
 - Folder/file package loading and auto grouping.
 - Preview tabs wired and functional.
@@ -178,6 +210,14 @@ Supported extensions:
 - Embedded PDF rendering is not implemented yet; app uses external PDF open strategy.
 - RAG index is lightweight lexical retrieval, not embedding-based semantic retrieval.
 - Source citations are basic and can be expanded with richer provenance UI.
+
+## Crash stabilization notes
+
+Recent runtime hardening added safeguards for large extracted payloads:
+
+- Bounded JSON flattening during chunking to avoid runaway memory/recursion on deeply nested extraction files.
+- Bounded table extraction when walking JSON structures and list-of-dict tables.
+- Preview table extraction now fails safe (empty table list) instead of raising to the UI when malformed structures are encountered.
 
 ## Notes about extraction scripts
 

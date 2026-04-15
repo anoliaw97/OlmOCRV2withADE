@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -18,12 +17,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.chat_agent import ChatAgent
-from core.export_service import ChatRecord, ExportService
-from core.loaders import DocumentPackage, PackageLoader
-from core.preview_service import PreviewService
-from core.rag_index import LocalRagIndex
-from core.retriever import RetrievalEngine
+from core.export_service import ChatRecord
+from core.api_client import ApiClientError, ApiPackage, WorkflowApiClient
 from ui import dialogs
 from widgets.chat_widget import ChatWidget
 from widgets.json_viewer import JsonViewer
@@ -38,22 +33,24 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Python Workflow Query Desktop")
         self.resize(1500, 920)
 
-        self.loader = PackageLoader()
-        self.preview_service = PreviewService()
-        self.rag_index = LocalRagIndex(Path("data/index/rag_index.sqlite"))
-        self.retrieval_engine = RetrievalEngine(self.rag_index)
-        self.chat_agent = ChatAgent(self.retrieval_engine)
-        self.export_service = ExportService()
+        self.api_client = WorkflowApiClient("http://127.0.0.1:8000")
 
-        self.packages: list[DocumentPackage] = []
-        self.current_package: DocumentPackage | None = None
+        self.packages: list[ApiPackage] = []
+        self.current_package: ApiPackage | None = None
         self.chat_records: list[ChatRecord] = []
 
         self._build_ui()
-        self._set_status("Ready. Load a folder or primary file to begin.")
+        if self.api_client.healthcheck():
+            self._set_status("Connected to FastAPI backend. Ready to load extracted outputs.")
+            self.chat_widget.append_system_message("Backend connection established at http://127.0.0.1:8000.")
+        else:
+            self._set_status("Backend unavailable. Start FastAPI server, then load a folder/file.")
+            self.chat_widget.append_system_message(
+                "FastAPI backend is not reachable at http://127.0.0.1:8000. "
+                "Start it with: uvicorn backend.app:app --host 127.0.0.1 --port 8000"
+            )
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
-        self.rag_index.close()
         super().closeEvent(event)
 
     def _build_ui(self) -> None:
@@ -130,8 +127,8 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            packages = self.loader.load_from_folder(folder)
-        except Exception as exc:
+            packages = self.api_client.load_folder(folder)
+        except ApiClientError as exc:
             dialogs.show_error(self, "Load folder failed", str(exc))
             return
 
@@ -150,12 +147,12 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            package = self.loader.load_from_primary_file(file_path)
-        except Exception as exc:
+            packages = self.api_client.load_file(file_path)
+        except ApiClientError as exc:
             dialogs.show_error(self, "Load file failed", str(exc))
             return
 
-        self.packages = [package]
+        self.packages = packages
         self._populate_package_list()
         self.package_list.setCurrentRow(0)
         self._set_status(f"Loaded package from {file_path}")
@@ -176,14 +173,14 @@ class MainWindow(QMainWindow):
         self.chat_widget.set_active_package_name(package.base_name)
 
         try:
-            preview = self.preview_service.build_preview(package)
-        except Exception as exc:
+            preview = self.api_client.preview(package.package_id)
+        except ApiClientError as exc:
             dialogs.show_error(self, "Preview error", str(exc))
             return
 
         self.pdf_viewer.set_pdf(preview.pdf_path)
         self.markdown_viewer.set_html(preview.markdown_html)
-        self.table_viewer.set_tables(preview.tables)
+        self.table_viewer.set_api_tables(preview.tables)
         self.json_viewer.set_json_text(preview.json_text)
 
         meta_lines = [
@@ -201,7 +198,12 @@ class MainWindow(QMainWindow):
             dialogs.show_info(self, "No packages loaded", "Load one or more packages first.")
             return
 
-        chunk_count = self.rag_index.build_or_update(self.packages)
+        try:
+            chunk_count = self.api_client.build_index()
+        except ApiClientError as exc:
+            dialogs.show_error(self, "Index build failed", str(exc))
+            return
+
         self._set_status(f"Indexed {chunk_count} chunk(s) from {len(self.packages)} package(s).")
         self.chat_widget.append_system_message(
             f"Optional RAG index updated. Indexed chunks: {chunk_count}."
@@ -212,23 +214,17 @@ class MainWindow(QMainWindow):
             self.chat_widget.append_system_message("Direct mode requires selecting a document package first.")
             return
 
-        if mode == "rag" and not self.rag_index.is_ready() and self.current_package is None:
-            self.chat_widget.append_system_message(
-                "RAG mode has no index and no package selected. Load/select a package or build index first."
-            )
-            return
-
         self.chat_widget.append_user_message(question)
         llm_settings = self.chat_widget.get_llm_settings()
 
         try:
-            response = self.chat_agent.ask(
-                question,
-                package=self.current_package,
+            response = self.api_client.ask(
+                question=question,
                 mode=mode,
+                package_id=self.current_package.package_id if self.current_package else None,
                 llm_settings=llm_settings,
             )
-        except Exception as exc:
+        except ApiClientError as exc:
             self.chat_widget.append_system_message(f"Chat error: {exc}")
             return
 
@@ -264,7 +260,12 @@ class MainWindow(QMainWindow):
         if destination is None:
             return
 
-        ok, message = self.export_service.export_chat_records(self.chat_records, destination)
+        try:
+            ok, message = self.api_client.export_chat(self.chat_records, destination)
+        except ApiClientError as exc:
+            dialogs.show_error(self, "Export failed", str(exc))
+            return
+
         if ok:
             dialogs.show_info(self, "Export complete", message)
             self._set_status(message)

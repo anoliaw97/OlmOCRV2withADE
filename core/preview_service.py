@@ -37,12 +37,15 @@ class PreviewService:
             markdown_html = render_markdown_to_html("")
 
         tables: list[ExtractedTable] = []
-        if markdown_text:
-            source_name = package.markdown_path.name if package.markdown_path else "markdown"
-            tables.extend(extract_tables_from_markdown(markdown_text, source_name))
-        if json_text:
-            source_name = package.json_path.name if package.json_path else "json"
-            tables.extend(extract_tables_from_json_text(json_text, source_name))
+        try:
+            if markdown_text:
+                source_name = package.markdown_path.name if package.markdown_path else "markdown"
+                tables.extend(extract_tables_from_markdown(markdown_text, source_name))
+            if json_text:
+                source_name = package.json_path.name if package.json_path else "json"
+                tables.extend(extract_tables_from_json_text(json_text, source_name))
+        except Exception:
+            tables = []
 
         return PackagePreview(
             markdown_text=markdown_text,

@@ -12,6 +12,11 @@ from bs4 import BeautifulSoup
 
 TABLE_HTML_PATTERN = re.compile(r"<table[\s\S]*?</table>", re.IGNORECASE)
 
+MAX_TABLES_EXTRACTED = 150
+MAX_JSON_WALK_DEPTH = 20
+MAX_JSON_LIST_TABLE_ROWS = 3000
+MAX_JSON_LIST_TABLE_COLS = 80
+
 
 @dataclass(slots=True)
 class ExtractedTable:
@@ -62,19 +67,35 @@ def extract_tables_from_json_text(json_text: str, source_ref: str) -> list[Extra
             tables.extend(_parse_html_table_block(html_block, source_ref, f"JSON embedded HTML table #{idx}"))
         return tables
 
-    _walk_json_for_tables(payload, source_ref, tables, path="root")
+    _walk_json_for_tables(payload, source_ref, tables, path="root", depth=0)
     return tables
 
 
-def _walk_json_for_tables(value: Any, source_ref: str, out: list[ExtractedTable], path: str) -> None:
+def _walk_json_for_tables(
+    value: Any,
+    source_ref: str,
+    out: list[ExtractedTable],
+    path: str,
+    depth: int,
+) -> None:
+    if len(out) >= MAX_TABLES_EXTRACTED:
+        return
+    if depth > MAX_JSON_WALK_DEPTH:
+        return
+
     if isinstance(value, dict):
         for key, nested in value.items():
-            _walk_json_for_tables(nested, source_ref, out, f"{path}.{key}")
+            _walk_json_for_tables(nested, source_ref, out, f"{path}.{key}", depth + 1)
+            if len(out) >= MAX_TABLES_EXTRACTED:
+                return
         return
 
     if isinstance(value, list):
         if value and all(isinstance(item, dict) for item in value):
-            df = pd.DataFrame(value)
+            sampled_rows = value[:MAX_JSON_LIST_TABLE_ROWS]
+            df = pd.DataFrame(sampled_rows)
+            if len(df.columns) > MAX_JSON_LIST_TABLE_COLS:
+                df = df.iloc[:, :MAX_JSON_LIST_TABLE_COLS]
             if not df.empty:
                 out.append(
                     ExtractedTable(
@@ -86,13 +107,19 @@ def _walk_json_for_tables(value: Any, source_ref: str, out: list[ExtractedTable]
                     )
                 )
         for idx, nested in enumerate(value):
-            _walk_json_for_tables(nested, source_ref, out, f"{path}[{idx}]")
+            if idx >= MAX_JSON_LIST_TABLE_ROWS:
+                break
+            _walk_json_for_tables(nested, source_ref, out, f"{path}[{idx}]", depth + 1)
+            if len(out) >= MAX_TABLES_EXTRACTED:
+                return
         return
 
     if isinstance(value, str):
         html_tables = TABLE_HTML_PATTERN.findall(value)
         for idx, html_block in enumerate(html_tables, start=1):
             out.extend(_parse_html_table_block(html_block, source_ref, f"JSON HTML table ({path}) #{idx}"))
+            if len(out) >= MAX_TABLES_EXTRACTED:
+                return
 
 
 def _parse_html_table_block(html_block: str, source_ref: str, title: str) -> list[ExtractedTable]:

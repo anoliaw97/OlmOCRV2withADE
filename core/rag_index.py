@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -27,43 +28,47 @@ class LocalRagIndex:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(str(self.db_path))
+        self._lock = threading.RLock()
+        self.connection = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.fts_enabled = True
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
-        cur = self.connection.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS chunks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                package_id TEXT NOT NULL,
-                source_file TEXT NOT NULL,
-                source_type TEXT NOT NULL,
-                section TEXT,
-                page TEXT,
-                table_name TEXT,
-                chunk_index INTEGER NOT NULL,
-                content TEXT NOT NULL
+        with self._lock:
+            cur = self.connection.cursor()
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chunks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    package_id TEXT NOT NULL,
+                    source_file TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    section TEXT,
+                    page TEXT,
+                    table_name TEXT,
+                    chunk_index INTEGER NOT NULL,
+                    content TEXT NOT NULL
+                )
+                """
             )
-            """
-        )
 
-        try:
-            cur.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(content)")
-        except sqlite3.OperationalError:
-            self.fts_enabled = False
+            try:
+                cur.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(content)")
+            except sqlite3.OperationalError:
+                self.fts_enabled = False
 
-        self.connection.commit()
+            self.connection.commit()
 
     def close(self) -> None:
-        self.connection.close()
+        with self._lock:
+            self.connection.close()
 
     def is_ready(self) -> bool:
-        cur = self.connection.execute("SELECT COUNT(*) AS n FROM chunks")
-        row = cur.fetchone()
-        return bool(row and row["n"] > 0)
+        with self._lock:
+            cur = self.connection.execute("SELECT COUNT(*) AS n FROM chunks")
+            row = cur.fetchone()
+            return bool(row and row["n"] > 0)
 
     def build_or_update(self, packages: Iterable[DocumentPackage]) -> int:
         total = 0
@@ -73,22 +78,22 @@ class LocalRagIndex:
 
     def _replace_package(self, package: DocumentPackage) -> int:
         chunks = chunk_package_content(package)
+        with self._lock:
+            cur = self.connection.cursor()
+            existing_ids = [
+                row["id"]
+                for row in cur.execute("SELECT id FROM chunks WHERE package_id = ?", (package.package_id,)).fetchall()
+            ]
 
-        cur = self.connection.cursor()
-        existing_ids = [
-            row["id"]
-            for row in cur.execute("SELECT id FROM chunks WHERE package_id = ?", (package.package_id,)).fetchall()
-        ]
+            if existing_ids:
+                if self.fts_enabled:
+                    cur.executemany("DELETE FROM chunks_fts WHERE rowid = ?", [(row_id,) for row_id in existing_ids])
+                cur.execute("DELETE FROM chunks WHERE package_id = ?", (package.package_id,))
 
-        if existing_ids:
-            if self.fts_enabled:
-                cur.executemany("DELETE FROM chunks_fts WHERE rowid = ?", [(row_id,) for row_id in existing_ids])
-            cur.execute("DELETE FROM chunks WHERE package_id = ?", (package.package_id,))
+            for chunk in chunks:
+                self._insert_chunk(cur, chunk)
 
-        for chunk in chunks:
-            self._insert_chunk(cur, chunk)
-
-        self.connection.commit()
+            self.connection.commit()
         return len(chunks)
 
     def _insert_chunk(self, cur: sqlite3.Cursor, chunk: TextChunk) -> None:
@@ -148,8 +153,9 @@ class LocalRagIndex:
         params.append(limit)
 
         try:
-            cur = self.connection.execute(sql, params)
-            rows = cur.fetchall()
+            with self._lock:
+                cur = self.connection.execute(sql, params)
+                rows = cur.fetchall()
         except sqlite3.OperationalError:
             return self._search_like(query, limit, package_id)
 
@@ -176,8 +182,9 @@ class LocalRagIndex:
         sql += " LIMIT ?"
         params.append(limit)
 
-        cur = self.connection.execute(sql, params)
-        rows = cur.fetchall()
+        with self._lock:
+            cur = self.connection.execute(sql, params)
+            rows = cur.fetchall()
 
         return [
             IndexedSearchResult(
