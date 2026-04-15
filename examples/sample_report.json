@@ -1,0 +1,21 @@
+{
+  "report": {
+    "title": "Core Flood Summary",
+    "field": "Demo Reservoir A",
+    "page": 3,
+    "measurements": [
+      {
+        "sample": "A1",
+        "porosity_pct": 18.4,
+        "permeability_md": 125
+      },
+      {
+        "sample": "A2",
+        "porosity_pct": 16.1,
+        "permeability_md": 98
+      }
+    ],
+    "scal_notes": "Relative permeability test completed with water-oil system.",
+    "embedded_table_html": "<table><tr><th>Sw</th><th>Krw</th><th>Kro</th></tr><tr><td>0.20</td><td>0.02</td><td>0.88</td></tr><tr><td>0.35</td><td>0.08</td><td>0.62</td></tr></table>"
+  }
+}

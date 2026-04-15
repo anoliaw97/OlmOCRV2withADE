@@ -1,0 +1,3 @@
+Sample A1 porosity 18.4% and permeability 125 mD.
+Sample A2 porosity 16.1% and permeability 98 mD.
+Relative permeability indicates Kro decline as Sw increases.
