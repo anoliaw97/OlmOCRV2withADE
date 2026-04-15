@@ -23,7 +23,7 @@
       <h2>Data Loading</h2>
       <label class="field-label" for="pathInput">Folder or primary file path</label>
       <div class="row">
-        <input id="pathInput" type="text" placeholder="C:\\path\\to\\extracted\\outputs" />
+        <input id="pathInput" type="text" value="C:\\Users\\admin\\Downloads\\Fine Tunining Datasets\\train" placeholder="C:\\path\\to\\extracted\\outputs" />
         <button id="browseBtn" class="btn btn-muted">Browse</button>
       </div>
       <div class="row">
@@ -59,11 +59,20 @@
       <div id="tab-pdf" class="tab-content">
         <p id="pdfPathText">No PDF in selected package.</p>
         <a id="pdfOpenLink" class="btn btn-muted hidden" target="_blank" rel="noreferrer">Open PDF Path</a>
+        <div class="field-label">Grouped page PDFs</div>
+        <div id="pagePdfList" class="mini-list">No grouped page-PDF set detected.</div>
       </div>
     </section>
 
     <section class="panel chat">
       <h2>Chat</h2>
+
+      <label>Chat session</label>
+      <div class="row">
+        <select id="sessionSelect"></select>
+        <button id="newSessionBtn" class="btn btn-muted">New Session</button>
+        <button id="deleteSessionBtn" class="btn">Delete</button>
+      </div>
 
       <div class="grid2">
         <label>Mode
@@ -92,6 +101,16 @@
         </label>
       </div>
 
+      <label>Detected models from selected backend</label>
+      <div class="row">
+        <select id="modelSelect"></select>
+        <button id="refreshModelsBtn" class="btn btn-muted">Refresh Models</button>
+      </div>
+
+      <label>llama.cpp model scan path (for GGUF discovery)
+        <input id="llamaScanPathInput" type="text" value="C:\\Users\\admin\\Downloads\\Fine Tunining Datasets\\train" />
+      </label>
+
       <div class="grid2">
         <label>llama-cli path
           <input id="llamaCliInput" type="text" value="llama-cli" />
@@ -100,6 +119,10 @@
           <input id="maxTokensInput" type="number" min="64" max="8192" value="512" />
         </label>
       </div>
+
+      <label>Context limit (chars for grounded context prompt)
+        <input id="contextLimitInput" type="number" min="2000" max="200000" value="24000" />
+      </label>
 
       <label>System prompt
         <textarea id="systemPromptInput" rows="3">You are a technical extraction assistant. Answer only from the provided extracted context. If information is missing, explicitly say it is not found in extracted outputs.</textarea>
@@ -121,6 +144,7 @@
       </div>
 
       <div id="chatLog" class="chat-log"></div>
+      <div id="chatMetrics" class="meta">No response metrics yet.</div>
     </section>
   </main>
 

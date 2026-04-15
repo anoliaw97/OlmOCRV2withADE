@@ -55,6 +55,8 @@ def preview_package(request: PackageRefRequest) -> PackagePreviewResponse:
         markdown_html=preview.markdown_html,
         json_text=preview.json_text,
         text_text=preview.text_text,
+        full_pdf_path=str(package.full_pdf_path) if package.full_pdf_path else None,
         pdf_path=str(preview.pdf_path) if preview.pdf_path else None,
+        page_pdf_paths=[str(path) for path in package.page_pdf_paths],
         tables=tables,
     )

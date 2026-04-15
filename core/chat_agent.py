@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 
 from core.llm_backends import LLMBackendError, LLMOrchestrator, LLMSettings
@@ -27,6 +28,12 @@ class ChatResponse:
     mode: str
     runtime: str
     model: str
+    reasoning_chain: list[str]
+    context_chars: int
+    context_truncated: bool
+    retrieval_chunks: int
+    retrieval_ms: float
+    generation_ms: float
 
 
 class ChatAgent:
@@ -44,6 +51,8 @@ class ChatAgent:
         llm_settings: LLMSettings,
     ) -> ChatResponse:
         cleaned = question.strip()
+        retrieval_ms = 0.0
+        generation_ms = 0.0
         if not cleaned:
             return ChatResponse(
                 answer="Please enter a question.",
@@ -51,22 +60,37 @@ class ChatAgent:
                 mode=mode,
                 runtime="none",
                 model="",
+                reasoning_chain=["Question is empty."],
+                context_chars=0,
+                context_truncated=False,
+                retrieval_chunks=0,
+                retrieval_ms=retrieval_ms,
+                generation_ms=generation_ms,
             )
 
+        retrieval_started = time.perf_counter()
         if mode == "rag":
             retrieved = self.retrieval_engine.retrieve_rag(cleaned)
             if not retrieved and package is not None:
                 retrieved = self.retrieval_engine.retrieve_direct(package, cleaned)
         else:
             if package is None:
+                retrieval_ms = (time.perf_counter() - retrieval_started) * 1000.0
                 return ChatResponse(
                     answer="No document package is selected. Load or select a package first.",
                     citations=[],
                     mode=mode,
                     runtime="none",
                     model="",
+                    reasoning_chain=["Direct mode requires an active package."],
+                    context_chars=0,
+                    context_truncated=False,
+                    retrieval_chunks=0,
+                    retrieval_ms=retrieval_ms,
+                    generation_ms=generation_ms,
                 )
             retrieved = self.retrieval_engine.retrieve_direct(package, cleaned)
+        retrieval_ms = (time.perf_counter() - retrieval_started) * 1000.0
 
         if not retrieved:
             return ChatResponse(
@@ -78,6 +102,15 @@ class ChatAgent:
                 mode=mode,
                 runtime="none",
                 model=llm_settings.model,
+                reasoning_chain=[
+                    f"Mode: {mode}.",
+                    "No matching extracted JSON/MD/TXT chunks were retrieved.",
+                ],
+                context_chars=0,
+                context_truncated=False,
+                retrieval_chunks=0,
+                retrieval_ms=retrieval_ms,
+                generation_ms=generation_ms,
             )
 
         citations = [
@@ -91,22 +124,42 @@ class ChatAgent:
             for chunk in retrieved[:6]
         ]
 
+        context_limit = max(2000, int(llm_settings.context_limit or 24000))
+        context, context_truncated = self._build_context(retrieved, max_chars=context_limit)
+        context_chars = len(context)
+
+        reasoning_chain = [
+            f"Mode: {mode}.",
+            f"Retrieved {len(retrieved)} chunk(s) from extracted JSON/MD/TXT.",
+            f"Context size: {context_chars} chars (limit {context_limit}, truncated={context_truncated}).",
+        ]
+
         if llm_settings.backend == "heuristic":
+            generation_started = time.perf_counter()
             answer = self._compose_heuristic_answer(cleaned, retrieved)
+            generation_ms = (time.perf_counter() - generation_started) * 1000.0
+            reasoning_chain.append("Used heuristic grounded summarization (no external LLM call).")
             return ChatResponse(
                 answer=answer,
                 citations=citations,
                 mode=mode,
                 runtime="heuristic",
                 model="none",
+                reasoning_chain=reasoning_chain,
+                context_chars=context_chars,
+                context_truncated=context_truncated,
+                retrieval_chunks=len(retrieved),
+                retrieval_ms=retrieval_ms,
+                generation_ms=generation_ms,
             )
 
-        context = self._build_context(retrieved)
+        generation_started = time.perf_counter()
         try:
             generation = self.llm_orchestrator.generate(cleaned, context, llm_settings)
             answer = generation.text
             runtime = generation.runtime
             model = generation.model
+            reasoning_chain.append(f"Generated answer via runtime '{runtime}'.")
         except LLMBackendError as exc:
             fallback = self._compose_heuristic_answer(cleaned, retrieved)
             answer = (
@@ -116,6 +169,9 @@ class ChatAgent:
             )
             runtime = "fallback-heuristic"
             model = llm_settings.model
+            reasoning_chain.append(f"LLM runtime error encountered: {exc}")
+            reasoning_chain.append("Returned heuristic fallback answer grounded in extracted outputs.")
+        generation_ms = (time.perf_counter() - generation_started) * 1000.0
 
         return ChatResponse(
             answer=answer,
@@ -123,9 +179,15 @@ class ChatAgent:
             mode=mode,
             runtime=runtime,
             model=model,
+            reasoning_chain=reasoning_chain,
+            context_chars=context_chars,
+            context_truncated=context_truncated,
+            retrieval_chunks=len(retrieved),
+            retrieval_ms=retrieval_ms,
+            generation_ms=generation_ms,
         )
 
-    def _build_context(self, chunks: list[RetrievedChunk]) -> str:
+    def _build_context(self, chunks: list[RetrievedChunk], max_chars: int = 24000) -> tuple[str, bool]:
         blocks: list[str] = []
         for idx, chunk in enumerate(chunks[:8], start=1):
             meta = f"source_file={chunk.source_file}; source_type={chunk.source_type}; score={chunk.score:.2f}"
@@ -136,9 +198,9 @@ class ChatAgent:
             blocks.append(f"[SOURCE {idx}] {meta}\n{chunk.content.strip()}")
 
         merged = "\n\n".join(blocks).strip()
-        if len(merged) <= 24000:
-            return merged
-        return merged[:24000] + "\n\n[context truncated to fit prompt budget]"
+        if len(merged) <= max_chars:
+            return merged, False
+        return merged[:max_chars] + "\n\n[context truncated to fit prompt budget]", True
 
     def _compose_heuristic_answer(self, question: str, chunks: list[RetrievedChunk]) -> str:
         highlights = self._extract_highlights(question, chunks)

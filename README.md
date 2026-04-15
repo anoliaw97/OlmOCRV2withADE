@@ -22,6 +22,17 @@ This project is designed for Windows + Anaconda Prompt.
 - Browser frontend served by FastAPI (`webapp/index.html`)
 - SQLite + FTS5 optional local retrieval index (`data/index/rag_index.sqlite`)
 
+## Enhanced web UX features
+
+- Directory browser defaults to `C:\Users\admin\Downloads\Fine Tunining Datasets\train`
+- Page-level files (for example `report_page1.pdf`, `report_page2.pdf`, ...) are grouped into one report package
+- Model discovery for:
+  - Ollama local tags/models
+  - llama.cpp GGUF files discovered from configured scan path
+- Chat response metrics include context limit/source, retrieval and generation timings, and total duration
+- Assistant display name follows selected model name
+- Persistent chat sessions (`data/chat_sessions.json`)
+
 ## Project structure
 
 ```text
@@ -108,8 +119,11 @@ Open in browser:
    - Raw JSON
    - PDF path (preview-only)
 6. Ask questions in Chat (direct or rag mode)
-7. Optional: build/update RAG index
-8. Export chat to CSV/XLSX/DOCX via destination path
+7. Choose backend/model:
+   - Ollama models from local service
+   - llama.cpp GGUF models from scan path
+8. Optional: build/update RAG index
+9. Export chat to CSV/XLSX/DOCX via destination path
 
 ## Crash stabilization included
 

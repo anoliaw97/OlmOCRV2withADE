@@ -4,6 +4,7 @@ from pathlib import Path
 
 from backend.schemas import PreviewTable
 from core.chat_agent import ChatAgent
+from core.chat_sessions import ChatSessionStore
 from core.export_service import ChatRecord, ExportService
 from core.llm_backends import LLMSettings
 from core.loaders import DocumentPackage, PackageLoader
@@ -25,6 +26,7 @@ class WorkflowRuntime:
         self.retrieval_engine = RetrievalEngine(self.rag_index)
         self.chat_agent = ChatAgent(self.retrieval_engine)
         self.export_service = ExportService()
+        self.session_store = ChatSessionStore(Path("data/chat_sessions.json"))
 
         self.packages: list[DocumentPackage] = []
         self._packages_by_id: dict[str, DocumentPackage] = {}
@@ -100,6 +102,24 @@ class WorkflowRuntime:
 
     def export_records(self, destination: str, records: list[ChatRecord]) -> tuple[bool, str]:
         return self.export_service.export_chat_records(records, Path(destination))
+
+    def list_sessions(self) -> list[dict]:
+        return self.session_store.list_sessions()
+
+    def create_session(self, title: str = "") -> dict:
+        return self.session_store.create_session(title)
+
+    def get_session(self, session_id: str) -> dict | None:
+        return self.session_store.get_session(session_id)
+
+    def append_session_messages(self, session_id: str, messages: list[dict]) -> dict:
+        return self.session_store.append_messages(session_id, messages)
+
+    def update_session_title(self, session_id: str, title: str) -> dict | None:
+        return self.session_store.update_title(session_id, title)
+
+    def delete_session(self, session_id: str) -> bool:
+        return self.session_store.delete_session(session_id)
 
     def close(self) -> None:
         self.rag_index.close()

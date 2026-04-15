@@ -15,5 +15,6 @@ dist/
 
 data/index/
 data/*.sqlite
+data/chat_sessions.json
 
 *.log

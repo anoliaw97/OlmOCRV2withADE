@@ -7,10 +7,17 @@ class PackageSummary(BaseModel):
     package_id: str
     base_name: str
     folder: str
+    full_pdf_path: str | None = None
     pdf_path: str | None = None
+    page_pdf_paths: list[str] = Field(default_factory=list)
+    page_pdf_count: int = 0
+    page_range: str = ""
     json_path: str | None = None
     markdown_path: str | None = None
     text_path: str | None = None
+    json_paths: list[str] = Field(default_factory=list)
+    markdown_paths: list[str] = Field(default_factory=list)
+    text_paths: list[str] = Field(default_factory=list)
     related_files: list[str] = Field(default_factory=list)
     tokens: list[str] = Field(default_factory=list)
 
@@ -42,7 +49,9 @@ class PackagePreviewResponse(BaseModel):
     markdown_html: str
     json_text: str
     text_text: str
+    full_pdf_path: str | None = None
     pdf_path: str | None = None
+    page_pdf_paths: list[str] = Field(default_factory=list)
     tables: list[PreviewTable] = Field(default_factory=list)
 
 
@@ -59,12 +68,14 @@ class LLMSettingsPayload(BaseModel):
     temperature: float = 0.2
     ollama_url: str = "http://127.0.0.1:11434/api/generate"
     llama_cli_path: str = "llama-cli"
+    context_limit: int = 24000
 
 
 class ChatAskRequest(BaseModel):
     question: str
     mode: str = "direct"
     package_id: str | None = None
+    session_id: str | None = None
     llm_settings: LLMSettingsPayload = Field(default_factory=LLMSettingsPayload)
 
 
@@ -76,12 +87,27 @@ class CitationPayload(BaseModel):
     page: str = ""
 
 
+class ChatMetricsPayload(BaseModel):
+    context_limit: int = 0
+    context_limit_source: str = "heuristic"
+    context_chars: int = 0
+    context_truncated: bool = False
+    retrieval_chunks: int = 0
+    retrieval_ms: float = 0.0
+    generation_ms: float = 0.0
+    total_ms: float = 0.0
+
+
 class ChatAskResponse(BaseModel):
     answer: str
     citations: list[CitationPayload] = Field(default_factory=list)
     mode: str
     runtime: str
     model: str = ""
+    assistant_name: str = "Assistant"
+    session_id: str | None = None
+    reasoning_chain: list[str] = Field(default_factory=list)
+    metrics: ChatMetricsPayload = Field(default_factory=ChatMetricsPayload)
 
 
 class RetrievalQueryRequest(BaseModel):
@@ -135,4 +161,62 @@ class DirectoryEntry(BaseModel):
 class DirectoryBrowseResponse(BaseModel):
     current_path: str
     parent_path: str | None = None
+    default_root: str | None = None
     entries: list[DirectoryEntry] = Field(default_factory=list)
+
+
+class ModelOption(BaseModel):
+    name: str
+    label: str
+    path: str = ""
+
+
+class ModelOptionsResponse(BaseModel):
+    backend: str
+    connection_ok: bool = False
+    message: str = ""
+    active: str = ""
+    default_model: str = ""
+    scan_path: str = ""
+    models: list[ModelOption] = Field(default_factory=list)
+
+
+class SessionMessagePayload(BaseModel):
+    role: str
+    content: str
+    time: str = ""
+    runtime: str = ""
+    model: str = ""
+    citations: str = ""
+    reasoning_chain: list[str] = Field(default_factory=list)
+
+
+class ChatSessionPayload(BaseModel):
+    session_id: str
+    title: str
+    created_at: str
+    updated_at: str
+    messages: list[SessionMessagePayload] = Field(default_factory=list)
+
+
+class ChatSessionSummaryPayload(BaseModel):
+    session_id: str
+    title: str
+    updated_at: str
+    message_count: int
+
+
+class ChatSessionsResponse(BaseModel):
+    sessions: list[ChatSessionSummaryPayload] = Field(default_factory=list)
+
+
+class ChatSessionCreateRequest(BaseModel):
+    title: str = ""
+
+
+class ChatSessionResponse(BaseModel):
+    session: ChatSessionPayload
+
+
+class GenericOkResponse(BaseModel):
+    ok: bool

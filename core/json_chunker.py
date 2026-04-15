@@ -34,19 +34,27 @@ def chunk_package_content(
 ) -> list[TextChunk]:
     chunks: list[TextChunk] = []
 
-    if package.json_path and package.json_path.exists():
-        json_chunks = _chunk_json_file(package.package_id, package.json_path, chunk_size, overlap)
-        chunks.extend(json_chunks)
+    json_paths = package.json_paths or ([package.json_path] if package.json_path else [])
+    markdown_paths = package.markdown_paths or ([package.markdown_path] if package.markdown_path else [])
+    text_paths = package.text_paths or ([package.text_path] if package.text_path else [])
 
-    if package.markdown_path and package.markdown_path.exists():
-        md_chunks = _chunk_markdown_file(package.package_id, package.markdown_path, chunk_size, overlap)
-        chunks.extend(md_chunks)
+    for json_path in json_paths:
+        if json_path and json_path.exists():
+            json_chunks = _chunk_json_file(package.package_id, json_path, chunk_size, overlap)
+            chunks.extend(json_chunks)
 
-    if package.text_path and package.text_path.exists():
-        txt = package.text_path.read_text(encoding="utf-8", errors="ignore")
+    for markdown_path in markdown_paths:
+        if markdown_path and markdown_path.exists():
+            md_chunks = _chunk_markdown_file(package.package_id, markdown_path, chunk_size, overlap)
+            chunks.extend(md_chunks)
+
+    for text_path in text_paths:
+        if not text_path or not text_path.exists():
+            continue
+        txt = text_path.read_text(encoding="utf-8", errors="ignore")
         txt_chunks = _split_text_into_chunks(
             package_id=package.package_id,
-            source_file=package.text_path.name,
+            source_file=text_path.name,
             source_type="txt",
             text=txt,
             chunk_size=chunk_size,

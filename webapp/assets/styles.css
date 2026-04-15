@@ -170,6 +170,26 @@ textarea {
   background: #fff;
 }
 
+.mini-list {
+  margin-top: 6px;
+  max-height: 160px;
+  overflow: auto;
+  border: 1px solid #dde2da;
+  border-radius: 8px;
+  padding: 6px;
+  font-size: 0.84rem;
+  background: #fff;
+}
+
+.mini-list .item {
+  padding: 5px 6px;
+  border-bottom: 1px solid #eef1ec;
+}
+
+.mini-list .item:last-child {
+  border-bottom: 0;
+}
+
 .list button {
   display: block;
   width: 100%;
@@ -276,6 +296,16 @@ td {
   border-radius: 8px;
 }
 
+.msg-header {
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+  color: #3f4f53;
+}
+
+.msg-body {
+  white-space: pre-wrap;
+}
+
 .msg.user {
   background: #e4f1ee;
 }
@@ -321,6 +351,11 @@ td {
   padding: 10px 16px 16px;
   color: #36464a;
   font-size: 0.9rem;
+}
+
+#chatMetrics {
+  margin-top: 10px;
+  border-left-color: #3d7f77;
 }
 
 @media (max-width: 1200px) {

@@ -23,9 +23,13 @@ class PackagePreview:
 
 class PreviewService:
     def build_preview(self, package: DocumentPackage) -> PackagePreview:
-        json_text = _safe_read_text(package.json_path)
-        markdown_text = _safe_read_text(package.markdown_path)
-        text_text = _safe_read_text(package.text_path)
+        json_paths = package.json_paths or ([package.json_path] if package.json_path else [])
+        markdown_paths = package.markdown_paths or ([package.markdown_path] if package.markdown_path else [])
+        text_paths = package.text_paths or ([package.text_path] if package.text_path else [])
+
+        json_text = _combine_text_sources(json_paths)
+        markdown_text = _combine_text_sources(markdown_paths)
+        text_text = _combine_text_sources(text_paths)
 
         if markdown_text:
             markdown_html = render_markdown_to_html(markdown_text)
@@ -70,3 +74,29 @@ def _safe_read_text(path: Path | None) -> str:
     clipped = text[:MAX_PREVIEW_CHARS]
     clipped += "\n\n[preview truncated: file too large for full in-memory render]"
     return clipped
+
+
+def _combine_text_sources(paths: list[Path]) -> str:
+    if not paths:
+        return ""
+
+    pieces: list[str] = []
+    total = 0
+    for idx, path in enumerate(paths, start=1):
+        text = _safe_read_text(path)
+        if not text:
+            continue
+
+        header = f"\n\n--- source {idx}: {path.name} ---\n"
+        candidate = header + text
+        if total + len(candidate) > MAX_PREVIEW_CHARS:
+            remaining = MAX_PREVIEW_CHARS - total
+            if remaining > 0:
+                pieces.append(candidate[:remaining])
+            pieces.append("\n\n[preview truncated: too many extracted files for single preview]")
+            break
+
+        pieces.append(candidate)
+        total += len(candidate)
+
+    return "".join(pieces).strip()

@@ -27,6 +27,7 @@ class LLMSettings:
     temperature: float = 0.2
     ollama_url: str = "http://127.0.0.1:11434/api/generate"
     llama_cli_path: str = "llama-cli"
+    context_limit: int = 24000
 
 
 @dataclass(slots=True)
@@ -48,7 +49,11 @@ class LLMOrchestrator:
 
     def generate(self, question: str, context: str, settings: LLMSettings) -> LLMGenerationResult:
         backend = self._resolve_backend(settings)
-        prompt = _build_grounded_prompt(question=question, context=context)
+        prompt = _build_grounded_prompt(
+            question=question,
+            context=context,
+            max_context_chars=max(2000, int(settings.context_limit or 24000)),
+        )
 
         if backend == "ollama":
             text = _run_ollama(prompt, settings)
@@ -91,8 +96,8 @@ class LLMOrchestrator:
         )
 
 
-def _build_grounded_prompt(question: str, context: str) -> str:
-    clipped_context = context[:22000]
+def _build_grounded_prompt(question: str, context: str, max_context_chars: int) -> str:
+    clipped_context = context[:max_context_chars]
     return (
         "Use ONLY the extracted context below (JSON/MD/TXT derived).\n"
         "Do NOT use external assumptions.\n"
