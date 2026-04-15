@@ -21,6 +21,7 @@ from backend.schemas import (
 )
 from core.llm_backends import DEFAULT_SYSTEM_PROMPT, LLMSettings
 from core.model_registry import detect_model_context_limit
+from core.query_router import QueryRouter
 
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -87,6 +88,20 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
     if not session_id:
         session_id = str(runtime.create_session("Workflow Chat").get("session_id") or "")
 
+    session_history = runtime.recent_session_messages(session_id=session_id, limit=8)
+    package = runtime.get_package(request.package_id)
+    router = QueryRouter(runtime.retrieval_engine)
+    route = router.route(
+        question=request.question,
+        package=package,
+        preferred_mode=request.mode,
+        package_id=request.package_id,
+    )
+    runtime.log(
+        "debug",
+        f"Query route decision: type={route.type}, confidence={route.confidence:.2f}, reason={route.reason}",
+    )
+
     started = time.perf_counter()
     try:
         response = runtime.ask(
@@ -94,6 +109,8 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
             mode=request.mode,
             package_id=request.package_id,
             settings=llm_settings,
+            session_history=session_history,
+            route_decision=route,
         )
     except Exception as exc:
         runtime.log("error", f"Chat failed: {exc}")
@@ -191,6 +208,9 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
         session_id=session_id,
         reasoning_chain=response.reasoning_chain,
         metrics=metrics,
+        route_type=response.route_type,
+        route_confidence=float(response.route_confidence),
+        route_reason=response.route_reason,
     )
 
 

@@ -70,6 +70,17 @@ function addChatMsg(role, text, extraHtml = '') {
   box.scrollTop = box.scrollHeight;
 }
 
+function resolveResponseIndicator(routeType) {
+  const t = (routeType || '').toLowerCase();
+  if (t === 'document') {
+    return 'Using document context';
+  }
+  if (t === 'hybrid') {
+    return 'Using hybrid context';
+  }
+  return 'General answer';
+}
+
 function clearChatView() {
   $('chatBox').innerHTML = '';
   S.chatRecords = [];
@@ -538,6 +549,14 @@ function buildMetricsBadges(metrics) {
   return `<div class="msg-meta">${badges.map((t) => `<span class=\"msg-badge\">${esc(t)}</span>`).join('')}</div>`;
 }
 
+function buildRouteBadge(routeType, routeConfidence, routeReason) {
+  const type = routeType || 'general';
+  const conf = Number(routeConfidence || 0).toFixed(2);
+  const reason = routeReason || '-';
+  const text = `route=${type} conf=${conf} reason=${reason}`;
+  return `<div class="msg-meta"><span class=\"msg-badge\">${esc(text)}</span></div>`;
+}
+
 function splitPipeRow(line) {
   const trimmed = line.trim().replace(/^\|/, '').replace(/\|$/, '');
   return trimmed.split('|').map((v) => v.trim());
@@ -660,14 +679,6 @@ async function askChat() {
     return;
   }
 
-  const normalizedQuestion = question.trim().toLowerCase();
-  if (normalizedQuestion === 'hi' || normalizedQuestion === 'hello' || normalizedQuestion.includes('how was your day')) {
-    const friendly = "I am doing great, thanks for asking. Ready to help with your extracted reports when you are.";
-    addChatMsg('assistant', friendly);
-    $('chatPerfHint').textContent = 'Last: quick reply';
-    return;
-  }
-
   if (!S.currentSessionId) {
     await createSession();
   }
@@ -705,7 +716,10 @@ async function askChat() {
     S.lastMetrics = data.metrics || null;
 
     const metricsHtml = buildMetricsBadges(data.metrics);
-    addChatMsg('assistant', data.answer || '', metricsHtml);
+    const routeHtml = buildRouteBadge(data.route_type, data.route_confidence, data.route_reason);
+    const indicator = resolveResponseIndicator(data.route_type);
+    addChatMsg('system', indicator);
+    addChatMsg('assistant', data.answer || '', metricsHtml + routeHtml);
 
     if ((data.citations || []).length) {
       const cites = data.citations.map((c) => `- ${c.source_file} (${c.source_type}, score=${Number(c.score).toFixed(2)})`);

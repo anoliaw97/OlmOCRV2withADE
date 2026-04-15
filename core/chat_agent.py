@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from core.llm_backends import LLMBackendError, LLMOrchestrator, LLMSettings
 from core.loaders import DocumentPackage
+from core.query_router import QueryRouter, RouteDecision
 from core.retriever import RetrievalEngine, RetrievedChunk
 
 
@@ -34,6 +35,9 @@ class ChatResponse:
     retrieval_chunks: int
     retrieval_ms: float
     generation_ms: float
+    route_type: str = "general"
+    route_confidence: float = 0.0
+    route_reason: str = ""
 
 
 class ChatAgent:
@@ -42,6 +46,7 @@ class ChatAgent:
     def __init__(self, retrieval_engine: RetrievalEngine, llm_orchestrator: LLMOrchestrator | None = None) -> None:
         self.retrieval_engine = retrieval_engine
         self.llm_orchestrator = llm_orchestrator or LLMOrchestrator()
+        self.query_router = QueryRouter(retrieval_engine)
 
     def ask(
         self,
@@ -49,10 +54,21 @@ class ChatAgent:
         package: DocumentPackage | None,
         mode: str,
         llm_settings: LLMSettings,
+        session_history: list[dict] | None = None,
+        route_decision: RouteDecision | None = None,
+        package_id: str | None = None,
     ) -> ChatResponse:
         cleaned = question.strip()
         retrieval_ms = 0.0
         generation_ms = 0.0
+        history_text = _build_history_context(session_history or [])
+        route = route_decision or self.query_router.route(
+            question=cleaned,
+            package=package,
+            preferred_mode=mode,
+            package_id=package_id,
+        )
+        route_type = route.type
         if not cleaned:
             return ChatResponse(
                 answer="Please enter a question.",
@@ -66,70 +82,54 @@ class ChatAgent:
                 retrieval_chunks=0,
                 retrieval_ms=retrieval_ms,
                 generation_ms=generation_ms,
+                route_type=route_type,
+                route_confidence=route.confidence,
+                route_reason=route.reason,
             )
-
-        if _is_small_talk(cleaned):
-            return ChatResponse(
-                answer=(
-                    "Hi. I can help analyze your extracted JSON/Markdown/TXT data. "
-                    "Load/select a package and ask a specific question (for example porosity, permeability, or capillary pressure values)."
-                ),
-                citations=[],
-                mode=mode,
-                runtime="assistant",
-                model=llm_settings.model,
-                reasoning_chain=["Detected small-talk greeting; responded conversationally without retrieval."],
-                context_chars=0,
-                context_truncated=False,
-                retrieval_chunks=0,
-                retrieval_ms=0.0,
-                generation_ms=0.0,
-            )
-
         retrieval_started = time.perf_counter()
-        if mode == "rag":
-            retrieved = self.retrieval_engine.retrieve_rag(cleaned)
-            if not retrieved and package is not None:
-                retrieved = self.retrieval_engine.retrieve_direct(package, cleaned)
-        else:
-            if package is None:
-                retrieval_ms = (time.perf_counter() - retrieval_started) * 1000.0
-                return ChatResponse(
-                    answer="No document package is selected. Load or select a package first.",
-                    citations=[],
-                    mode=mode,
-                    runtime="none",
-                    model="",
-                    reasoning_chain=["Direct mode requires an active package."],
-                    context_chars=0,
-                    context_truncated=False,
-                    retrieval_chunks=0,
-                    retrieval_ms=retrieval_ms,
-                    generation_ms=generation_ms,
+        retrieved: list[RetrievedChunk] = []
+        if route_type in {"document", "hybrid"}:
+            if mode == "rag":
+                retrieved = self.retrieval_engine.retrieve_rag(
+                    cleaned,
+                    top_k=6,
+                    package_id=package_id,
+                    min_score=0.55,
+                    allow_fallback=True,
                 )
-            retrieved = self.retrieval_engine.retrieve_direct(package, cleaned)
+                if not retrieved and package is not None:
+                    retrieved = self.retrieval_engine.retrieve_direct(
+                        package,
+                        cleaned,
+                        top_k=6,
+                        min_score=0.5,
+                        allow_fallback=True,
+                    )
+            else:
+                if package is not None:
+                    retrieved = self.retrieval_engine.retrieve_direct(
+                        package,
+                        cleaned,
+                        top_k=6,
+                        min_score=0.5,
+                        allow_fallback=True,
+                    )
+                if not retrieved:
+                    retrieved = self.retrieval_engine.retrieve_rag(
+                        cleaned,
+                        top_k=6,
+                        package_id=package_id,
+                        min_score=0.55,
+                        allow_fallback=True,
+                    )
         retrieval_ms = (time.perf_counter() - retrieval_started) * 1000.0
+        top_retrieval_score = max((float(chunk.score) for chunk in retrieved), default=0.0)
 
         if not retrieved:
-            return ChatResponse(
-                answer=(
-                    "I could not find relevant evidence in the loaded extracted JSON/Markdown/TXT files for that question. "
-                    "Try a more specific query, choose another package, or rebuild the RAG index."
-                ),
-                citations=[],
-                mode=mode,
-                runtime="none",
-                model=llm_settings.model,
-                reasoning_chain=[
-                    f"Mode: {mode}.",
-                    "No matching extracted JSON/MD/TXT chunks were retrieved.",
-                ],
-                context_chars=0,
-                context_truncated=False,
-                retrieval_chunks=0,
-                retrieval_ms=retrieval_ms,
-                generation_ms=generation_ms,
-            )
+            if route_type == "document":
+                route_type = "hybrid"
+        elif route_type == "document" and route.confidence < 0.75 and top_retrieval_score < 1.1:
+            route_type = "hybrid"
 
         citations = [
             Citation(
@@ -143,18 +143,37 @@ class ChatAgent:
         ]
 
         context_limit = max(2000, int(llm_settings.context_limit or 24000))
-        context, context_truncated = self._build_context(retrieved, max_chars=context_limit)
+        context, context_truncated = self._build_context(
+            retrieved,
+            max_chars=context_limit,
+            history_text=history_text,
+        )
         context_chars = len(context)
 
         reasoning_chain = [
             f"Mode: {mode}.",
+            f"Route: {route_type} ({route.confidence:.2f}, reason={route.reason}).",
             f"Retrieved {len(retrieved)} chunk(s) from extracted JSON/MD/TXT.",
+            f"Top retrieval score: {top_retrieval_score:.2f}.",
             f"Context size: {context_chars} chars (limit {context_limit}, truncated={context_truncated}).",
         ]
 
         if llm_settings.backend == "heuristic":
             generation_started = time.perf_counter()
-            answer = self._compose_heuristic_answer(cleaned, retrieved)
+            if route_type == "general":
+                answer = self._compose_general_fallback(cleaned)
+            elif route_type == "hybrid" and not retrieved:
+                answer = self._compose_hybrid_no_docs_fallback(cleaned)
+            elif route_type == "hybrid" and top_retrieval_score < 1.1:
+                answer = (
+                    self._compose_heuristic_answer(cleaned, retrieved)
+                    + "\n\nI can give a more precise answer if you mention a section, page, or specific metric."
+                )
+            else:
+                answer = self._compose_heuristic_answer(cleaned, retrieved)
+
+            if route_type == "hybrid" and retrieved:
+                answer += "\n\nSimple explanation: this appears to be a technical core-analysis report with measured petrophysical data and interpretation notes."
             generation_ms = (time.perf_counter() - generation_started) * 1000.0
             reasoning_chain.append("Used heuristic grounded summarization (no external LLM call).")
             return ChatResponse(
@@ -169,17 +188,37 @@ class ChatAgent:
                 retrieval_chunks=len(retrieved),
                 retrieval_ms=retrieval_ms,
                 generation_ms=generation_ms,
+                route_type=route_type,
+                route_confidence=route.confidence,
+                route_reason=route.reason,
             )
 
         generation_started = time.perf_counter()
         try:
-            generation = self.llm_orchestrator.generate(cleaned, context, llm_settings)
+            prompt_question = cleaned
+            if route_type == "general":
+                prompt_question = (
+                    f"General conversation: {cleaned}\n"
+                    "Respond naturally and helpfully."
+                )
+            elif route_type == "hybrid" and not retrieved:
+                prompt_question = (
+                    f"User asks: {cleaned}\n"
+                    "No strong document evidence was found. Give a helpful general answer and ask if they want document-specific details."
+                )
+
+            generation = self.llm_orchestrator.generate(prompt_question, context, llm_settings)
             answer = generation.text
             runtime = generation.runtime
             model = generation.model
             reasoning_chain.append(f"Generated answer via runtime '{runtime}'.")
         except LLMBackendError as exc:
-            fallback = self._compose_heuristic_answer(cleaned, retrieved)
+            if route_type == "general":
+                fallback = self._compose_general_fallback(cleaned)
+            elif route_type == "hybrid" and not retrieved:
+                fallback = self._compose_hybrid_no_docs_fallback(cleaned)
+            else:
+                fallback = self._compose_heuristic_answer(cleaned, retrieved)
             answer = (
                 "The selected local model runtime failed. "
                 f"Details: {exc}\n\n"
@@ -204,10 +243,21 @@ class ChatAgent:
             retrieval_chunks=len(retrieved),
             retrieval_ms=retrieval_ms,
             generation_ms=generation_ms,
+            route_type=route_type,
+            route_confidence=route.confidence,
+            route_reason=route.reason,
         )
 
-    def _build_context(self, chunks: list[RetrievedChunk], max_chars: int = 24000) -> tuple[str, bool]:
+    def _build_context(
+        self,
+        chunks: list[RetrievedChunk],
+        max_chars: int = 24000,
+        history_text: str = "",
+    ) -> tuple[str, bool]:
         blocks: list[str] = []
+        if history_text.strip():
+            blocks.append(f"[RECENT CHAT]\n{history_text.strip()}")
+
         for idx, chunk in enumerate(chunks[:8], start=1):
             meta = f"source_file={chunk.source_file}; source_type={chunk.source_type}; score={chunk.score:.2f}"
             if chunk.section:
@@ -230,6 +280,41 @@ class ChatAgent:
         for item in highlights[:8]:
             lines.append(f"- {item}")
         return "\n".join(lines)
+
+    def _compose_general_fallback(self, question: str) -> str:
+        lowered = " ".join(question.strip().lower().split())
+        if lowered in {"hi", "hello", "hey", "yo"}:
+            return "Hey. How can I help you today?"
+        if lowered in {"bye", "goodbye", "see you"}:
+            return "Got it. Bye for now."
+        if "how are you" in lowered or "how was your day" in lowered or "what's up" in lowered or "whats up" in lowered:
+            return "I am doing well, thanks. I can chat normally or help with your document questions."
+
+        return (
+            "I can help with both general questions and document-grounded analysis. "
+            "For document answers, ask about specific values, sections, tables, or report names."
+        )
+
+    def _compose_hybrid_no_docs_fallback(self, question: str) -> str:
+        lowered = " ".join(question.strip().lower().split())
+        if "porosity" in lowered:
+            return (
+                "Porosity is the fraction of a rock's volume that is pore space. "
+                "It is usually reported as a percentage and indicates fluid storage capacity. "
+                "If you load a report package, I can extract the exact porosity values from your documents."
+            )
+        if "permeability" in lowered:
+            return (
+                "Permeability describes how easily fluids flow through porous rock, commonly measured in mD. "
+                "Higher permeability generally means easier fluid movement. "
+                "Load a report package and I can return the specific measured values."
+            )
+
+        return (
+            "I could not find strong supporting evidence in loaded documents for that exact query, "
+            "so here is a general explanation: this appears to relate to core-analysis and petrophysical interpretation. "
+            "If you want precise report-grounded values, ask with a specific metric or section."
+        )
 
     def _extract_highlights(self, question: str, chunks: list[RetrievedChunk]) -> list[str]:
         query_tokens = {token for token in _tokenize(question) if len(token) > 2}
@@ -298,3 +383,24 @@ def _is_low_value_metadata_line(sentence: str) -> bool:
         "is_diagram:",
     )
     return cleaned.startswith(prefixes)
+
+
+def _build_history_context(messages: list[dict], limit_chars: int = 1200) -> str:
+    if not messages:
+        return ""
+
+    lines: list[str] = []
+    for message in messages[-8:]:
+        role = str(message.get("role") or "assistant").strip().lower()
+        if role not in {"user", "assistant"}:
+            continue
+        content = " ".join(str(message.get("content") or "").split())
+        if not content:
+            continue
+        prefix = "User" if role == "user" else "Assistant"
+        lines.append(f"{prefix}: {content}")
+
+    merged = "\n".join(lines).strip()
+    if len(merged) <= limit_chars:
+        return merged
+    return merged[-limit_chars:]

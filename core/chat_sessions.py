@@ -128,6 +128,16 @@ class ChatSessionStore:
     def _save_data_unlocked(self, data: dict[str, Any]) -> None:
         self.file_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    def recent_messages(self, session_id: str, limit: int = 8) -> list[dict[str, Any]]:
+        data = self._load_data()
+        for session in data.get("sessions", []):
+            if str(session.get("session_id") or "") != session_id:
+                continue
+            messages = [msg for msg in session.get("messages", []) if isinstance(msg, dict)]
+            safe_limit = max(1, min(int(limit), 20))
+            return messages[-safe_limit:]
+        return []
+
     @staticmethod
     def _sanitize_message(message: dict[str, Any]) -> dict[str, Any]:
         return {

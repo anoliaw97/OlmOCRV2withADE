@@ -9,6 +9,7 @@ from core.export_service import ChatRecord, ExportService
 from core.llm_backends import LLMSettings
 from core.loaders import DocumentPackage, PackageLoader
 from core.preview_service import PackagePreview, PreviewService
+from core.query_router import RouteDecision
 from core.rag_index import LocalRagIndex
 from core.runtime_logs import RuntimeLogs
 from core.retriever import RetrievalEngine
@@ -64,9 +65,19 @@ class WorkflowRuntime:
         mode: str,
         package_id: str | None,
         settings: LLMSettings,
+        session_history: list[dict] | None = None,
+        route_decision: RouteDecision | None = None,
     ):
         package = self.get_package(package_id)
-        return self.chat_agent.ask(question=question, package=package, mode=mode, llm_settings=settings)
+        return self.chat_agent.ask(
+            question=question,
+            package=package,
+            mode=mode,
+            llm_settings=settings,
+            session_history=session_history or [],
+            route_decision=route_decision,
+            package_id=package_id,
+        )
 
     def retrieve(self, question: str, mode: str, package_id: str | None, top_k: int) -> list:
         if mode == "direct":
@@ -124,6 +135,9 @@ class WorkflowRuntime:
 
     def delete_session(self, session_id: str) -> bool:
         return self.session_store.delete_session(session_id)
+
+    def recent_session_messages(self, session_id: str, limit: int = 8) -> list[dict]:
+        return self.session_store.recent_messages(session_id, limit=limit)
 
     def close(self) -> None:
         self.log("status", "Workflow runtime shutdown requested.")

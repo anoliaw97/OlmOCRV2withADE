@@ -109,6 +109,9 @@ class ChatAskResponse(BaseModel):
     session_id: str | None = None
     reasoning_chain: list[str] = Field(default_factory=list)
     metrics: ChatMetricsPayload = Field(default_factory=ChatMetricsPayload)
+    route_type: str = "general"
+    route_confidence: float = 0.0
+    route_reason: str = ""
 
 
 class RetrievalQueryRequest(BaseModel):

@@ -27,9 +27,16 @@ class RetrievalEngine:
     def __init__(self, rag_index: LocalRagIndex | None = None) -> None:
         self.rag_index = rag_index
 
-    def retrieve_direct(self, package: DocumentPackage, question: str, top_k: int = 6) -> list[RetrievedChunk]:
+    def retrieve_direct(
+        self,
+        package: DocumentPackage,
+        question: str,
+        top_k: int = 6,
+        min_score: float = 0.5,
+        allow_fallback: bool = True,
+    ) -> list[RetrievedChunk]:
         chunks = chunk_package_content(package)
-        ranked = _rank_chunks(question, chunks)
+        ranked = _rank_chunks(question, chunks, min_score=min_score, allow_fallback=allow_fallback)
         return ranked[:top_k]
 
     def retrieve_rag(
@@ -37,12 +44,22 @@ class RetrievalEngine:
         question: str,
         top_k: int = 6,
         package_id: str | None = None,
+        min_score: float = 0.5,
+        allow_fallback: bool = True,
     ) -> list[RetrievedChunk]:
         if self.rag_index is None:
             return []
 
-        indexed_results = self.rag_index.search(question, limit=top_k, package_id=package_id)
-        return [_from_index_result(item) for item in indexed_results]
+        indexed_results = self.rag_index.search(question, limit=max(top_k, 10), package_id=package_id)
+        mapped = [_from_index_result(item) for item in indexed_results]
+
+        filtered = [chunk for chunk in mapped if float(chunk.score) >= float(min_score)]
+        if filtered:
+            return filtered[:top_k]
+
+        if allow_fallback:
+            return mapped[:top_k]
+        return []
 
 
 def _from_index_result(item: IndexedSearchResult) -> RetrievedChunk:
@@ -58,7 +75,12 @@ def _from_index_result(item: IndexedSearchResult) -> RetrievedChunk:
     )
 
 
-def _rank_chunks(question: str, chunks: list[TextChunk]) -> list[RetrievedChunk]:
+def _rank_chunks(
+    question: str,
+    chunks: list[TextChunk],
+    min_score: float = 0.5,
+    allow_fallback: bool = True,
+) -> list[RetrievedChunk]:
     q_tokens = _tokenize(question)
     ranked: list[RetrievedChunk] = []
 
@@ -79,7 +101,12 @@ def _rank_chunks(question: str, chunks: list[TextChunk]) -> list[RetrievedChunk]
             )
         )
 
-    if not ranked:
+    filtered = [item for item in ranked if float(item.score) >= float(min_score)]
+    if filtered:
+        filtered.sort(key=lambda item: item.score, reverse=True)
+        return filtered
+
+    if not ranked and allow_fallback:
         for chunk in chunks[:6]:
             ranked.append(
                 RetrievedChunk(
@@ -95,7 +122,7 @@ def _rank_chunks(question: str, chunks: list[TextChunk]) -> list[RetrievedChunk]
             )
 
     ranked.sort(key=lambda item: item.score, reverse=True)
-    return ranked
+    return ranked if allow_fallback else []
 
 
 def _tokenize(text: str) -> set[str]:
