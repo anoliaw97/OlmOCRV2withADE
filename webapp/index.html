@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Python Workflow WebApp</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+
+  <header class="topbar">
+    <div>
+      <h1>Python Workflow WebApp</h1>
+      <p>Source of truth: extracted JSON / Markdown / TXT only. PDF and images are preview-only.</p>
+    </div>
+    <div class="health" id="healthBadge">Checking backend...</div>
+  </header>
+
+  <main class="layout">
+    <section class="panel controls">
+      <h2>Data Loading</h2>
+      <label class="field-label" for="pathInput">Folder or primary file path</label>
+      <div class="row">
+        <input id="pathInput" type="text" placeholder="C:\\path\\to\\extracted\\outputs" />
+        <button id="browseBtn" class="btn btn-muted">Browse</button>
+      </div>
+      <div class="row">
+        <button id="loadFolderBtn" class="btn btn-primary">Load Folder</button>
+        <button id="loadFileBtn" class="btn">Load File</button>
+      </div>
+      <div id="browsePanel" class="browse hidden"></div>
+
+      <h3>Packages</h3>
+      <div id="packageList" class="list"></div>
+
+      <div class="row stack-mobile">
+        <button id="buildIndexBtn" class="btn">Build/Update RAG Index</button>
+      </div>
+
+      <div class="meta" id="packageMeta">No package selected.</div>
+    </section>
+
+    <section class="panel preview">
+      <h2>Preview</h2>
+      <div class="tabs">
+        <button class="tab active" data-tab="markdown">Markdown</button>
+        <button class="tab" data-tab="tables">Tables</button>
+        <button class="tab" data-tab="json">Raw JSON</button>
+        <button class="tab" data-tab="pdf">PDF</button>
+      </div>
+
+      <div id="tab-markdown" class="tab-content active">
+        <iframe id="markdownFrame" title="Markdown Preview"></iframe>
+      </div>
+      <div id="tab-tables" class="tab-content"></div>
+      <div id="tab-json" class="tab-content"><pre id="jsonText"></pre></div>
+      <div id="tab-pdf" class="tab-content">
+        <p id="pdfPathText">No PDF in selected package.</p>
+        <a id="pdfOpenLink" class="btn btn-muted hidden" target="_blank" rel="noreferrer">Open PDF Path</a>
+      </div>
+    </section>
+
+    <section class="panel chat">
+      <h2>Chat</h2>
+
+      <div class="grid2">
+        <label>Mode
+          <select id="modeSelect">
+            <option value="direct">Direct selected-document query</option>
+            <option value="rag">Optional indexed RAG query</option>
+          </select>
+        </label>
+        <label>LLM Backend
+          <select id="backendSelect">
+            <option value="auto">Auto</option>
+            <option value="ollama">Ollama</option>
+            <option value="llamacpp">llama.cpp (GGUF)</option>
+            <option value="transformers">Transformers</option>
+            <option value="heuristic">Heuristic</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid2">
+        <label>Model (name or path)
+          <input id="modelInput" type="text" value="llama3.1:8b" />
+        </label>
+        <label>Ollama URL
+          <input id="ollamaUrlInput" type="text" value="http://127.0.0.1:11434/api/generate" />
+        </label>
+      </div>
+
+      <div class="grid2">
+        <label>llama-cli path
+          <input id="llamaCliInput" type="text" value="llama-cli" />
+        </label>
+        <label>Max new tokens
+          <input id="maxTokensInput" type="number" min="64" max="8192" value="512" />
+        </label>
+      </div>
+
+      <label>System prompt
+        <textarea id="systemPromptInput" rows="3">You are a technical extraction assistant. Answer only from the provided extracted context. If information is missing, explicitly say it is not found in extracted outputs.</textarea>
+      </label>
+
+      <label>Question
+        <textarea id="questionInput" rows="4" placeholder="Ask a question grounded in extracted JSON/MD/TXT..."></textarea>
+      </label>
+
+      <div class="row">
+        <button id="askBtn" class="btn btn-primary">Ask</button>
+        <button id="clearChatBtn" class="btn btn-muted">Clear Chat</button>
+      </div>
+
+      <label class="field-label" for="exportPathInput">Export destination path (.csv/.xlsx/.docx)</label>
+      <div class="row">
+        <input id="exportPathInput" type="text" value="C:\\temp\\chat_export.csv" />
+        <button id="exportBtn" class="btn">Export Chat</button>
+      </div>
+
+      <div id="chatLog" class="chat-log"></div>
+    </section>
+  </main>
+
+  <footer class="status" id="statusLine">Ready.</footer>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

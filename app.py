@@ -1,20 +1,10 @@
 from __future__ import annotations
 
-import sys
-
-from PySide6.QtWidgets import QApplication
-
-from ui.main_window import MainWindow
+from run_backend import main as run_backend_main
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
-    app.setApplicationName("Python Workflow Query Desktop")
-
-    window = MainWindow()
-    window.show()
-
-    return app.exec()
+    return run_backend_main()
 
 
 if __name__ == "__main__":

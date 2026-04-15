@@ -124,3 +124,15 @@ class ExportChatRequest(BaseModel):
 class ExportChatResponse(BaseModel):
     ok: bool
     message: str
+
+
+class DirectoryEntry(BaseModel):
+    name: str
+    path: str
+    is_dir: bool
+
+
+class DirectoryBrowseResponse(BaseModel):
+    current_path: str
+    parent_path: str | None = None
+    entries: list[DirectoryEntry] = Field(default_factory=list)
