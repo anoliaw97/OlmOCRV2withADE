@@ -640,6 +640,17 @@ async function askChat() {
     return;
   }
 
+  if ($('backendSelect').value === 'llamacpp') {
+    const cli = ($('llamaCliInput').value || '').trim().toLowerCase();
+    if (!cli || cli === 'llama-cli') {
+      addChatMsg(
+        'system',
+        'Set full llama.cpp executable path first in "llama-cli path" (example: C:\\llama.cpp\\build\\bin\\Release\\llama-cli.exe).',
+      );
+      return;
+    }
+  }
+
   const mode = $('chatModeSelect').value;
   if (mode === 'direct' && !S.currentPackageId) {
     addChatMsg('system', 'Direct mode needs a selected package.');

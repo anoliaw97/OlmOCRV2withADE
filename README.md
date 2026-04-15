@@ -100,6 +100,12 @@ pip install -r requirements.txt
 - Common path example:
   - `C:\Program Files\poppler\Library\bin\pdftoppm.exe`
 
+### 3.2) llama.cpp setup (if using llama.cpp backend)
+
+- Set `llama-cli path` in UI to full executable path, for example:
+  - `C:\llama.cpp\build\bin\Release\llama-cli.exe`
+- If not set, chat will refuse to run with llama.cpp backend to avoid fallback confusion.
+
 Optional transformers runtime:
 
 ```bat

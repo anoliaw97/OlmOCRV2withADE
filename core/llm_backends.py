@@ -168,10 +168,11 @@ def _run_llama_cpp(prompt: str, settings: LLMSettings) -> str:
         raise LLMBackendError(f"GGUF model path does not exist: {model_path}")
 
     cli_path = settings.llama_cli_path.strip() or "llama-cli"
-    resolved_cli = shutil.which(cli_path) if Path(cli_path).name == cli_path else cli_path
+    resolved_cli = _resolve_llama_cli(cli_path)
     if not resolved_cli:
         raise LLMBackendError(
-            "Could not find `llama-cli`. Provide full path in settings or add it to PATH."
+            "Could not find llama.cpp executable. Set llama-cli path to full executable path "
+            "(for example C:\\llama.cpp\\build\\bin\\Release\\llama-cli.exe) or add it to PATH."
         )
 
     command = [
@@ -209,6 +210,51 @@ def _run_llama_cpp(prompt: str, settings: LLMSettings) -> str:
     if not text:
         raise LLMBackendError("llama.cpp returned an empty answer.")
     return text
+
+
+def _resolve_llama_cli(cli_path: str) -> str | None:
+    raw = cli_path.strip()
+    if not raw:
+        return None
+
+    as_path = Path(raw)
+    if as_path.is_absolute() or as_path.suffix:
+        if as_path.exists() and as_path.is_file():
+            return str(as_path)
+
+    candidates: list[str] = []
+    if Path(raw).name == raw:
+        candidates.append(raw)
+    else:
+        candidates.append(str(as_path))
+
+    if raw.lower() == "llama-cli":
+        candidates.extend(["llama-cli", "llama-cli.exe", "llama.cpp", "llama.cpp.exe", "main", "main.exe"])
+
+    for candidate in candidates:
+        found = shutil.which(candidate)
+        if found:
+            return found
+
+    common_roots = [
+        Path(r"D:\llama.cpp"),
+        Path(r"C:\llama.cpp"),
+        Path(r"D:\models\llama.cpp"),
+    ]
+    common_bins = [
+        Path("llama-cli.exe"),
+        Path("llama.cpp.exe"),
+        Path("main.exe"),
+        Path("build/bin/Release/llama-cli.exe"),
+        Path("build/bin/Release/main.exe"),
+    ]
+
+    for root in common_roots:
+        for rel in common_bins:
+            full = root / rel
+            if full.exists() and full.is_file():
+                return str(full)
+    return None
 
 
 class _TransformersRuntime:

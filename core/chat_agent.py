@@ -68,6 +68,24 @@ class ChatAgent:
                 generation_ms=generation_ms,
             )
 
+        if _is_small_talk(cleaned):
+            return ChatResponse(
+                answer=(
+                    "Hi. I can help analyze your extracted JSON/Markdown/TXT data. "
+                    "Load/select a package and ask a specific question (for example porosity, permeability, or capillary pressure values)."
+                ),
+                citations=[],
+                mode=mode,
+                runtime="assistant",
+                model=llm_settings.model,
+                reasoning_chain=["Detected small-talk greeting; responded conversationally without retrieval."],
+                context_chars=0,
+                context_truncated=False,
+                retrieval_chunks=0,
+                retrieval_ms=0.0,
+                generation_ms=0.0,
+            )
+
         retrieval_started = time.perf_counter()
         if mode == "rag":
             retrieved = self.retrieval_engine.retrieve_rag(cleaned)
@@ -95,8 +113,8 @@ class ChatAgent:
         if not retrieved:
             return ChatResponse(
                 answer=(
-                    "I could not find matching evidence in extracted JSON/Markdown/TXT sources. "
-                    "Try a more specific question or load a different package."
+                    "I could not find relevant evidence in the loaded extracted JSON/Markdown/TXT files for that question. "
+                    "Try a more specific query, choose another package, or rebuild the RAG index."
                 ),
                 citations=[],
                 mode=mode,
@@ -163,8 +181,9 @@ class ChatAgent:
         except LLMBackendError as exc:
             fallback = self._compose_heuristic_answer(cleaned, retrieved)
             answer = (
-                f"LLM runtime error: {exc}\n\n"
-                "Showing grounded fallback summary from extracted outputs:\n\n"
+                "The selected local model runtime failed. "
+                f"Details: {exc}\n\n"
+                "Grounded fallback summary from extracted outputs:\n"
                 f"{fallback}"
             )
             runtime = "fallback-heuristic"
@@ -207,14 +226,9 @@ class ChatAgent:
         if not highlights:
             highlights = [self._truncate(chunk.content, 220) for chunk in chunks[:4]]
 
-        lines = ["Grounded answer (from extracted JSON/MD/TXT only):"]
+        lines = ["Grounded answer (extracted JSON/MD/TXT only):"]
         for item in highlights[:8]:
             lines.append(f"- {item}")
-
-        lines.append("")
-        lines.append("Notes:")
-        lines.append("- PDF and images are preview-only in this workflow.")
-        lines.append("- Validate final outputs using cited extracted sections.")
         return "\n".join(lines)
 
     def _extract_highlights(self, question: str, chunks: list[RetrievedChunk]) -> list[str]:
@@ -226,6 +240,8 @@ class ChatAgent:
             for sentence in sentences:
                 sentence_tokens = set(_tokenize(sentence))
                 if query_tokens and not sentence_tokens.intersection(query_tokens):
+                    continue
+                if _is_low_value_metadata_line(sentence):
                     continue
                 highlights.append(self._truncate(sentence, 260))
                 if len(highlights) >= 8:
@@ -243,3 +259,38 @@ class ChatAgent:
 
 def _tokenize(text: str) -> list[str]:
     return re.findall(r"[A-Za-z0-9_]+", text.lower())
+
+
+def _is_small_talk(text: str) -> bool:
+    normalized = " ".join(text.lower().split())
+    if len(normalized) <= 20 and normalized in {
+        "hi",
+        "hello",
+        "hey",
+        "yo",
+        "hi there",
+        "hello there",
+        "good morning",
+        "good afternoon",
+        "good evening",
+    }:
+        return True
+    if normalized in {"thanks", "thank you", "ok", "okay", "cool"}:
+        return True
+    return False
+
+
+def _is_low_value_metadata_line(sentence: str) -> bool:
+    cleaned = sentence.strip().lower()
+    if not cleaned:
+        return True
+    if cleaned in {"---", "***", "___"}:
+        return True
+    prefixes = (
+        "primary_language:",
+        "is_rotation_valid:",
+        "rotation_correction:",
+        "is_table:",
+        "is_diagram:",
+    )
+    return cleaned.startswith(prefixes)
