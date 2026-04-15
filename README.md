@@ -4,6 +4,20 @@ Local Python desktop app for loading extracted document outputs and querying the
 
 This project is designed for Windows + Anaconda Prompt and keeps extraction separate from query/chat.
 
+## LLM runtime support (now included)
+
+The chat panel supports runtime selection:
+
+- **Ollama** (local running service, model name like `llama3.1:8b`)
+- **llama.cpp (GGUF)** (local `.gguf` path + `llama-cli` executable)
+- **Transformers (tensor/safetensors)** (local model folder or model id)
+- **Heuristic (no model)** fallback
+
+Important:
+
+- Answers remain grounded in extracted JSON/MD/TXT context.
+- PDF and image assets are still preview-only.
+
 ## What this app is for
 
 - Load extracted document packages (JSON / MD / TXT + optional PDF companion).
@@ -60,6 +74,14 @@ G:\Python Based Workflow\
 
 ## Setup (Anaconda Prompt)
 
+### 0) Clone repository
+
+```bat
+cd /d "C:\Users\admin\Downloads"
+git clone -b feature/python-desktop-workflow-v1 https://github.com/anoliaw97/OlmOCRV2withADE.git "Python Based Chat Agent"
+cd /d "C:\Users\admin\Downloads\Python Based Chat Agent"
+```
+
 ### 1) Create and activate env
 
 ```bat
@@ -70,13 +92,21 @@ conda activate python_workflow
 ### 2) Go to project folder
 
 ```bat
-cd /d "G:\Python Based Workflow"
+cd /d "C:\Users\admin\Downloads\Python Based Chat Agent"
 ```
 
 ### 3) Install dependencies
 
 ```bat
 pip install -r requirements.txt
+```
+
+### 3b) Optional dependencies for tensor/safetensors models (Transformers backend)
+
+Install only if you want transformers local runtime:
+
+```bat
+pip install transformers torch accelerate safetensors sentencepiece
 ```
 
 ### 4) Run app
@@ -88,7 +118,7 @@ python app.py
 ## First workflow (end-to-end)
 
 1. Click **Load Folder** and choose a directory containing extracted outputs.
-   - Quick demo folder in this repo: `G:\Python Based Workflow\examples`
+   - Quick demo folder in this repo: `C:\Users\admin\Downloads\Python Based Chat Agent\examples`
 2. Select a detected package from the left list.
 3. Use tabs on the right:
    - **PDF Preview**: opens PDF in system viewer
@@ -98,6 +128,11 @@ python app.py
    - **Chat**
 4. In **Chat** tab:
    - choose mode (**Direct** or **Optional indexed RAG**)
+   - choose **LLM Backend** (`Auto`, `Ollama`, `llama.cpp`, `Transformers`, or `Heuristic`)
+   - set model information:
+     - Ollama: model name (example: `llama3.1:8b`)
+     - llama.cpp: local `.gguf` model path and `llama-cli` path
+     - Transformers: local model folder path containing tensor/safetensors model files
    - ask question (e.g., porosity/permeability/SCAL)
 5. Optional: click **Build/Update Optional RAG Index** for multi-package retrieval.
 6. Export chat using **Export chat...** (CSV/XLSX/DOCX).
@@ -130,13 +165,17 @@ Supported extensions:
   - markdown table blocks
   - JSON list-of-dict table-shaped data
 - Direct selected-document chat over extracted JSON/MD/TXT.
+- LLM-backed grounded answering with runtime selection:
+  - Ollama
+  - llama.cpp for GGUF
+  - Transformers for tensor/safetensors
+  - heuristic fallback
 - Optional local index build/update and retrieval mode (SQLite FTS).
 - Chat export to CSV, Excel, Word.
 
 ### Explicit placeholders / next-step enhancements
 
 - Embedded PDF rendering is not implemented yet; app uses external PDF open strategy.
-- Chat synthesis is lightweight heuristic grounding (no LLM call yet).
 - RAG index is lightweight lexical retrieval, not embedding-based semantic retrieval.
 - Source citations are basic and can be expanded with richer provenance UI.
 
@@ -153,6 +192,17 @@ This app consumes extraction outputs from those workflows.
 
 ## Troubleshooting
 
+### Clone into a specific remote PC folder
+
+If you need an exact target folder name:
+
+```bat
+cd /d "C:\Users\admin\Downloads"
+git clone https://github.com/anoliaw97/OlmOCRV2withADE.git "Python Based Chat Agent"
+cd /d "C:\Users\admin\Downloads\Python Based Chat Agent"
+git checkout feature/python-desktop-workflow-v1
+```
+
 ### App does not launch
 
 - Confirm env activated: `conda activate python_workflow`
@@ -167,6 +217,26 @@ This app consumes extraction outputs from those workflows.
 
 - Build/update index after loading packages.
 - Use more specific query terms.
+
+### Ollama backend fails
+
+- Ensure Ollama is installed and running: `ollama serve`
+- Pull and test a model manually:
+  - `ollama run llama3.1:8b`
+- Confirm URL in app is reachable (default: `http://127.0.0.1:11434/api/generate`)
+
+### llama.cpp GGUF backend fails
+
+- Ensure `llama-cli` is built and available.
+- Set full `llama-cli` path in app if not on PATH.
+- Ensure selected model file is `.gguf` and path exists.
+
+### Transformers backend fails
+
+- Install optional dependencies:
+  - `pip install transformers torch accelerate safetensors sentencepiece`
+- Ensure model folder contains required tokenizer/model files.
+- Large tensor models may require significant RAM/VRAM.
 
 ### Word export fails
 

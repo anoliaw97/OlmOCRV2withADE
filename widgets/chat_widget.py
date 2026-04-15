@@ -6,16 +6,21 @@ from PySide6.QtCore import Signal
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QSpinBox,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
 from core.chat_agent import Citation
+from core.llm_backends import DEFAULT_SYSTEM_PROMPT, LLMSettings
 
 
 class ChatWidget(QWidget):
@@ -31,6 +36,36 @@ class ChatWidget(QWidget):
         self.mode_combo = QComboBox()
         self.mode_combo.addItem("Direct selected-document query", "direct")
         self.mode_combo.addItem("Optional indexed RAG query", "rag")
+
+        self.backend_combo = QComboBox()
+        self.backend_combo.addItem("Auto (Ollama/GGUF/Tensor)", "auto")
+        self.backend_combo.addItem("Ollama", "ollama")
+        self.backend_combo.addItem("llama.cpp (GGUF)", "llamacpp")
+        self.backend_combo.addItem("Transformers (tensor/safetensors)", "transformers")
+        self.backend_combo.addItem("Heuristic (no LLM)", "heuristic")
+        self.backend_combo.currentIndexChanged.connect(self._update_backend_hint)
+
+        self.model_input = QLineEdit("llama3.1:8b")
+        self.model_input.setPlaceholderText("Model name or local model path")
+
+        self.ollama_url_input = QLineEdit("http://127.0.0.1:11434/api/generate")
+        self.llama_cli_input = QLineEdit("llama-cli")
+
+        self.max_tokens_spin = QSpinBox()
+        self.max_tokens_spin.setRange(64, 8192)
+        self.max_tokens_spin.setValue(512)
+
+        self.temperature_spin = QDoubleSpinBox()
+        self.temperature_spin.setRange(0.0, 2.0)
+        self.temperature_spin.setSingleStep(0.1)
+        self.temperature_spin.setValue(0.2)
+
+        self.system_prompt_input = QPlainTextEdit()
+        self.system_prompt_input.setPlainText(DEFAULT_SYSTEM_PROMPT)
+        self.system_prompt_input.setFixedHeight(68)
+
+        self.backend_hint_label = QLabel("")
+        self.backend_hint_label.setWordWrap(True)
 
         self.chat_view = QTextBrowser()
         self.chat_view.setOpenExternalLinks(True)
@@ -51,7 +86,17 @@ class ChatWidget(QWidget):
         top_row = QHBoxLayout()
         top_row.addWidget(QLabel("Mode:"))
         top_row.addWidget(self.mode_combo)
+        top_row.addWidget(QLabel("LLM Backend:"))
+        top_row.addWidget(self.backend_combo)
         top_row.addStretch(1)
+
+        llm_form = QFormLayout()
+        llm_form.addRow("Model (name or path)", self.model_input)
+        llm_form.addRow("Ollama URL", self.ollama_url_input)
+        llm_form.addRow("llama-cli path", self.llama_cli_input)
+        llm_form.addRow("Max new tokens", self.max_tokens_spin)
+        llm_form.addRow("Temperature", self.temperature_spin)
+        llm_form.addRow("System prompt", self.system_prompt_input)
 
         action_row = QHBoxLayout()
         action_row.addWidget(self.ask_button)
@@ -62,14 +107,31 @@ class ChatWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self.package_label)
         layout.addLayout(top_row)
+        layout.addLayout(llm_form)
+        layout.addWidget(self.backend_hint_label)
         layout.addWidget(self.chat_view, stretch=1)
         layout.addWidget(self.input_box)
         layout.addLayout(action_row)
 
-        self.append_system_message("Chat ready. Answers are grounded in JSON/Markdown/TXT extracted outputs only.")
+        self._update_backend_hint()
+        self.append_system_message(
+            "Chat ready. Answers are grounded in JSON/Markdown/TXT extracted outputs only. "
+            "Configure LLM backend to use local models."
+        )
 
     def set_active_package_name(self, package_name: str) -> None:
         self.package_label.setText(f"Selected package: {package_name}")
+
+    def get_llm_settings(self) -> LLMSettings:
+        return LLMSettings(
+            backend=str(self.backend_combo.currentData()),
+            model=self.model_input.text().strip(),
+            system_prompt=self.system_prompt_input.toPlainText().strip() or DEFAULT_SYSTEM_PROMPT,
+            max_tokens=self.max_tokens_spin.value(),
+            temperature=float(self.temperature_spin.value()),
+            ollama_url=self.ollama_url_input.text().strip() or "http://127.0.0.1:11434/api/generate",
+            llama_cli_path=self.llama_cli_input.text().strip() or "llama-cli",
+        )
 
     def append_user_message(self, text: str) -> None:
         ts = datetime.now().strftime("%H:%M:%S")
@@ -114,6 +176,40 @@ class ChatWidget(QWidget):
             self.append_system_message("Please enter a question first.")
             return
         self.ask_requested.emit(text, mode)
+
+    def _update_backend_hint(self) -> None:
+        backend = str(self.backend_combo.currentData())
+
+        if backend == "ollama":
+            self.model_input.setPlaceholderText("Ollama model name, e.g. llama3.1:8b")
+            self.backend_hint_label.setText(
+                "Ollama mode: start `ollama serve`, then use pulled model name (for example `ollama run llama3.1:8b`)."
+            )
+            return
+
+        if backend == "llamacpp":
+            self.model_input.setPlaceholderText(r"C:\models\your-model.gguf")
+            self.backend_hint_label.setText(
+                "llama.cpp mode: set GGUF model path and llama-cli path (or keep `llama-cli` if it is on PATH)."
+            )
+            return
+
+        if backend == "transformers":
+            self.model_input.setPlaceholderText(r"C:\models\local-transformers-model")
+            self.backend_hint_label.setText(
+                "Transformers mode: model should be a local folder or model id with compatible tensor/safetensors files."
+            )
+            return
+
+        if backend == "heuristic":
+            self.model_input.setPlaceholderText("No model required")
+            self.backend_hint_label.setText("Heuristic mode: no external LLM call; grounded extraction summary only.")
+            return
+
+        self.model_input.setPlaceholderText("Auto chooses runtime by model/path and local availability")
+        self.backend_hint_label.setText(
+            "Auto mode: tries Ollama when available, GGUF through llama.cpp for .gguf paths, or transformers for local model folders."
+        )
 
     def _scroll_to_bottom(self) -> None:
         cursor = self.chat_view.textCursor()

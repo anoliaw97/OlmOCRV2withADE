@@ -10,6 +10,8 @@ import pandas as pd
 class ChatRecord:
     timestamp: str
     mode: str
+    runtime: str
+    model: str
     question: str
     answer: str
     citations: str
@@ -57,6 +59,8 @@ class ExportService:
             document.add_heading(f"Turn {idx}", level=2)
             document.add_paragraph(f"Timestamp: {record.timestamp}")
             document.add_paragraph(f"Mode: {record.mode}")
+            document.add_paragraph(f"Runtime: {record.runtime}")
+            document.add_paragraph(f"Model: {record.model}")
             document.add_paragraph(f"Question: {record.question}")
             document.add_paragraph("Answer:")
             document.add_paragraph(record.answer)

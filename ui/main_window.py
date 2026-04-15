@@ -219,14 +219,23 @@ class MainWindow(QMainWindow):
             return
 
         self.chat_widget.append_user_message(question)
+        llm_settings = self.chat_widget.get_llm_settings()
 
         try:
-            response = self.chat_agent.ask(question, package=self.current_package, mode=mode)
+            response = self.chat_agent.ask(
+                question,
+                package=self.current_package,
+                mode=mode,
+                llm_settings=llm_settings,
+            )
         except Exception as exc:
             self.chat_widget.append_system_message(f"Chat error: {exc}")
             return
 
         self.chat_widget.append_assistant_message(response.answer, response.citations)
+        self.chat_widget.append_system_message(
+            f"Runtime used: {response.runtime} | Model: {response.model or 'not set'}"
+        )
 
         citation_text = "; ".join(
             f"{c.source_file}:{c.source_type}:{c.score:.2f}" for c in response.citations
@@ -235,12 +244,16 @@ class MainWindow(QMainWindow):
             ChatRecord(
                 timestamp=datetime.now().isoformat(timespec="seconds"),
                 mode=response.mode,
+                runtime=response.runtime,
+                model=response.model,
                 question=question,
                 answer=response.answer,
                 citations=citation_text,
             )
         )
-        self._set_status(f"Answered question in {response.mode} mode.")
+        self._set_status(
+            f"Answered question in {response.mode} mode via {response.runtime} ({response.model or 'no model'})."
+        )
 
     def _on_export_chat(self) -> None:
         if not self.chat_records:
