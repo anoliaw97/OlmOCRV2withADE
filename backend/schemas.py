@@ -200,6 +200,10 @@ class RuntimeStateResponse(BaseModel):
     sessions: int = 0
 
 
+class BrowseDialogResponse(BaseModel):
+    path: str = ""
+
+
 class SessionMessagePayload(BaseModel):
     role: str
     content: str

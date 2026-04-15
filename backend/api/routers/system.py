@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.dependencies import get_runtime
 from backend.schemas import (
+    BrowseDialogResponse,
     DirectoryBrowseResponse,
     DirectoryEntry,
     ModelOption,
@@ -34,6 +35,16 @@ def browse_directory(path: str | None = Query(default=None)) -> DirectoryBrowseR
     runtime = get_runtime()
     runtime.log("debug", f"Browsing directory: {target}")
     return _list_directory(target)
+
+
+@router.post("/browse/dialog", response_model=BrowseDialogResponse)
+def browse_dialog(path: str = Query(default="")) -> BrowseDialogResponse:
+    runtime = get_runtime()
+    runtime.log("debug", "Browse dialog requested.")
+    selected = _select_folder_dialog(path)
+    if selected:
+        runtime.log("status", f"Browse dialog selected folder: {selected}")
+    return BrowseDialogResponse(path=selected or "")
 
 
 @router.get("/models/options", response_model=ModelOptionsResponse)
@@ -123,6 +134,33 @@ def _resolve_default_browse_root() -> Path:
     except Exception:
         pass
     return Path.cwd().resolve()
+
+
+def _select_folder_dialog(initial_path: str = "") -> str | None:
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception:
+        return None
+
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+    except Exception:
+        return None
+
+    try:
+        initial = initial_path.strip() if initial_path else ""
+        if not initial:
+            initial = str(_resolve_default_browse_root())
+        selected = filedialog.askdirectory(initialdir=initial, mustexist=True)
+        return selected or None
+    finally:
+        try:
+            root.destroy()
+        except Exception:
+            pass
 
 
 def _list_directory(target: Path) -> DirectoryBrowseResponse:

@@ -263,6 +263,10 @@ def _tokenize(text: str) -> list[str]:
 
 def _is_small_talk(text: str) -> bool:
     normalized = " ".join(text.lower().split())
+    if "how was your day" in normalized or "how's your day" in normalized or "hows your day" in normalized:
+        return True
+    if "how are you" in normalized:
+        return True
     if len(normalized) <= 20 and normalized in {
         "hi",
         "hello",

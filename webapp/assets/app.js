@@ -390,19 +390,22 @@ function unloadModel() {
 
 async function browseFolder(targetInputId, buttonEl) {
   const current = $(targetInputId).value.trim();
-  const query = current ? `?path=${encodeURIComponent(current)}` : '';
   if (buttonEl) {
     buttonEl.textContent = '⏳';
     buttonEl.disabled = true;
   }
   try {
-    const data = await apiFetch(`/api/system/browse${query}`);
-    const path = data.current_path || data.default_root || '';
+    const query = current ? `?path=${encodeURIComponent(current)}` : '';
+    const data = await apiFetch(`/api/system/browse/dialog${query}`, { method: 'POST' });
+    const path = data.path || '';
     if (path) {
       $(targetInputId).value = path;
+      addChatMsg('system', `Selected folder: ${path}`);
+    } else {
+      addChatMsg('system', 'Browse dialog canceled.');
     }
   } catch (error) {
-    addChatMsg('system', `Browse failed: ${error.message}`);
+    addChatMsg('system', `Browse dialog failed: ${error.message}`);
   } finally {
     if (buttonEl) {
       buttonEl.textContent = '📁';
@@ -654,6 +657,14 @@ async function askChat() {
   const mode = $('chatModeSelect').value;
   if (mode === 'direct' && !S.currentPackageId) {
     addChatMsg('system', 'Direct mode needs a selected package.');
+    return;
+  }
+
+  const normalizedQuestion = question.trim().toLowerCase();
+  if (normalizedQuestion === 'hi' || normalizedQuestion === 'hello' || normalizedQuestion.includes('how was your day')) {
+    const friendly = "I am doing great, thanks for asking. Ready to help with your extracted reports when you are.";
+    addChatMsg('assistant', friendly);
+    $('chatPerfHint').textContent = 'Last: quick reply';
     return;
   }
 
