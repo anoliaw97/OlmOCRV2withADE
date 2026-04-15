@@ -28,7 +28,7 @@ This project is designed for Windows + Anaconda Prompt.
 - Page-level files (for example `report_page1.pdf`, `report_page2.pdf`, ...) are grouped into one report package
 - Model discovery for:
   - Ollama local tags/models
-  - llama.cpp GGUF files discovered from configured scan path
+  - llama.cpp GGUF files discovered from configured scan path (default `D:\models`)
 - Chat response metrics include context limit/source, retrieval and generation timings, and total duration
 - Assistant display name follows selected model name
 - Persistent chat sessions (`data/chat_sessions.json`)
@@ -137,3 +137,4 @@ Open in browser:
 - Supported companion extensions: `.pdf`, `.json`, `.md`, `.markdown`, `.txt`
 - Folder loader scans selected folder root (non-recursive)
 - RAG index is lexical (FTS), not embedding-vector semantic search
+- LLM runtime scope is local-only in this workflow: Ollama or llama.cpp

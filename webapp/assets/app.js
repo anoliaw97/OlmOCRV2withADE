@@ -1,42 +1,43 @@
 const state = {
   packages: [],
-  currentPackageId: null,
-  chatRecords: [],
+  currentPackageId: "",
   sessions: [],
   currentSessionId: "",
+  chatRecords: [],
 };
 
-const healthBadge = document.getElementById("healthBadge");
-const statusLine = document.getElementById("statusLine");
-const pathInput = document.getElementById("pathInput");
-const browsePanel = document.getElementById("browsePanel");
-const packageList = document.getElementById("packageList");
-const packageMeta = document.getElementById("packageMeta");
-const markdownFrame = document.getElementById("markdownFrame");
-const tablesTab = document.getElementById("tab-tables");
-const jsonText = document.getElementById("jsonText");
-const pdfPathText = document.getElementById("pdfPathText");
-const pdfOpenLink = document.getElementById("pdfOpenLink");
-const pagePdfList = document.getElementById("pagePdfList");
-
-const sessionSelect = document.getElementById("sessionSelect");
-const modeSelect = document.getElementById("modeSelect");
-const backendSelect = document.getElementById("backendSelect");
-const modelInput = document.getElementById("modelInput");
-const ollamaUrlInput = document.getElementById("ollamaUrlInput");
-const modelSelect = document.getElementById("modelSelect");
-const llamaScanPathInput = document.getElementById("llamaScanPathInput");
-const llamaCliInput = document.getElementById("llamaCliInput");
-const maxTokensInput = document.getElementById("maxTokensInput");
-const contextLimitInput = document.getElementById("contextLimitInput");
-const systemPromptInput = document.getElementById("systemPromptInput");
-const questionInput = document.getElementById("questionInput");
-const exportPathInput = document.getElementById("exportPathInput");
-const chatLog = document.getElementById("chatLog");
-const chatMetrics = document.getElementById("chatMetrics");
+const el = {
+  healthBadge: document.getElementById("healthBadge"),
+  statusLine: document.getElementById("statusLine"),
+  pathInput: document.getElementById("pathInput"),
+  browsePanel: document.getElementById("browsePanel"),
+  packageList: document.getElementById("packageList"),
+  packageMeta: document.getElementById("packageMeta"),
+  markdownFrame: document.getElementById("markdownFrame"),
+  tablesTab: document.getElementById("tab-tables"),
+  jsonText: document.getElementById("jsonText"),
+  pdfPathText: document.getElementById("pdfPathText"),
+  pdfOpenLink: document.getElementById("pdfOpenLink"),
+  pagePdfList: document.getElementById("pagePdfList"),
+  sessionSelect: document.getElementById("sessionSelect"),
+  modeSelect: document.getElementById("modeSelect"),
+  backendSelect: document.getElementById("backendSelect"),
+  modelInput: document.getElementById("modelInput"),
+  modelSelect: document.getElementById("modelSelect"),
+  ollamaUrlInput: document.getElementById("ollamaUrlInput"),
+  llamaScanPathInput: document.getElementById("llamaScanPathInput"),
+  llamaCliInput: document.getElementById("llamaCliInput"),
+  maxTokensInput: document.getElementById("maxTokensInput"),
+  contextLimitInput: document.getElementById("contextLimitInput"),
+  systemPromptInput: document.getElementById("systemPromptInput"),
+  questionInput: document.getElementById("questionInput"),
+  exportPathInput: document.getElementById("exportPathInput"),
+  chatLog: document.getElementById("chatLog"),
+  chatMetrics: document.getElementById("chatMetrics"),
+};
 
 function setStatus(text) {
-  statusLine.textContent = text;
+  el.statusLine.textContent = text;
 }
 
 function nowTime() {
@@ -57,41 +58,34 @@ async function api(method, path, payload = null) {
     options.headers["Content-Type"] = "application/json";
     options.body = JSON.stringify(payload);
   }
-
   const response = await fetch(path, options);
-  const text = await response.text();
-  let data = {};
-  if (text.trim()) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error(`Invalid API response from ${path}`);
-    }
-  }
-
+  const raw = await response.text();
+  const data = raw.trim() ? JSON.parse(raw) : {};
   if (!response.ok) {
     throw new Error(data.detail || `${response.status} ${response.statusText}`);
   }
   return data;
 }
 
-function addChatMessage(kind, text, label = "", timestamp = "") {
+function addMessage(role, content, label = "", time = "") {
   const block = document.createElement("div");
-  block.className = `msg ${kind}`;
-
-  const defaultLabel = kind === "user" ? "You" : kind === "assistant" ? "Assistant" : "System";
-  const header = `${label || defaultLabel}${timestamp ? ` [${timestamp}]` : ""}`;
-
+  block.className = `msg ${role}`;
+  const title = label || (role === "user" ? "You" : role === "assistant" ? "Assistant" : "System");
   block.innerHTML =
-    `<div class="msg-header"><strong>${escapeHtml(header)}</strong></div>` +
-    `<div class="msg-body">${escapeHtml(text).replaceAll("\n", "<br>")}</div>`;
-
-  chatLog.appendChild(block);
-  chatLog.scrollTop = chatLog.scrollHeight;
+    `<div class=\"msg-header\"><strong>${escapeHtml(title)}${time ? ` [${escapeHtml(time)}]` : ""}</strong></div>` +
+    `<div class=\"msg-body\">${escapeHtml(content).replaceAll("\n", "<br>")}</div>`;
+  el.chatLog.appendChild(block);
+  el.chatLog.scrollTop = el.chatLog.scrollHeight;
 }
 
-function addSystemMessage(text) {
-  addChatMessage("system", text, "System", nowTime());
+function systemMessage(text) {
+  addMessage("system", text, "System", nowTime());
+}
+
+function resetChatView() {
+  el.chatLog.innerHTML = "";
+  state.chatRecords = [];
+  el.chatMetrics.textContent = "No response metrics yet.";
 }
 
 function renderMetrics(metrics = {}, reasoningChain = []) {
@@ -103,18 +97,17 @@ function renderMetrics(metrics = {}, reasoningChain = []) {
     `Total: ${Number(metrics.total_ms || 0).toFixed(2)} ms`,
   ];
   if (reasoningChain.length) {
-    lines.push("", "Reasoning chain:", ...reasoningChain.map((item) => `- ${item}`));
+    lines.push("", "Reasoning chain:", ...reasoningChain.map((v) => `- ${v}`));
   }
-  chatMetrics.textContent = lines.join("\n");
+  el.chatMetrics.textContent = lines.join("\n");
 }
 
 function renderPackageList() {
-  packageList.innerHTML = "";
+  el.packageList.innerHTML = "";
   if (!state.packages.length) {
-    packageList.innerHTML = "<div style='padding:8px'>No packages loaded.</div>";
+    el.packageList.innerHTML = "<div style='padding:8px'>No packages loaded.</div>";
     return;
   }
-
   for (const pkg of state.packages) {
     const btn = document.createElement("button");
     btn.textContent = `${pkg.base_name} [${(pkg.tokens || []).join(", ") || "EMPTY"}]`;
@@ -122,480 +115,439 @@ function renderPackageList() {
       btn.classList.add("active");
     }
     btn.addEventListener("click", () => selectPackage(pkg.package_id));
-    packageList.appendChild(btn);
+    el.packageList.appendChild(btn);
   }
 }
 
-function renderPdfInfo(preview, selected) {
-  const fullPdfPath = preview.full_pdf_path || selected.full_pdf_path || "";
-  const pdfPath = preview.pdf_path || selected.pdf_path || "";
-  const pagePdfs = preview.page_pdf_paths || selected.page_pdf_paths || [];
+function renderPdfInfo(preview, pkg) {
+  const fullPdf = preview.full_pdf_path || pkg.full_pdf_path || "";
+  const previewPdf = preview.pdf_path || pkg.pdf_path || "";
+  const pagePdfs = preview.page_pdf_paths || pkg.page_pdf_paths || [];
 
-  if (fullPdfPath) {
-    pdfPathText.textContent = `Full PDF available: ${fullPdfPath}`;
-  } else if (pdfPath) {
-    pdfPathText.textContent = `PDF page set grouped under report: preview path ${pdfPath}`;
+  if (fullPdf) {
+    el.pdfPathText.textContent = `Full PDF available: ${fullPdf}`;
+  } else if (previewPdf) {
+    el.pdfPathText.textContent = `Grouped page PDFs detected. Preview target: ${previewPdf}`;
   } else {
-    pdfPathText.textContent = "No PDF in selected package.";
+    el.pdfPathText.textContent = "No PDF in selected package.";
   }
 
-  const openTarget = fullPdfPath || pdfPath;
-  if (openTarget) {
-    pdfOpenLink.classList.remove("hidden");
-    pdfOpenLink.href = `file:///${openTarget.replaceAll("\\", "/")}`;
+  const openPath = fullPdf || previewPdf;
+  if (openPath) {
+    el.pdfOpenLink.classList.remove("hidden");
+    el.pdfOpenLink.href = `file:///${openPath.replaceAll("\\", "/")}`;
   } else {
-    pdfOpenLink.classList.add("hidden");
-    pdfOpenLink.removeAttribute("href");
+    el.pdfOpenLink.classList.add("hidden");
+    el.pdfOpenLink.removeAttribute("href");
   }
 
-  pagePdfList.innerHTML = "";
+  el.pagePdfList.innerHTML = "";
   if (!pagePdfs.length) {
-    pagePdfList.textContent = "No grouped page-PDF set detected.";
+    el.pagePdfList.textContent = "No grouped page-PDF set detected.";
     return;
   }
-  for (const path of pagePdfs.slice(0, 60)) {
+  for (const path of pagePdfs.slice(0, 80)) {
     const row = document.createElement("div");
     row.className = "item";
     row.textContent = path;
-    pagePdfList.appendChild(row);
+    el.pagePdfList.appendChild(row);
   }
 }
 
 function renderTables(tables) {
-  tablesTab.innerHTML = "";
+  el.tablesTab.innerHTML = "";
   if (!tables.length) {
-    tablesTab.textContent = "No tables detected in JSON/Markdown for this package.";
+    el.tablesTab.textContent = "No tables detected in JSON/Markdown for this package.";
     return;
   }
-
   for (const table of tables) {
     const card = document.createElement("section");
     card.className = "table-card";
-
-    const header = document.createElement("h4");
-    header.textContent = table.title;
-    card.appendChild(header);
+    const h = document.createElement("h4");
+    h.textContent = table.title;
+    card.appendChild(h);
 
     if ((table.headers || []).length && (table.rows || []).length) {
-      const htmlTable = document.createElement("table");
+      const t = document.createElement("table");
       const thead = document.createElement("thead");
-      const hr = document.createElement("tr");
-      for (const h of table.headers) {
+      const trh = document.createElement("tr");
+      for (const col of table.headers) {
         const th = document.createElement("th");
-        th.textContent = h;
-        hr.appendChild(th);
+        th.textContent = col;
+        trh.appendChild(th);
       }
-      thead.appendChild(hr);
-      htmlTable.appendChild(thead);
+      thead.appendChild(trh);
+      t.appendChild(thead);
 
       const tbody = document.createElement("tbody");
       for (const row of table.rows) {
         const tr = document.createElement("tr");
-        for (const cell of row) {
+        for (const val of row) {
           const td = document.createElement("td");
-          td.textContent = cell;
+          td.textContent = val;
           tr.appendChild(td);
         }
         tbody.appendChild(tr);
       }
-      htmlTable.appendChild(tbody);
-      card.appendChild(htmlTable);
+      t.appendChild(tbody);
+      card.appendChild(t);
     } else {
       const pre = document.createElement("pre");
       pre.textContent = table.raw_text || "No structured rows found.";
       card.appendChild(pre);
     }
-
-    tablesTab.appendChild(card);
+    el.tablesTab.appendChild(card);
   }
 }
 
 async function selectPackage(packageId) {
   state.currentPackageId = packageId;
   renderPackageList();
-  const selected = state.packages.find((item) => item.package_id === packageId);
-  if (!selected) {
+  const pkg = state.packages.find((p) => p.package_id === packageId);
+  if (!pkg) {
     return;
   }
 
-  packageMeta.textContent = [
-    `Folder: ${selected.folder}`,
-    `JSON files: ${(selected.json_paths || []).length}`,
-    `Markdown files: ${(selected.markdown_paths || []).length}`,
-    `TXT files: ${(selected.text_paths || []).length}`,
-    `Full PDF: ${selected.full_pdf_path || "N/A"}`,
-    `Grouped page PDFs: ${selected.page_pdf_count || 0}${selected.page_range ? ` (pages ${selected.page_range})` : ""}`,
+  el.packageMeta.textContent = [
+    `Folder: ${pkg.folder}`,
+    `JSON files: ${(pkg.json_paths || []).length}`,
+    `Markdown files: ${(pkg.markdown_paths || []).length}`,
+    `TXT files: ${(pkg.text_paths || []).length}`,
+    `Full PDF: ${pkg.full_pdf_path || "N/A"}`,
+    `Grouped page PDFs: ${pkg.page_pdf_count || 0}${pkg.page_range ? ` (pages ${pkg.page_range})` : ""}`,
   ].join("\n");
 
   try {
     const preview = await api("POST", "/api/loaders/preview", { package_id: packageId });
-    markdownFrame.srcdoc = preview.markdown_html || "";
-    jsonText.textContent = preview.json_text || "No JSON content available.";
+    el.markdownFrame.srcdoc = preview.markdown_html || "";
+    el.jsonText.textContent = preview.json_text || "No JSON content available.";
     renderTables(preview.tables || []);
-    renderPdfInfo(preview, selected);
-    setStatus(`Selected package: ${selected.base_name}`);
+    renderPdfInfo(preview, pkg);
+    setStatus(`Selected package: ${pkg.base_name}`);
   } catch (error) {
-    addSystemMessage(`Preview error: ${error.message}`);
+    systemMessage(`Preview error: ${error.message}`);
     setStatus("Preview failed.");
   }
 }
 
 async function loadFolder() {
-  const path = pathInput.value.trim();
+  const path = el.pathInput.value.trim();
   if (!path) {
     setStatus("Enter a folder path first.");
     return;
   }
   try {
-    const result = await api("POST", "/api/loaders/folder", { path });
-    state.packages = result.packages || [];
-    state.currentPackageId = state.packages.length ? state.packages[0].package_id : null;
+    const res = await api("POST", "/api/loaders/folder", { path });
+    state.packages = res.packages || [];
+    state.currentPackageId = state.packages.length ? state.packages[0].package_id : "";
     renderPackageList();
     if (state.currentPackageId) {
       await selectPackage(state.currentPackageId);
     }
     setStatus(`Loaded ${state.packages.length} package(s) from ${path}`);
   } catch (error) {
-    addSystemMessage(`Load folder failed: ${error.message}`);
+    systemMessage(`Load folder failed: ${error.message}`);
     setStatus("Load folder failed.");
   }
 }
 
 async function loadFile() {
-  const path = pathInput.value.trim();
+  const path = el.pathInput.value.trim();
   if (!path) {
     setStatus("Enter a file path first.");
     return;
   }
   try {
-    const result = await api("POST", "/api/loaders/file", { path });
-    state.packages = result.packages || [];
-    state.currentPackageId = state.packages.length ? state.packages[0].package_id : null;
+    const res = await api("POST", "/api/loaders/file", { path });
+    state.packages = res.packages || [];
+    state.currentPackageId = state.packages.length ? state.packages[0].package_id : "";
     renderPackageList();
     if (state.currentPackageId) {
       await selectPackage(state.currentPackageId);
     }
     setStatus(`Loaded package from ${path}`);
   } catch (error) {
-    addSystemMessage(`Load file failed: ${error.message}`);
+    systemMessage(`Load file failed: ${error.message}`);
     setStatus("Load file failed.");
   }
 }
 
 async function buildIndex() {
   try {
-    const result = await api("POST", "/api/retrieval/index/build", {});
-    addSystemMessage(`Indexed chunks: ${result.indexed_chunks}.`);
-    setStatus(`Indexed ${result.indexed_chunks} chunk(s) from ${result.package_count} package(s).`);
+    const res = await api("POST", "/api/retrieval/index/build", {});
+    systemMessage(`Indexed chunks: ${res.indexed_chunks}.`);
+    setStatus(`Indexed ${res.indexed_chunks} chunk(s) from ${res.package_count} package(s).`);
   } catch (error) {
-    addSystemMessage(`Index build failed: ${error.message}`);
+    systemMessage(`Index build failed: ${error.message}`);
     setStatus("Index build failed.");
   }
 }
 
-async function loadSessions() {
-  try {
-    const result = await api("GET", "/api/chat/sessions");
-    state.sessions = result.sessions || [];
-    renderSessionOptions();
-    if (!state.sessions.length) {
-      await createSession("Workflow Chat");
-      return;
-    }
-    if (!state.currentSessionId || !state.sessions.some((s) => s.session_id === state.currentSessionId)) {
-      state.currentSessionId = state.sessions[0].session_id;
-    }
-    sessionSelect.value = state.currentSessionId;
-    await loadSession(state.currentSessionId);
-  } catch (error) {
-    addSystemMessage(`Session load failed: ${error.message}`);
-  }
-}
-
 function renderSessionOptions() {
-  sessionSelect.innerHTML = "";
-  for (const session of state.sessions) {
-    const option = document.createElement("option");
-    option.value = session.session_id;
-    option.textContent = `${session.title} (${session.message_count})`;
-    sessionSelect.appendChild(option);
+  el.sessionSelect.innerHTML = "";
+  for (const s of state.sessions) {
+    const opt = document.createElement("option");
+    opt.value = s.session_id;
+    opt.textContent = `${s.title} (${s.message_count})`;
+    el.sessionSelect.appendChild(opt);
+  }
+  if (state.currentSessionId) {
+    el.sessionSelect.value = state.currentSessionId;
   }
 }
 
-async function createSession(title = "") {
-  try {
-    const result = await api("POST", "/api/chat/session/new", { title });
-    const created = result.session;
-    state.currentSessionId = created.session_id;
-    await loadSessions();
-    setStatus(`Session created: ${created.title}`);
-  } catch (error) {
-    addSystemMessage(`Create session failed: ${error.message}`);
+async function refreshSessions(loadCurrent = false) {
+  const res = await api("GET", "/api/chat/sessions");
+  state.sessions = res.sessions || [];
+  if (!state.sessions.length) {
+    state.currentSessionId = "";
+    renderSessionOptions();
+    return;
   }
+  if (!state.currentSessionId || !state.sessions.some((s) => s.session_id === state.currentSessionId)) {
+    state.currentSessionId = state.sessions[0].session_id;
+  }
+  renderSessionOptions();
+  if (loadCurrent && state.currentSessionId) {
+    await loadSession(state.currentSessionId);
+  }
+}
+
+async function createSession() {
+  const res = await api("POST", "/api/chat/session/new", { title: "Workflow Chat" });
+  state.currentSessionId = res.session.session_id;
+  resetChatView();
+  await refreshSessions(false);
+  setStatus(`Session created: ${res.session.title}`);
 }
 
 async function deleteCurrentSession() {
   if (!state.currentSessionId) {
     return;
   }
-  try {
-    await api("DELETE", `/api/chat/session/${encodeURIComponent(state.currentSessionId)}`);
-    chatLog.innerHTML = "";
-    state.chatRecords = [];
-    state.currentSessionId = "";
-    chatMetrics.textContent = "No response metrics yet.";
-    await loadSessions();
-    setStatus("Session deleted.");
-  } catch (error) {
-    addSystemMessage(`Delete session failed: ${error.message}`);
-  }
+  await api("DELETE", `/api/chat/session/${encodeURIComponent(state.currentSessionId)}`);
+  state.currentSessionId = "";
+  resetChatView();
+  await refreshSessions(true);
+  setStatus("Session deleted.");
 }
 
 async function loadSession(sessionId) {
   if (!sessionId) {
     return;
   }
-  try {
-    const result = await api("GET", `/api/chat/session/${encodeURIComponent(sessionId)}`);
-    const session = result.session;
-    state.currentSessionId = session.session_id;
-    sessionSelect.value = session.session_id;
+  const res = await api("GET", `/api/chat/session/${encodeURIComponent(sessionId)}`);
+  state.currentSessionId = res.session.session_id;
+  renderSessionOptions();
+  resetChatView();
 
-    chatLog.innerHTML = "";
-    state.chatRecords = [];
-
-    let pendingUser = "";
-    for (const msg of session.messages || []) {
-      const role = (msg.role || "assistant").toLowerCase();
-      if (role === "user") {
-        pendingUser = msg.content || "";
-        addChatMessage("user", msg.content || "", "You", msg.time || "");
-        continue;
-      }
-
-      const label = msg.model || msg.runtime || "Assistant";
-      addChatMessage("assistant", msg.content || "", label, msg.time || "");
-      state.chatRecords.push({
-        timestamp: new Date().toISOString().slice(0, 19),
-        mode: modeSelect.value,
-        runtime: msg.runtime || "",
-        model: msg.model || "",
-        question: pendingUser,
-        answer: msg.content || "",
-        citations: msg.citations || "",
-      });
-      pendingUser = "";
+  let pendingUser = "";
+  for (const msg of res.session.messages || []) {
+    const role = (msg.role || "assistant").toLowerCase();
+    if (role === "user") {
+      pendingUser = msg.content || "";
+      addMessage("user", msg.content || "", "You", msg.time || "");
+      continue;
     }
-
-    setStatus(`Loaded session: ${session.title}`);
-  } catch (error) {
-    addSystemMessage(`Session open failed: ${error.message}`);
+    addMessage("assistant", msg.content || "", msg.model || msg.runtime || "Assistant", msg.time || "");
+    state.chatRecords.push({
+      timestamp: new Date().toISOString().slice(0, 19),
+      mode: el.modeSelect.value,
+      runtime: msg.runtime || "",
+      model: msg.model || "",
+      question: pendingUser,
+      answer: msg.content || "",
+      citations: msg.citations || "",
+    });
+    pendingUser = "";
   }
+  setStatus(`Loaded session: ${res.session.title}`);
 }
 
 async function refreshModels() {
-  const backend = backendSelect.value;
-  const backendQuery = backend === "llamacpp" ? "llamacpp" : "ollama";
-  const ollamaUrl = encodeURIComponent(ollamaUrlInput.value.trim());
-  const scanPath = encodeURIComponent(llamaScanPathInput.value.trim());
+  const backend = el.backendSelect.value;
+  const scanPath = encodeURIComponent(el.llamaScanPathInput.value.trim());
+  const ollamaUrl = encodeURIComponent(el.ollamaUrlInput.value.trim());
 
-  try {
-    const result = await api(
-      "GET",
-      `/api/system/models/options?backend=${encodeURIComponent(backendQuery)}&ollama_url=${ollamaUrl}&scan_path=${scanPath}`,
-    );
+  const res = await api(
+    "GET",
+    `/api/system/models/options?backend=${encodeURIComponent(backend)}&scan_path=${scanPath}&ollama_url=${ollamaUrl}`,
+  );
 
-    modelSelect.innerHTML = "";
-    const models = result.models || [];
-    if (!models.length) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = result.message || "No models discovered.";
-      modelSelect.appendChild(opt);
-      setStatus(result.message || "No models found.");
-      return;
-    }
-
-    for (const model of models) {
-      const opt = document.createElement("option");
-      opt.value = model.path || model.name;
-      opt.textContent = model.label || model.name;
-      modelSelect.appendChild(opt);
-    }
-
-    const chosen = result.default_model || modelSelect.options[0].value;
-    modelSelect.value = chosen;
-    modelInput.value = chosen;
-    if (result.scan_path) {
-      llamaScanPathInput.value = result.scan_path;
-    }
-
-    setStatus(result.message || `Loaded ${models.length} model option(s).`);
-  } catch (error) {
-    addSystemMessage(`Model discovery failed: ${error.message}`);
-    setStatus("Model discovery failed.");
+  el.modelSelect.innerHTML = "";
+  if (!(res.models || []).length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = res.message || "No models found";
+    el.modelSelect.appendChild(opt);
+    setStatus(res.message || "No models discovered.");
+    return;
   }
+
+  for (const m of res.models) {
+    const opt = document.createElement("option");
+    opt.value = m.path || m.name;
+    opt.textContent = m.label || m.name;
+    el.modelSelect.appendChild(opt);
+  }
+
+  const chosen = res.default_model || el.modelSelect.options[0].value;
+  el.modelSelect.value = chosen;
+  el.modelInput.value = chosen;
+  if (res.scan_path) {
+    el.llamaScanPathInput.value = res.scan_path;
+  }
+  setStatus(res.message || "Models refreshed.");
 }
 
 async function askQuestion() {
-  const question = questionInput.value.trim();
+  const question = el.questionInput.value.trim();
   if (!question) {
     setStatus("Enter a question first.");
     return;
   }
-
-  const mode = modeSelect.value;
-  if (mode === "direct" && !state.currentPackageId) {
-    addSystemMessage("Direct mode requires selecting a package first.");
+  if (el.modeSelect.value === "direct" && !state.currentPackageId) {
+    systemMessage("Direct mode requires selecting a package first.");
     return;
   }
 
-  addChatMessage("user", question, "You", nowTime());
-  questionInput.value = "";
+  if (!state.currentSessionId) {
+    await createSession();
+  }
+
+  addMessage("user", question, "You", nowTime());
+  el.questionInput.value = "";
 
   const payload = {
     question,
-    mode,
-    package_id: state.currentPackageId,
-    session_id: state.currentSessionId || null,
+    mode: el.modeSelect.value,
+    package_id: state.currentPackageId || null,
+    session_id: state.currentSessionId,
     llm_settings: {
-      backend: backendSelect.value,
-      model: modelInput.value.trim(),
-      system_prompt: systemPromptInput.value,
-      max_tokens: Number(maxTokensInput.value || 512),
+      backend: el.backendSelect.value,
+      model: el.modelInput.value.trim(),
+      system_prompt: el.systemPromptInput.value,
+      max_tokens: Number(el.maxTokensInput.value || 512),
       temperature: 0.2,
-      ollama_url: ollamaUrlInput.value.trim(),
-      llama_cli_path: llamaCliInput.value.trim(),
-      context_limit: Number(contextLimitInput.value || 24000),
+      ollama_url: el.ollamaUrlInput.value.trim(),
+      llama_cli_path: el.llamaCliInput.value.trim(),
+      context_limit: Number(el.contextLimitInput.value || 24000),
     },
   };
 
   try {
-    const response = await api("POST", "/api/chat/ask", payload);
-    state.currentSessionId = response.session_id || state.currentSessionId;
-    await loadSessions();
+    const res = await api("POST", "/api/chat/ask", payload);
+    state.currentSessionId = res.session_id || state.currentSessionId;
+    addMessage("assistant", res.answer || "", res.assistant_name || res.model || res.runtime || "Assistant", nowTime());
 
-    addChatMessage(
-      "assistant",
-      response.answer || "",
-      response.assistant_name || response.model || response.runtime || "Assistant",
-      nowTime(),
-    );
-
-    if ((response.citations || []).length) {
-      const lines = response.citations.map(
-        (item) => `- ${item.source_file} (${item.source_type}, score=${Number(item.score).toFixed(2)})`,
+    if ((res.citations || []).length) {
+      const lines = res.citations.map(
+        (c) => `- ${c.source_file} (${c.source_type}, score=${Number(c.score).toFixed(2)})`,
       );
-      addSystemMessage(`Sources:\n${lines.join("\n")}`);
+      systemMessage(`Sources:\n${lines.join("\n")}`);
     }
 
-    renderMetrics(response.metrics || {}, response.reasoning_chain || []);
+    renderMetrics(res.metrics || {}, res.reasoning_chain || []);
 
-    const citationText = (response.citations || [])
-      .map((item) => `${item.source_file}:${item.source_type}:${Number(item.score).toFixed(2)}`)
+    const citationText = (res.citations || [])
+      .map((c) => `${c.source_file}:${c.source_type}:${Number(c.score).toFixed(2)}`)
       .join("; ");
-
     state.chatRecords.push({
       timestamp: new Date().toISOString().slice(0, 19),
-      mode: response.mode,
-      runtime: response.runtime,
-      model: response.model,
+      mode: res.mode,
+      runtime: res.runtime,
+      model: res.model,
       question,
-      answer: response.answer,
+      answer: res.answer,
       citations: citationText,
     });
 
+    await refreshSessions(false);
     setStatus(
-      `Answered via ${response.assistant_name || response.model || response.runtime} in ${Number(response.metrics?.total_ms || 0).toFixed(2)} ms.`,
+      `Answered via ${res.assistant_name || res.model || res.runtime} in ${Number(res.metrics?.total_ms || 0).toFixed(2)} ms.`,
     );
   } catch (error) {
-    addSystemMessage(`Chat error: ${error.message}`);
+    systemMessage(`Chat error: ${error.message}`);
     setStatus("Chat failed.");
   }
 }
 
 async function exportChat() {
   if (!state.chatRecords.length) {
-    addSystemMessage("No chat history to export yet.");
+    systemMessage("No chat history to export yet.");
     return;
   }
-
-  const destination = exportPathInput.value.trim();
+  const destination = el.exportPathInput.value.trim();
   if (!destination) {
-    addSystemMessage("Set an export destination path first.");
+    systemMessage("Set an export destination path first.");
     return;
   }
-
   try {
-    const result = await api("POST", "/api/export/chat", { destination, records: state.chatRecords });
-    addSystemMessage(result.message);
-    setStatus(result.message);
+    const res = await api("POST", "/api/export/chat", { destination, records: state.chatRecords });
+    systemMessage(res.message);
+    setStatus(res.message);
   } catch (error) {
-    addSystemMessage(`Export failed: ${error.message}`);
+    systemMessage(`Export failed: ${error.message}`);
     setStatus("Export failed.");
   }
 }
 
-function clearChat() {
-  chatLog.innerHTML = "";
-  state.chatRecords = [];
-  renderMetrics({}, []);
-  addSystemMessage("Local chat view cleared (session history is preserved). ");
+function clearChatView() {
+  resetChatView();
+  systemMessage("Local chat view cleared (session data remains saved). ");
 }
 
 async function browse(path = "") {
   try {
     const query = path ? `?path=${encodeURIComponent(path)}` : "";
-    const result = await api("GET", `/api/system/browse${query}`);
-
-    if (!path && result.default_root) {
-      pathInput.value = result.default_root;
+    const res = await api("GET", `/api/system/browse${query}`);
+    if (!path && res.default_root) {
+      el.pathInput.value = res.default_root;
     }
 
-    browsePanel.classList.remove("hidden");
-    browsePanel.innerHTML = "";
+    el.browsePanel.classList.remove("hidden");
+    el.browsePanel.innerHTML = "";
 
     const current = document.createElement("div");
     current.style.padding = "8px";
     current.style.borderBottom = "1px solid #ecf0eb";
-    current.textContent = `Current: ${result.current_path}`;
-    browsePanel.appendChild(current);
+    current.textContent = `Current: ${res.current_path}`;
+    el.browsePanel.appendChild(current);
 
-    if (result.parent_path) {
+    if (res.parent_path) {
       const up = document.createElement("button");
       up.className = "browse-item";
       up.textContent = "..";
-      up.addEventListener("click", () => browse(result.parent_path));
-      browsePanel.appendChild(up);
+      up.addEventListener("click", () => browse(res.parent_path));
+      el.browsePanel.appendChild(up);
     }
 
-    for (const entry of result.entries || []) {
+    for (const entry of res.entries || []) {
       const btn = document.createElement("button");
       btn.className = "browse-item";
       btn.textContent = `${entry.is_dir ? "[DIR]" : "[FILE]"} ${entry.name}`;
       btn.addEventListener("click", () => {
-        pathInput.value = entry.path;
+        el.pathInput.value = entry.path;
         if (entry.is_dir) {
           browse(entry.path);
         }
       });
-      browsePanel.appendChild(btn);
+      el.browsePanel.appendChild(btn);
     }
 
-    setStatus(`Browsing: ${result.current_path}`);
+    setStatus(`Browsing: ${res.current_path}`);
   } catch (error) {
-    addSystemMessage(`Browse failed: ${error.message}`);
+    systemMessage(`Browse failed: ${error.message}`);
   }
 }
 
 function wireTabs() {
   const tabs = document.querySelectorAll(".tab");
-  const contents = document.querySelectorAll(".tab-content");
-
+  const panes = document.querySelectorAll(".tab-content");
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
-      tabs.forEach((item) => item.classList.remove("active"));
-      contents.forEach((item) => item.classList.remove("active"));
+      tabs.forEach((x) => x.classList.remove("active"));
+      panes.forEach((x) => x.classList.remove("active"));
       tab.classList.add("active");
       const target = document.getElementById(`tab-${tab.dataset.tab}`);
       if (target) {
@@ -606,44 +558,55 @@ function wireTabs() {
 }
 
 function wireEvents() {
-  document.getElementById("browseBtn").addEventListener("click", () => browse(pathInput.value.trim()));
+  document.getElementById("browseBtn").addEventListener("click", () => browse(el.pathInput.value.trim()));
   document.getElementById("loadFolderBtn").addEventListener("click", loadFolder);
   document.getElementById("loadFileBtn").addEventListener("click", loadFile);
   document.getElementById("buildIndexBtn").addEventListener("click", buildIndex);
 
-  document.getElementById("newSessionBtn").addEventListener("click", () => createSession("Workflow Chat"));
+  document.getElementById("newSessionBtn").addEventListener("click", createSession);
   document.getElementById("deleteSessionBtn").addEventListener("click", deleteCurrentSession);
-  sessionSelect.addEventListener("change", () => loadSession(sessionSelect.value));
+  el.sessionSelect.addEventListener("change", () => loadSession(el.sessionSelect.value));
 
-  backendSelect.addEventListener("change", refreshModels);
-  modelSelect.addEventListener("change", () => {
-    modelInput.value = modelSelect.value;
+  el.backendSelect.addEventListener("change", refreshModels);
+  el.modelSelect.addEventListener("change", () => {
+    el.modelInput.value = el.modelSelect.value;
   });
   document.getElementById("refreshModelsBtn").addEventListener("click", refreshModels);
 
   document.getElementById("askBtn").addEventListener("click", askQuestion);
-  document.getElementById("clearChatBtn").addEventListener("click", clearChat);
+  document.getElementById("clearChatBtn").addEventListener("click", clearChatView);
   document.getElementById("exportBtn").addEventListener("click", exportChat);
+
+  el.questionInput.addEventListener("keydown", (evt) => {
+    if (evt.key === "Enter" && !evt.shiftKey) {
+      evt.preventDefault();
+      askQuestion();
+    }
+  });
 }
 
 async function init() {
   wireTabs();
   wireEvents();
-
   try {
     await api("GET", "/health");
-    healthBadge.textContent = "Backend: online";
+    el.healthBadge.textContent = "Backend: online";
+    systemMessage("Web app connected. Local runtimes only: Ollama or llama.cpp.");
     setStatus("Backend connected.");
-    addSystemMessage("Web app connected. Load extracted outputs to begin.");
   } catch (error) {
-    healthBadge.textContent = "Backend: offline";
-    addSystemMessage(`Backend health check failed: ${error.message}`);
+    el.healthBadge.textContent = "Backend: offline";
+    systemMessage(`Backend health check failed: ${error.message}`);
     setStatus("Backend not reachable.");
     return;
   }
 
   await browse("");
-  await loadSessions();
+  await refreshSessions(false);
+  if (!state.currentSessionId) {
+    await createSession();
+  } else {
+    await loadSession(state.currentSessionId);
+  }
   await refreshModels();
 }
 

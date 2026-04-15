@@ -61,7 +61,7 @@ class BuildIndexResponse(BaseModel):
 
 
 class LLMSettingsPayload(BaseModel):
-    backend: str = "auto"
+    backend: str = "ollama"
     model: str = "llama3.1:8b"
     system_prompt: str = ""
     max_tokens: int = 512

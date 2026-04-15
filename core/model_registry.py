@@ -11,9 +11,9 @@ from urllib.request import Request, urlopen
 
 
 DEFAULT_LLAMACPP_SCAN_ROOTS = [
-    Path(r"C:\Users\admin\Downloads\Fine Tunining Datasets\train"),
-    Path(r"C:\models"),
     Path(r"D:\models"),
+    Path(r"C:\models"),
+    Path(r"C:\Users\admin\Downloads\Fine Tunining Datasets\train"),
 ]
 
 MAX_DISCOVERED_MODELS = 300
