@@ -93,14 +93,35 @@ conda activate python_workflow
 pip install -r requirements.txt
 ```
 
-### 3.1) Install Poppler (required for in-app PDF page preview)
+### 3.1) Auto-bootstrap local tools (recommended)
+
+Run this once from Anaconda Prompt (inside the same env):
+
+```bat
+python bootstrap_tools.py
+```
+
+What it does:
+
+- Downloads and installs Poppler into `tools\poppler` (if missing)
+- Sets `POPPLER_PDFTOPPM` for current shell
+- Persists `POPPLER_PDFTOPPM` via `setx` for future shells
+- Checks whether `llama-cli` is discoverable on PATH
+
+If you do not want persistent env var updates:
+
+```bat
+python bootstrap_tools.py --no-setx
+```
+
+### 3.2) Install Poppler manually (alternative)
 
 - Install Poppler for Windows and ensure `pdftoppm.exe` is available in `PATH`,
   or set `POPPLER_PDFTOPPM` to full executable path.
 - Common path example:
   - `C:\Program Files\poppler\Library\bin\pdftoppm.exe`
 
-### 3.2) llama.cpp setup (if using llama.cpp backend)
+### 3.3) llama.cpp setup (if using llama.cpp backend)
 
 - Set `llama-cli path` in UI to full executable path, for example:
   - `C:\llama.cpp\build\bin\Release\llama-cli.exe`
