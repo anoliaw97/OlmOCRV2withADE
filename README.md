@@ -177,3 +177,35 @@ Open in browser:
 - Folder loader scans selected folder root (non-recursive)
 - RAG index is lexical (FTS), not embedding-vector semantic search
 - LLM runtime scope is local-only in this workflow: Ollama or llama.cpp
+
+## Optional Streamlit Variant (LangChain + HF Embeddings + Chroma + PyPDFLoader)
+
+An optional prototype app is included to mirror the architecture style you referenced:
+
+- LangChain RAG pipeline and optional agent mode
+- HuggingFace embeddings
+- ChromaDB vector store
+- PyPDFLoader document processing
+
+Files:
+
+- `streamlit_option_app.py`
+- `requirements-streamlit.txt`
+
+Install in current environment:
+
+```bat
+pip install -r requirements-streamlit.txt
+```
+
+Run:
+
+```bat
+streamlit run streamlit_option_app.py
+```
+
+Notes:
+
+- This is additive and does not replace FastAPI webapp flow.
+- Streamlit variant expects PDF-first ingestion (not extracted JSON/MD/TXT pairing).
+- For llama.cpp backend in Streamlit, install `llama-cpp-python` and use a local GGUF model path.
