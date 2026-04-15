@@ -86,6 +86,25 @@ class ChatAgent:
                 route_confidence=route.confidence,
                 route_reason=route.reason,
             )
+
+        reporting_answer = self._handle_reporting_question(cleaned, package)
+        if reporting_answer is not None:
+            return ChatResponse(
+                answer=reporting_answer,
+                citations=[],
+                mode=mode,
+                runtime="assistant",
+                model=llm_settings.model,
+                reasoning_chain=["Handled as runtime metadata question without retrieval."],
+                context_chars=0,
+                context_truncated=False,
+                retrieval_chunks=0,
+                retrieval_ms=0.0,
+                generation_ms=0.0,
+                route_type="general",
+                route_confidence=0.99,
+                route_reason="runtime-metadata-question",
+            )
         retrieval_started = time.perf_counter()
         retrieved: list[RetrievedChunk] = []
         if route_type in {"document", "hybrid"}:
@@ -157,6 +176,42 @@ class ChatAgent:
             f"Top retrieval score: {top_retrieval_score:.2f}.",
             f"Context size: {context_chars} chars (limit {context_limit}, truncated={context_truncated}).",
         ]
+
+        if route_type == "general" and llm_settings.backend != "heuristic":
+            generation_started = time.perf_counter()
+            try:
+                generation = self.llm_orchestrator.generate_general(
+                    question=cleaned,
+                    history=history_text,
+                    settings=llm_settings,
+                )
+                answer = generation.text
+                runtime = generation.runtime
+                model = generation.model
+                reasoning_chain.append("Generated conversational answer without retrieval grounding.")
+            except LLMBackendError as exc:
+                answer = self._compose_general_fallback(cleaned)
+                runtime = "fallback-general"
+                model = llm_settings.model
+                reasoning_chain.append(f"General generation failed: {exc}. Used local fallback reply.")
+            generation_ms = (time.perf_counter() - generation_started) * 1000.0
+
+            return ChatResponse(
+                answer=answer,
+                citations=[],
+                mode=mode,
+                runtime=runtime,
+                model=model,
+                reasoning_chain=reasoning_chain,
+                context_chars=context_chars,
+                context_truncated=context_truncated,
+                retrieval_chunks=0,
+                retrieval_ms=retrieval_ms,
+                generation_ms=generation_ms,
+                route_type=route_type,
+                route_confidence=route.confidence,
+                route_reason=route.reason,
+            )
 
         if llm_settings.backend == "heuristic":
             generation_started = time.perf_counter()
@@ -247,6 +302,23 @@ class ChatAgent:
             route_confidence=route.confidence,
             route_reason=route.reason,
         )
+
+    def _handle_reporting_question(self, question: str, package: DocumentPackage | None) -> str | None:
+        q = " ".join(question.lower().split())
+        if "how many reports" in q and "database" in q:
+            # runtime-level count not available here; caller should prefer global UI count.
+            # provide useful answer from current context.
+            if package is not None:
+                return (
+                    "I do not have global database count inside this answer context, "
+                    "but I can confirm the selected report package is loaded and queryable. "
+                    "Use the package counter shown in the app state panel for total loaded reports."
+                )
+            return (
+                "I cannot see a loaded package context in this request. "
+                "Load a folder first and I can report from the loaded set."
+            )
+        return None
 
     def _build_context(
         self,

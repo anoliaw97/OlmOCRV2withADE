@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from dataclasses import replace
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,11 @@ DEFAULT_SYSTEM_PROMPT = (
     "You are a technical extraction assistant. "
     "Answer only from the provided extracted context. "
     "If information is missing, explicitly say it is not found in extracted outputs."
+)
+
+GENERAL_SYSTEM_PROMPT = (
+    "You are a helpful conversational assistant. "
+    "Respond naturally and clearly."
 )
 
 
@@ -69,6 +75,25 @@ class LLMOrchestrator:
 
         raise LLMBackendError(f"Unsupported backend: {backend}")
 
+    def generate_general(self, question: str, history: str, settings: LLMSettings) -> LLMGenerationResult:
+        backend = self._resolve_backend(settings)
+        prompt = _build_general_prompt(question=question, history=history)
+        general_settings = replace(settings, system_prompt=GENERAL_SYSTEM_PROMPT)
+
+        if backend == "ollama":
+            text = _run_ollama(prompt, general_settings)
+            return LLMGenerationResult(text=text, runtime="ollama", model=settings.model)
+
+        if backend == "llamacpp":
+            text = _run_llama_cpp(prompt, general_settings)
+            return LLMGenerationResult(text=text, runtime="llama.cpp", model=settings.model)
+
+        if backend == "transformers":
+            text = self._transformers_runtime.generate(prompt, general_settings)
+            return LLMGenerationResult(text=text, runtime="transformers", model=settings.model)
+
+        raise LLMBackendError(f"Unsupported backend: {backend}")
+
     def _resolve_backend(self, settings: LLMSettings) -> str:
         explicit = settings.backend.strip().lower()
         if explicit and explicit != "auto":
@@ -109,6 +134,17 @@ def _build_grounded_prompt(question: str, context: str, max_context_chars: int) 
         "[EXTRACTED CONTEXT END]\n\n"
         f"Question: {question}\n"
         "Answer:"
+    )
+
+
+def _build_general_prompt(question: str, history: str) -> str:
+    clipped_history = (history or "")[:3000]
+    return (
+        "You are in general chat mode.\n"
+        "If the user asks about loaded documents and you do not have enough details, ask for clarification.\n\n"
+        f"Recent chat:\n{clipped_history if clipped_history else '(none)'}\n\n"
+        f"User: {question}\n"
+        "Assistant:"
     )
 
 

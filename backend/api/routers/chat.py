@@ -102,6 +102,23 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
         f"Query route decision: type={route.type}, confidence={route.confidence:.2f}, reason={route.reason}",
     )
 
+    metadata_answer = _runtime_metadata_answer(request.question, runtime)
+    if metadata_answer is not None:
+        return ChatAskResponse(
+            answer=metadata_answer,
+            citations=[],
+            mode=request.mode,
+            runtime="assistant",
+            model=settings_payload.model,
+            assistant_name=_assistant_name(settings_payload.model, "assistant"),
+            session_id=session_id,
+            reasoning_chain=["Answered from runtime metadata without retrieval."],
+            metrics=ChatMetricsPayload(),
+            route_type="general",
+            route_confidence=0.99,
+            route_reason="runtime-metadata-question",
+        )
+
     started = time.perf_counter()
     try:
         response = runtime.ask(
@@ -273,3 +290,14 @@ def _to_session_payload(session: dict) -> ChatSessionPayload:
         updated_at=str(session.get("updated_at") or ""),
         messages=messages,
     )
+
+
+def _runtime_metadata_answer(question: str, runtime) -> str | None:
+    q = " ".join(str(question or "").lower().split())
+    if "how many reports" in q and "database" in q:
+        loaded = len(runtime.packages)
+        return f"You currently have {loaded} report package(s) loaded in this session."
+    if "how many" in q and "package" in q:
+        loaded = len(runtime.packages)
+        return f"There are {loaded} loaded package(s) right now."
+    return None

@@ -28,6 +28,11 @@ DOC_KEYWORDS = {
     "citation",
     "values",
     "data",
+    "database",
+    "loaded",
+    "count",
+    "many",
+    "number",
 }
 
 GENERAL_CHAT_KEYWORDS = {
