@@ -1,152 +1,225 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Python Workflow WebApp</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workflow Local App</title>
   <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body>
-  <div class="bg-orb orb-a"></div>
-  <div class="bg-orb orb-b"></div>
 
-  <header class="topbar">
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="logo">⬡</span>
     <div>
-      <h1>Python Workflow WebApp</h1>
-      <p>Source of truth: extracted JSON / Markdown / TXT only. PDF and images are preview-only.</p>
+      <div class="app-title">Workflow Local App</div>
+      <div class="app-sub">Simple RAG · Local Ollama / llama.cpp · No external API</div>
     </div>
-    <div class="health" id="healthBadge">Checking backend...</div>
-  </header>
+  </div>
 
-  <main class="layout">
-    <section class="panel controls">
-      <h2>Data Loading</h2>
-      <label class="field-label" for="pathInput">Folder or primary file path</label>
-      <div class="row">
-        <input id="pathInput" type="text" value="C:\\Users\\admin\\Downloads\\Fine Tunining Datasets\\train" placeholder="C:\\path\\to\\extracted\\outputs" />
-        <button id="browseBtn" class="btn btn-muted">Browse</button>
+  <div class="topbar-center">
+    <div id="modelPill" class="model-pill">
+      <span id="modelDot" class="dot dot-off"></span>
+      <span id="modelLabel">Model: not loaded</span>
+    </div>
+    <div id="buildInfo" class="build-chip">build: web-simple</div>
+  </div>
+
+  <div class="topbar-right">
+    <button id="refreshModelsTopBtn" class="topbtn" title="Refresh available local models">Refresh Models</button>
+    <button id="loadModelTopBtn" class="topbtn topbtn-llm" title="Activate selected model for chat">Load Model</button>
+    <button id="unloadModelTopBtn" class="topbtn" title="Clear active model selection">Unload Model</button>
+    <span id="loadingSpinner" class="spinner hidden">⟳</span>
+  </div>
+</header>
+
+<div class="app-grid">
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="section-label">Step 1 · Load folder / database</div>
+      <div class="folder-row">
+        <input id="dataRootInput" type="text" class="folder-input" value="C:\Users\admin\Downloads\Fine Tunining Datasets\train" />
+        <button id="browseDataRootBtn" class="icon-btn" title="Browse directory">📁</button>
       </div>
-      <div class="row">
-        <button id="loadFolderBtn" class="btn btn-primary">Load Folder</button>
-        <button id="loadFileBtn" class="btn">Load File</button>
+      <div class="row-2">
+        <button id="loadFolderBtn" class="btn-full">Load Folder</button>
+        <button id="loadDatabaseBtn" class="btn-full">Load Database</button>
       </div>
-      <div id="browsePanel" class="browse hidden"></div>
+    </div>
 
-      <h3>Packages</h3>
-      <div id="packageList" class="list"></div>
+    <div class="sidebar-section">
+      <div class="section-label">Packages</div>
+      <select id="packageSelect" class="full-select" size="9"></select>
+      <div id="coverageInfo" class="coverage-chip">No package loaded.</div>
+    </div>
 
-      <div class="row stack-mobile">
-        <button id="buildIndexBtn" class="btn">Build/Update RAG Index</button>
-      </div>
+    <div class="sidebar-section">
+      <div class="section-label">Step 2 · Load RAG index</div>
+      <button id="buildIndexBtn" class="btn-full btn-accent">Build / Rebuild RAG</button>
+    </div>
 
-      <div class="meta" id="packageMeta">No package selected.</div>
-    </section>
-
-    <section class="panel preview">
-      <h2>Preview</h2>
-      <div class="tabs">
-        <button class="tab active" data-tab="markdown">Markdown</button>
-        <button class="tab" data-tab="tables">Tables</button>
-        <button class="tab" data-tab="json">Raw JSON</button>
-        <button class="tab" data-tab="pdf">PDF</button>
-      </div>
-
-      <div id="tab-markdown" class="tab-content active">
-        <iframe id="markdownFrame" title="Markdown Preview"></iframe>
-      </div>
-      <div id="tab-tables" class="tab-content"></div>
-      <div id="tab-json" class="tab-content"><pre id="jsonText"></pre></div>
-      <div id="tab-pdf" class="tab-content">
-        <p id="pdfPathText">No PDF in selected package.</p>
-        <a id="pdfOpenLink" class="btn btn-muted hidden" target="_blank" rel="noreferrer">Open PDF Path</a>
-        <div class="field-label">Grouped page PDFs</div>
-        <div id="pagePdfList" class="mini-list">No grouped page-PDF set detected.</div>
-      </div>
-    </section>
-
-    <section class="panel chat">
-      <h2>Chat</h2>
-
-      <label>Chat session</label>
-      <div class="row">
-        <select id="sessionSelect"></select>
-        <button id="newSessionBtn" class="btn btn-muted">New Session</button>
-        <button id="deleteSessionBtn" class="btn">Delete</button>
+    <div class="sidebar-section">
+      <div class="section-label">Step 3 · Load model</div>
+      <div class="row-2">
+        <select id="backendSelect" class="full-select-inline">
+          <option value="ollama">Ollama</option>
+          <option value="llamacpp">llama.cpp (GGUF)</option>
+        </select>
+        <button id="refreshModelsBtn" class="btn-sm" title="Refresh model list">↻</button>
       </div>
 
-      <div class="grid2">
-        <label>Mode
-          <select id="modeSelect">
-            <option value="direct">Direct selected-document query</option>
-            <option value="rag">Optional indexed RAG query</option>
+      <select id="modelSelect" class="full-select"></select>
+
+      <label class="tiny-label" for="modelInput">Model (name or path)</label>
+      <input id="modelInput" type="text" class="folder-input" value="llama3.1:8b" />
+
+      <label class="tiny-label" for="ollamaUrlInput">Ollama generate URL</label>
+      <input id="ollamaUrlInput" type="text" class="folder-input" value="http://127.0.0.1:11434/api/generate" />
+
+      <label class="tiny-label" for="llamaScanPathInput">llama.cpp model folder scan path</label>
+      <input id="llamaScanPathInput" type="text" class="folder-input" value="D:\models" />
+
+      <label class="tiny-label" for="llamaCliInput">llama-cli path</label>
+      <input id="llamaCliInput" type="text" class="folder-input" value="llama-cli" />
+
+      <div class="row-2">
+        <button id="loadModelBtn" class="btn-full btn-accent">Load Model</button>
+        <button id="unloadModelBtn" class="btn-full">Unload</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Step 6 · Export Word / Excel</div>
+      <div class="folder-row">
+        <input id="outputDirInput" type="text" class="folder-input" value="" placeholder="Optional output folder" />
+        <button id="browseOutputBtn" class="icon-btn" title="Browse output directory">📁</button>
+      </div>
+      <div class="row-2">
+        <button id="exportExcelBtn" class="btn-full">Export Excel</button>
+        <button id="exportWordBtn" class="btn-full">Export Word</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <main class="main-area">
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="chat">💬 Chat</button>
+      <button class="tab-btn" data-tab="viewer">📄 Preview</button>
+    </div>
+
+    <div id="tab-chat" class="tab-pane active">
+      <div class="chat-topbar">
+        <div class="filter-row">
+          <span class="tiny-label">Mode:</span>
+          <select id="chatModeSelect" class="filter-select">
+            <option value="direct">Direct (selected package)</option>
+            <option value="rag">RAG (indexed)</option>
           </select>
-        </label>
-        <label>LLM Backend
-          <select id="backendSelect">
-            <option value="ollama">Ollama</option>
-            <option value="llamacpp">llama.cpp (GGUF)</option>
-          </select>
-        </label>
+          <span class="tiny-label">Max tokens:</span>
+          <input id="maxTokensInput" type="number" class="num-input" min="64" max="8192" value="768" />
+          <span class="tiny-label">Context limit:</span>
+          <input id="contextLimitInput" type="number" class="num-input" min="2000" max="180000" value="24000" />
+        </div>
+
+        <div class="chat-export-row">
+          <select id="sessionSelect" class="chat-session-select" title="Chat sessions"></select>
+          <button id="newSessionBtn" class="btn-xs">＋ Session</button>
+          <button id="deleteSessionBtn" class="btn-xs btn-muted">✕</button>
+          <button id="clearChatBtn" class="btn-xs btn-muted">🗑 Clear View</button>
+        </div>
       </div>
 
-      <div class="grid2">
-        <label>Model (name or path)
-          <input id="modelInput" type="text" value="llama3.1:8b" />
-        </label>
-        <label>Ollama URL
-          <input id="ollamaUrlInput" type="text" value="http://127.0.0.1:11434/api/generate" />
-        </label>
+      <div id="chatBox" class="chat-box"></div>
+
+      <div class="chat-tables-panel">
+        <div class="panel-head">Step 5 · Generated / arranged tables</div>
+        <div id="chatTablesView" class="html-tables-wrap">
+          <div class="preview-placeholder">Tables extracted from assistant answers will appear here.</div>
+        </div>
       </div>
 
-      <label>Detected models from selected backend</label>
-      <div class="row">
-        <select id="modelSelect"></select>
-        <button id="refreshModelsBtn" class="btn btn-muted">Refresh Models</button>
+      <div class="chat-input-area">
+        <textarea id="chatInput" class="chat-textarea" rows="3" placeholder="Step 4 · Ask from extracted JSON/MD/TXT only (Enter to send, Shift+Enter newline)"></textarea>
+        <div class="chat-send-col">
+          <button id="sendBtn" class="send-btn">Send ↵</button>
+          <div id="chatPerfHint" class="tiny-label">Last: -</div>
+        </div>
       </div>
+    </div>
 
-      <label>llama.cpp model scan path (for GGUF discovery)
-        <input id="llamaScanPathInput" type="text" value="D:\\models" />
-      </label>
+    <div id="tab-viewer" class="tab-pane hidden">
+      <div class="viewer-content full-width">
+        <div class="viewer-tabs">
+          <button class="vtab-btn active" data-vtab="pdf">PDF Preview (Poppler)</button>
+          <button class="vtab-btn" data-vtab="raw">Raw JSON / MD / TXT</button>
+          <button class="vtab-btn" data-vtab="tables">Rendered Tables</button>
+        </div>
 
-      <div class="grid2">
-        <label>llama-cli path
-          <input id="llamaCliInput" type="text" value="llama-cli" />
-        </label>
-        <label>Max new tokens
-          <input id="maxTokensInput" type="number" min="64" max="8192" value="512" />
-        </label>
+        <div id="vtab-pdf" class="vtab-pane active">
+          <div class="json-toolbar">
+            <span class="tiny-label">Page</span>
+            <input id="pdfPageInput" type="number" class="num-input" min="1" value="1" />
+            <span class="tiny-label">DPI</span>
+            <input id="pdfDpiInput" type="number" class="num-input" min="72" max="320" value="140" />
+            <button id="renderPdfBtn" class="btn-xs">Render PDF</button>
+          </div>
+          <div id="pdfPreviewWrap" class="pdf-preview-wrap">
+            <div class="preview-placeholder">Select a package and click Render PDF.</div>
+          </div>
+        </div>
+
+        <div id="vtab-raw" class="vtab-pane hidden">
+          <pre id="rawView" class="json-view">(no package selected)</pre>
+        </div>
+
+        <div id="vtab-tables" class="vtab-pane hidden">
+          <div id="viewerTablesView" class="html-tables-wrap">
+            <div class="preview-placeholder">Rendered tables from extracted JSON/MD will appear here.</div>
+          </div>
+        </div>
       </div>
-
-      <label>Context limit (chars for grounded context prompt)
-        <input id="contextLimitInput" type="number" min="2000" max="200000" value="24000" />
-      </label>
-
-      <label>System prompt
-        <textarea id="systemPromptInput" rows="3">You are a technical extraction assistant. Answer only from the provided extracted context. If information is missing, explicitly say it is not found in extracted outputs.</textarea>
-      </label>
-
-      <label>Question
-        <textarea id="questionInput" rows="4" placeholder="Ask a question grounded in extracted JSON/MD/TXT..."></textarea>
-      </label>
-
-      <div class="row">
-        <button id="askBtn" class="btn btn-primary">Ask</button>
-        <button id="clearChatBtn" class="btn btn-muted">Clear Chat</button>
-      </div>
-
-      <label class="field-label" for="exportPathInput">Export destination path (.csv/.xlsx/.docx)</label>
-      <div class="row">
-        <input id="exportPathInput" type="text" value="C:\\temp\\chat_export.csv" />
-        <button id="exportBtn" class="btn">Export Chat</button>
-      </div>
-
-      <div id="chatLog" class="chat-log"></div>
-      <div id="chatMetrics" class="meta">No response metrics yet.</div>
-    </section>
+    </div>
   </main>
 
-  <footer class="status" id="statusLine">Ready.</footer>
+  <aside class="right-panel">
+    <div class="rp-section">
+      <div class="section-label">Advanced options enabled</div>
+      <div class="detail-text">Debug, Status, Error and Reasoning logs are visible below.</div>
+    </div>
 
-  <script src="/assets/app.js"></script>
+    <div class="rp-section">
+      <div class="rp-head">Progress / State</div>
+      <div id="stateDetails" class="coverage-chip">Waiting for backend state…</div>
+    </div>
+
+    <div class="rp-section rp-reasoning">
+      <div class="rp-head">Reasoning details</div>
+      <div id="reasoningList" class="reasoning-list"></div>
+    </div>
+
+    <div class="rp-section rp-logs">
+      <div class="rp-head-row">
+        <div class="rp-head" style="margin-bottom:0">Logs</div>
+        <div class="log-kind-tabs">
+          <button class="lkbtn active" data-kind="status">Status</button>
+          <button class="lkbtn" data-kind="debug">Debug</button>
+          <button class="lkbtn" data-kind="error">Error</button>
+          <button class="lkbtn" data-kind="reasoning">Reasoning</button>
+        </div>
+        <div class="rp-log-actions">
+          <label class="tiny-label" style="display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="autoScrollLogs" checked /> Scroll
+          </label>
+          <button class="btn-xs btn-muted" id="clearLogsBtn">🗑</button>
+        </div>
+      </div>
+      <div id="logsView" class="logs-view rp-logs-view"></div>
+    </div>
+  </aside>
+</div>
+
+<script src="/assets/app.js"></script>
 </body>
 </html>

@@ -10,6 +10,7 @@ from core.llm_backends import LLMSettings
 from core.loaders import DocumentPackage, PackageLoader
 from core.preview_service import PackagePreview, PreviewService
 from core.rag_index import LocalRagIndex
+from core.runtime_logs import RuntimeLogs
 from core.retriever import RetrievalEngine
 
 
@@ -27,13 +28,16 @@ class WorkflowRuntime:
         self.chat_agent = ChatAgent(self.retrieval_engine)
         self.export_service = ExportService()
         self.session_store = ChatSessionStore(Path("data/chat_sessions.json"))
+        self.logs = RuntimeLogs()
 
         self.packages: list[DocumentPackage] = []
         self._packages_by_id: dict[str, DocumentPackage] = {}
+        self.log("status", "Workflow runtime initialized.")
 
     def set_packages(self, packages: list[DocumentPackage]) -> list[DocumentPackage]:
         self.packages = packages
         self._packages_by_id = {pkg.package_id: pkg for pkg in packages}
+        self.log("status", f"Package state updated: {len(packages)} package(s) loaded.")
         return self.packages
 
     def load_folder(self, folder_path: str) -> list[DocumentPackage]:
@@ -122,4 +126,17 @@ class WorkflowRuntime:
         return self.session_store.delete_session(session_id)
 
     def close(self) -> None:
+        self.log("status", "Workflow runtime shutdown requested.")
         self.rag_index.close()
+
+    def log(self, kind: str, message: str) -> None:
+        self.logs.add(kind, message)
+
+    def list_logs(self, kind: str, limit: int = 200) -> list[dict[str, str]]:
+        return [
+            {"time": item.time, "kind": item.kind, "message": item.message}
+            for item in self.logs.list(kind, limit)
+        ]
+
+    def clear_logs(self, kind: str = "all") -> None:
+        self.logs.clear(kind)

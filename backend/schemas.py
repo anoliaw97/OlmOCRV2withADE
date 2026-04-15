@@ -46,6 +46,7 @@ class PreviewTable(BaseModel):
 
 class PackagePreviewResponse(BaseModel):
     package_id: str
+    markdown_text: str = ""
     markdown_html: str
     json_text: str
     text_text: str
@@ -179,6 +180,24 @@ class ModelOptionsResponse(BaseModel):
     default_model: str = ""
     scan_path: str = ""
     models: list[ModelOption] = Field(default_factory=list)
+
+
+class RuntimeLogItemPayload(BaseModel):
+    time: str
+    kind: str
+    message: str
+
+
+class RuntimeLogsResponse(BaseModel):
+    kind: str
+    items: list[RuntimeLogItemPayload] = Field(default_factory=list)
+
+
+class RuntimeStateResponse(BaseModel):
+    packages_loaded: int = 0
+    current_package_id: str = ""
+    rag_index_ready: bool = False
+    sessions: int = 0
 
 
 class SessionMessagePayload(BaseModel):

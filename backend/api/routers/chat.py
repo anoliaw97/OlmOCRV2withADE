@@ -30,6 +30,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 def chat_sessions() -> ChatSessionsResponse:
     runtime = get_runtime()
     sessions = runtime.list_sessions()
+    runtime.log("debug", f"Session list requested; {len(sessions)} session(s) available.")
     return ChatSessionsResponse(sessions=sessions)
 
 
@@ -37,6 +38,7 @@ def chat_sessions() -> ChatSessionsResponse:
 def chat_session_new(request: ChatSessionCreateRequest) -> ChatSessionResponse:
     runtime = get_runtime()
     session = runtime.create_session(request.title)
+    runtime.log("status", f"Created chat session: {session.get('session_id', '')}")
     return ChatSessionResponse(session=_to_session_payload(session))
 
 
@@ -45,7 +47,9 @@ def chat_session_get(session_id: str) -> ChatSessionResponse:
     runtime = get_runtime()
     session = runtime.get_session(session_id)
     if not session:
+        runtime.log("error", f"Session lookup failed: {session_id}")
         raise HTTPException(status_code=404, detail="Session not found")
+    runtime.log("debug", f"Session opened: {session_id}")
     return ChatSessionResponse(session=_to_session_payload(session))
 
 
@@ -54,13 +58,19 @@ def chat_session_delete(session_id: str) -> GenericOkResponse:
     runtime = get_runtime()
     deleted = runtime.delete_session(session_id)
     if not deleted:
+        runtime.log("error", f"Session delete failed; not found: {session_id}")
         raise HTTPException(status_code=404, detail="Session not found")
+    runtime.log("status", f"Deleted chat session: {session_id}")
     return GenericOkResponse(ok=True)
 
 
 @router.post("/ask", response_model=ChatAskResponse)
 def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
     runtime = get_runtime()
+    runtime.log(
+        "debug",
+        f"Chat request received: mode={request.mode}, package={request.package_id or '-'}, backend={request.llm_settings.backend}",
+    )
     settings_payload = request.llm_settings
     llm_settings = LLMSettings(
         backend=settings_payload.backend,
@@ -86,6 +96,7 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
             settings=llm_settings,
         )
     except Exception as exc:
+        runtime.log("error", f"Chat failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Chat failed: {exc}") from exc
     total_ms = (time.perf_counter() - started) * 1000.0
 
@@ -154,6 +165,21 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
         generation_ms=round(float(response.generation_ms), 2),
         total_ms=round(float(total_ms), 2),
     )
+
+    runtime.log(
+        "status",
+        f"Chat answered with runtime={response.runtime}, model={response.model or '-'}, total_ms={metrics.total_ms}",
+    )
+    runtime.log(
+        "reasoning",
+        (
+            f"Retrieved chunks={metrics.retrieval_chunks}, context={metrics.context_chars}, "
+            f"truncated={metrics.context_truncated}, retrieval_ms={metrics.retrieval_ms}, "
+            f"generation_ms={metrics.generation_ms}"
+        ),
+    )
+    for line in response.reasoning_chain[:12]:
+        runtime.log("reasoning", str(line))
 
     return ChatAskResponse(
         answer=response.answer,

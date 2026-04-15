@@ -5,7 +5,15 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.schemas import DirectoryBrowseResponse, DirectoryEntry, ModelOption, ModelOptionsResponse
+from backend.dependencies import get_runtime
+from backend.schemas import (
+    DirectoryBrowseResponse,
+    DirectoryEntry,
+    ModelOption,
+    ModelOptionsResponse,
+    RuntimeLogsResponse,
+    RuntimeStateResponse,
+)
 from core.model_registry import discover_llamacpp_models, list_ollama_models
 
 
@@ -23,6 +31,8 @@ DEFAULT_BROWSE_ROOT = Path(
 @router.get("/browse", response_model=DirectoryBrowseResponse)
 def browse_directory(path: str | None = Query(default=None)) -> DirectoryBrowseResponse:
     target = Path(path).expanduser().resolve() if path else _resolve_default_browse_root()
+    runtime = get_runtime()
+    runtime.log("debug", f"Browsing directory: {target}")
     return _list_directory(target)
 
 
@@ -32,6 +42,7 @@ def model_options(
     ollama_url: str = Query(default="http://127.0.0.1:11434/api/generate"),
     scan_path: str = Query(default=""),
 ) -> ModelOptionsResponse:
+    runtime = get_runtime()
     backend_name = (backend or "ollama").strip().lower()
     if backend_name == "auto":
         backend_name = "ollama"
@@ -40,6 +51,7 @@ def model_options(
         try:
             models = [ModelOption(**item) for item in list_ollama_models(ollama_url)]
             default_model = models[0].name if models else ""
+            runtime.log("status", f"Ollama model scan completed: {len(models)} model(s) found.")
             return ModelOptionsResponse(
                 backend="ollama",
                 connection_ok=True,
@@ -49,6 +61,7 @@ def model_options(
                 models=models,
             )
         except Exception as exc:
+            runtime.log("error", f"Ollama model scan failed: {exc}")
             return ModelOptionsResponse(
                 backend="ollama",
                 connection_ok=False,
@@ -62,6 +75,7 @@ def model_options(
         models, resolved_scan = discover_llamacpp_models(scan_path)
         options = [ModelOption(**item) for item in models]
         default_model = options[0].path if options else ""
+        runtime.log("status", f"llama.cpp model scan completed: {len(options)} GGUF file(s) found.")
         return ModelOptionsResponse(
             backend="llamacpp",
             connection_ok=bool(options),
@@ -73,6 +87,33 @@ def model_options(
         )
 
     raise HTTPException(status_code=400, detail="backend must be ollama or llamacpp")
+
+
+@router.get("/state", response_model=RuntimeStateResponse)
+def runtime_state() -> RuntimeStateResponse:
+    runtime = get_runtime()
+    current_package_id = runtime.packages[0].package_id if runtime.packages else ""
+    return RuntimeStateResponse(
+        packages_loaded=len(runtime.packages),
+        current_package_id=current_package_id,
+        rag_index_ready=runtime.rag_index.is_ready(),
+        sessions=len(runtime.list_sessions()),
+    )
+
+
+@router.get("/logs", response_model=RuntimeLogsResponse)
+def runtime_logs(kind: str = Query(default="status"), limit: int = Query(default=200)) -> RuntimeLogsResponse:
+    runtime = get_runtime()
+    items = runtime.list_logs(kind=kind, limit=limit)
+    return RuntimeLogsResponse(kind=kind, items=items)
+
+
+@router.post("/logs/clear")
+def clear_logs(kind: str = Query(default="all")) -> dict[str, bool]:
+    runtime = get_runtime()
+    runtime.clear_logs(kind=kind)
+    runtime.log("status", f"Logs cleared for kind='{kind}'.")
+    return {"ok": True}
 
 
 def _resolve_default_browse_root() -> Path:

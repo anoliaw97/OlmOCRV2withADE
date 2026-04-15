@@ -29,9 +29,11 @@ This project is designed for Windows + Anaconda Prompt.
 - Model discovery for:
   - Ollama local tags/models
   - llama.cpp GGUF files discovered from configured scan path (default `D:\models`)
+- PDF preview rendering uses Poppler (`pdftoppm`) for page images inside the web viewer
 - Chat response metrics include context limit/source, retrieval and generation timings, and total duration
 - Assistant display name follows selected model name
 - Persistent chat sessions (`data/chat_sessions.json`)
+- Advanced panel includes live Debug / Status / Error / Reasoning logs
 
 ## Project structure
 
@@ -57,7 +59,9 @@ G:\Python Based Workflow\
 |  |- retriever.py
 |  |- rag_index.py
 |  |- chat_agent.py
-|  `- export_service.py
+|  |- export_service.py
+|  |- pdf_preview.py
+|  `- runtime_logs.py
 |- webapp/
 |  |- index.html
 |  `- assets/
@@ -89,6 +93,13 @@ conda activate python_workflow
 pip install -r requirements.txt
 ```
 
+### 3.1) Install Poppler (required for in-app PDF page preview)
+
+- Install Poppler for Windows and ensure `pdftoppm.exe` is available in `PATH`,
+  or set `POPPLER_PDFTOPPM` to full executable path.
+- Common path example:
+  - `C:\Program Files\poppler\Library\bin\pdftoppm.exe`
+
 Optional transformers runtime:
 
 ```bat
@@ -110,20 +121,21 @@ Open in browser:
 ## First workflow
 
 1. Open `http://127.0.0.1:8000`
-2. Set folder path (or file path) for extracted outputs
-3. Click `Load Folder` or `Load File`
-4. Select a package from the left list
-5. Preview tabs:
-   - Markdown
-   - Tables
-   - Raw JSON
-   - PDF path (preview-only)
-6. Ask questions in Chat (direct or rag mode)
-7. Choose backend/model:
-   - Ollama models from local service
-   - llama.cpp GGUF models from scan path
-8. Optional: build/update RAG index
-9. Export chat to CSV/XLSX/DOCX via destination path
+2. Step 1: `Load Folder` (or `Load Database`) for extracted outputs
+3. Step 2: `Build / Rebuild RAG`
+4. Step 3: choose backend/model and click `Load Model`
+5. Step 4: ask in Chat
+6. Step 5: review generated/arranged tables from answers
+7. Step 6: export chat to Excel or Word
+8. Use `Preview` tab to inspect:
+   - Poppler-rendered PDF page preview
+   - Raw Markdown/JSON/TXT extracted content
+   - Rendered extracted tables
+9. Use right-side advanced panel to monitor:
+   - Status logs
+   - Debug logs
+   - Error logs
+   - Reasoning detail logs
 
 ## Crash stabilization included
 

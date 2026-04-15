@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/export", tags=["export"])
 @router.post("/chat", response_model=ExportChatResponse)
 def export_chat(request: ExportChatRequest) -> ExportChatResponse:
     runtime = get_runtime()
+    runtime.log("status", f"Chat export requested to {request.destination}")
     records = [
         ChatRecord(
             timestamp=r.timestamp,
@@ -29,5 +30,7 @@ def export_chat(request: ExportChatRequest) -> ExportChatResponse:
     try:
         ok, message = runtime.export_records(request.destination, records)
     except Exception as exc:
+        runtime.log("error", f"Chat export failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Export failed: {exc}") from exc
+    runtime.log("status", message)
     return ExportChatResponse(ok=ok, message=message)
