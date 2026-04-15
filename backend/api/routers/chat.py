@@ -119,6 +119,23 @@ def chat_ask(request: ChatAskRequest) -> ChatAskResponse:
             route_reason="runtime-metadata-question",
         )
 
+    ml_hint = runtime.chat_agent.maybe_handle_ml_command(request.question, runtime.packages)
+    if ml_hint is not None:
+        return ChatAskResponse(
+            answer=ml_hint,
+            citations=[],
+            mode=request.mode,
+            runtime="assistant",
+            model=settings_payload.model,
+            assistant_name=_assistant_name(settings_payload.model, "assistant"),
+            session_id=session_id,
+            reasoning_chain=["Detected ML workflow intent and returned operation guidance."],
+            metrics=ChatMetricsPayload(),
+            route_type="general",
+            route_confidence=0.93,
+            route_reason="ml-workflow-intent",
+        )
+
     started = time.perf_counter()
     try:
         response = runtime.ask(

@@ -107,6 +107,7 @@
     <div class="tab-nav">
       <button class="tab-btn active" data-tab="chat">💬 Chat</button>
       <button class="tab-btn" data-tab="viewer">📄 Preview</button>
+      <button class="tab-btn" data-tab="ml">📈 ML Analytics</button>
     </div>
 
     <div id="tab-chat" class="tab-pane active">
@@ -177,6 +178,50 @@
         <div id="vtab-tables" class="vtab-pane hidden">
           <div id="viewerTablesView" class="html-tables-wrap">
             <div class="preview-placeholder">Rendered tables from extracted JSON/MD will appear here.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-ml" class="tab-pane hidden">
+      <div class="viewer-content full-width">
+        <div class="json-toolbar">
+          <span class="tiny-label">Dataset CSV</span>
+          <input id="mlDatasetPathInput" type="text" class="folder-input" value="data/ml/structured_dataset.csv" />
+          <button id="mlBuildDatasetBtn" class="btn-xs">Build Dataset</button>
+          <button id="mlLoadDashboardBtn" class="btn-xs">Refresh Dashboard</button>
+        </div>
+
+        <div class="json-toolbar">
+          <span class="tiny-label">Target</span>
+          <select id="mlTargetSelect" class="filter-select">
+            <option value="permeability_mean">permeability_mean</option>
+            <option value="porosity_mean">porosity_mean</option>
+            <option value="swirr_mean">swirr_mean</option>
+            <option value="kro_end_mean">kro_end_mean</option>
+            <option value="krw_end_mean">krw_end_mean</option>
+            <option value="pc_entry_mean">pc_entry_mean</option>
+          </select>
+          <button id="mlTrainBtn" class="btn-xs btn-accent">Train Model</button>
+        </div>
+
+        <div class="json-toolbar">
+          <span class="tiny-label">Pipeline YAML path</span>
+          <input id="mlPipelinePathInput" type="text" class="folder-input" value="" placeholder="Optional: pipeline.yaml" />
+          <button id="mlRunPipelineBtn" class="btn-xs">Run Pipeline</button>
+        </div>
+
+        <div class="json-toolbar">
+          <span class="tiny-label">Predict input (JSON)</span>
+          <input id="mlPredictJsonInput" type="text" class="folder-input" value='{"porosity_mean":18.0,"swirr_mean":0.23,"kro_end_mean":0.75,"krw_end_mean":0.28,"pc_entry_mean":12.5}' />
+          <button id="mlPredictBtn" class="btn-xs">Predict</button>
+        </div>
+
+        <div class="ml-grid">
+          <pre id="mlSummaryView" class="json-view">ML summary will appear here.</pre>
+          <div class="ml-charts-wrap">
+            <div class="rp-head">Analytics Dashboard</div>
+            <canvas id="mlScatterCanvas" width="900" height="330"></canvas>
           </div>
         </div>
       </div>

@@ -246,3 +246,67 @@ class ChatSessionResponse(BaseModel):
 
 class GenericOkResponse(BaseModel):
     ok: bool
+
+
+class MlDatasetBuildRequest(BaseModel):
+    output_csv: str = "data/ml/structured_dataset.csv"
+
+
+class MlDatasetBuildResponse(BaseModel):
+    ok: bool
+    message: str
+    output_csv: str
+    rows: int
+    columns: list[str] = Field(default_factory=list)
+
+
+class MlTrainRequest(BaseModel):
+    target: str
+    dataset_csv: str = "data/ml/structured_dataset.csv"
+
+
+class MlTrainResponse(BaseModel):
+    ok: bool
+    message: str
+    model_path: str = ""
+    target: str = ""
+    algorithm: str = ""
+    metrics: dict[str, float] = Field(default_factory=dict)
+    feature_columns: list[str] = Field(default_factory=list)
+
+
+class MlPredictRequest(BaseModel):
+    target: str
+    features: dict[str, float] = Field(default_factory=dict)
+    model_path: str | None = None
+
+
+class MlPredictResponse(BaseModel):
+    ok: bool
+    message: str
+    target: str
+    prediction: float = 0.0
+    used_features: dict[str, float] = Field(default_factory=dict)
+
+
+class MlDashboardResponse(BaseModel):
+    ok: bool
+    message: str
+    dataset_csv: str = ""
+    row_count: int = 0
+    columns: list[str] = Field(default_factory=list)
+    stats: dict[str, dict[str, float]] = Field(default_factory=dict)
+    feature_importance: dict[str, float] = Field(default_factory=dict)
+    chart_points: list[dict[str, float]] = Field(default_factory=list)
+
+
+class MlPipelineRunRequest(BaseModel):
+    pipeline_path: str = ""
+    pipeline_yaml: str = ""
+    default_target: str = "permeability_mean"
+
+
+class MlPipelineRunResponse(BaseModel):
+    ok: bool
+    message: str
+    steps: list[str] = Field(default_factory=list)

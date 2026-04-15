@@ -780,6 +780,155 @@ async function exportChat(kind) {
   }
 }
 
+async function mlBuildDataset() {
+  try {
+    const outputCsv = $('mlDatasetPathInput').value.trim() || 'data/ml/structured_dataset.csv';
+    const data = await apiFetch('/api/ml/dataset/build', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ output_csv: outputCsv }),
+    });
+    addChatMsg('system', data.message);
+    await mlLoadDashboard();
+  } catch (error) {
+    addChatMsg('system', `ML dataset build failed: ${error.message}`);
+  }
+}
+
+async function mlTrain() {
+  try {
+    const datasetCsv = $('mlDatasetPathInput').value.trim() || 'data/ml/structured_dataset.csv';
+    const target = $('mlTargetSelect').value;
+    const data = await apiFetch('/api/ml/train', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, dataset_csv: datasetCsv }),
+    });
+    addChatMsg('system', `${data.message} target=${data.target}, r2=${Number(data.metrics?.r2 || 0).toFixed(4)}`);
+    await mlLoadDashboard();
+  } catch (error) {
+    addChatMsg('system', `ML train failed: ${error.message}`);
+  }
+}
+
+async function mlPredict() {
+  try {
+    const target = $('mlTargetSelect').value;
+    const features = JSON.parse($('mlPredictJsonInput').value || '{}');
+    const data = await apiFetch('/api/ml/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, features }),
+    });
+    addChatMsg('system', `Prediction for ${target}: ${Number(data.prediction).toFixed(6)}`);
+  } catch (error) {
+    addChatMsg('system', `ML predict failed: ${error.message}`);
+  }
+}
+
+async function mlRunPipeline() {
+  try {
+    const target = $('mlTargetSelect').value;
+    const pipelinePath = $('mlPipelinePathInput').value.trim();
+    const data = await apiFetch('/api/ml/pipeline/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipeline_path: pipelinePath, default_target: target }),
+    });
+    addChatMsg('system', `${data.message}\n${(data.steps || []).join('\n')}`);
+    await mlLoadDashboard();
+  } catch (error) {
+    addChatMsg('system', `ML pipeline failed: ${error.message}`);
+  }
+}
+
+function renderMlScatter(points) {
+  const canvas = $('mlScatterCanvas');
+  if (!canvas) {
+    return;
+  }
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return;
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0b1220';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (!points || !points.length) {
+    ctx.fillStyle = '#6b84a8';
+    ctx.font = '14px Segoe UI';
+    ctx.fillText('No chart data available.', 20, 30);
+    return;
+  }
+
+  const pad = 30;
+  const xs = points.map((p) => Number(p.x));
+  const ys = points.map((p) => Number(p.y));
+  const xMin = Math.min(...xs);
+  const xMax = Math.max(...xs);
+  const yMin = Math.min(...ys);
+  const yMax = Math.max(...ys);
+  const xSpan = xMax - xMin || 1;
+  const ySpan = yMax - yMin || 1;
+
+  ctx.strokeStyle = '#2b3c5d';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad, canvas.height - pad);
+  ctx.lineTo(canvas.width - pad, canvas.height - pad);
+  ctx.lineTo(canvas.width - pad, pad);
+  ctx.stroke();
+
+  for (const p of points) {
+    const x = pad + ((Number(p.x) - xMin) / xSpan) * (canvas.width - pad * 2);
+    const y = canvas.height - pad - ((Number(p.y) - yMin) / ySpan) * (canvas.height - pad * 2);
+    ctx.fillStyle = '#60a5fa';
+    ctx.beginPath();
+    ctx.arc(x, y, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#9eb3d8';
+  ctx.font = '12px Segoe UI';
+  ctx.fillText(`x range: ${xMin.toFixed(2)} .. ${xMax.toFixed(2)}`, 10, 16);
+  ctx.fillText(`y range: ${yMin.toFixed(2)} .. ${yMax.toFixed(2)}`, 10, 32);
+}
+
+async function mlLoadDashboard() {
+  try {
+    const datasetCsv = $('mlDatasetPathInput').value.trim() || 'data/ml/structured_dataset.csv';
+    const target = $('mlTargetSelect').value;
+    const data = await apiFetch(
+      `/api/ml/dashboard?dataset_csv=${encodeURIComponent(datasetCsv)}&target=${encodeURIComponent(target)}`,
+    );
+
+    const lines = [];
+    lines.push(`Dataset: ${data.dataset_csv}`);
+    lines.push(`Rows: ${data.row_count}`);
+    lines.push(`Columns: ${(data.columns || []).join(', ')}`);
+    lines.push('');
+    lines.push('Stats:');
+    for (const [name, stats] of Object.entries(data.stats || {})) {
+      lines.push(
+        `${name}: mean=${Number(stats.mean || 0).toFixed(4)}, min=${Number(stats.min || 0).toFixed(4)}, max=${Number(stats.max || 0).toFixed(4)}, std=${Number(stats.std || 0).toFixed(4)}`,
+      );
+    }
+    lines.push('');
+    lines.push('Feature importance:');
+    for (const [name, score] of Object.entries(data.feature_importance || {})) {
+      lines.push(`${name}: ${Number(score).toFixed(6)}`);
+    }
+
+    $('mlSummaryView').textContent = lines.join('\n');
+    renderMlScatter(data.chart_points || []);
+  } catch (error) {
+    $('mlSummaryView').textContent = `ML dashboard error: ${error.message}`;
+    renderMlScatter([]);
+  }
+}
+
 function initTabs() {
   document.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.onclick = () => {
@@ -892,6 +1041,22 @@ function wireEvents() {
 
   $('renderPdfBtn').onclick = renderPdfPreview;
   $('clearLogsBtn').onclick = clearLogs;
+
+  if ($('mlBuildDatasetBtn')) {
+    $('mlBuildDatasetBtn').onclick = mlBuildDataset;
+  }
+  if ($('mlTrainBtn')) {
+    $('mlTrainBtn').onclick = mlTrain;
+  }
+  if ($('mlPredictBtn')) {
+    $('mlPredictBtn').onclick = mlPredict;
+  }
+  if ($('mlLoadDashboardBtn')) {
+    $('mlLoadDashboardBtn').onclick = mlLoadDashboard;
+  }
+  if ($('mlRunPipelineBtn')) {
+    $('mlRunPipelineBtn').onclick = mlRunPipeline;
+  }
 }
 
 async function init() {
@@ -919,6 +1084,7 @@ async function init() {
   await loadDatabase();
   await pollState();
   await refreshLogs();
+  await mlLoadDashboard();
 
   setInterval(() => {
     pollState();

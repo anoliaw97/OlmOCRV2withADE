@@ -209,3 +209,27 @@ Notes:
 - This is additive and does not replace FastAPI webapp flow.
 - Streamlit variant expects PDF-first ingestion (not extracted JSON/MD/TXT pairing).
 - For llama.cpp backend in Streamlit, install `llama-cpp-python` and use a local GGUF model path.
+
+## ML predictive analytics integration (web app)
+
+The main web app now includes an ML Analytics tab for automated predictive workflow from extracted sources:
+
+1. Build structured dataset from loaded extracted JSON/MD/TXT report packages
+2. Train regression model for selected target (for example relative permeability feature)
+3. Run prediction from input feature JSON
+4. View dashboard summary + scatter analytics
+5. Run YAML-driven ML pipeline definition (`/api/ml/pipeline/run`)
+
+Available API endpoints:
+
+- `POST /api/ml/dataset/build`
+- `POST /api/ml/train`
+- `POST /api/ml/predict`
+- `GET /api/ml/dashboard`
+- `POST /api/ml/pipeline/run`
+
+Added dependencies:
+
+- `scikit-learn`
+- `numpy`
+- `pyyaml`

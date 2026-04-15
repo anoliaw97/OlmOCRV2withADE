@@ -577,6 +577,30 @@ html, body {
   width: 100%;
 }
 
+.ml-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px;
+  height: calc(100% - 128px);
+}
+
+.ml-charts-wrap {
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  padding: 8px;
+  overflow: hidden;
+}
+
+#mlScatterCanvas {
+  width: 100%;
+  height: calc(100% - 24px);
+  background: #0b1220;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+}
+
 .viewer-tabs {
   display: flex;
   gap: 1px;

@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.api.routers.chat import router as chat_router
 from backend.api.routers.export import router as export_router
 from backend.api.routers.loaders import router as loaders_router
+from backend.api.routers.ml import router as ml_router
 from backend.api.routers.retrieval import router as retrieval_router
 from backend.api.routers.system import router as system_router
 from backend.dependencies import close_runtime
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     app.include_router(retrieval_router)
     app.include_router(chat_router)
     app.include_router(export_router)
+    app.include_router(ml_router)
 
     app.mount("/assets", StaticFiles(directory=str(ASSETS_ROOT)), name="assets")
 

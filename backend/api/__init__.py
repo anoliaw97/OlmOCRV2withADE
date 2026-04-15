@@ -1,3 +1,3 @@
-from backend.api.routers import chat, export, loaders, retrieval, system
+from backend.api.routers import chat, export, loaders, ml, retrieval, system
 
-__all__ = ["chat", "export", "loaders", "retrieval", "system"]
+__all__ = ["chat", "export", "loaders", "ml", "retrieval", "system"]

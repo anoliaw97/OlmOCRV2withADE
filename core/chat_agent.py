@@ -388,6 +388,20 @@ class ChatAgent:
             "If you want precise report-grounded values, ask with a specific metric or section."
         )
 
+    def maybe_handle_ml_command(self, question: str, packages: list[DocumentPackage] | None = None) -> str | None:
+        q = " ".join((question or "").lower().split())
+        if "machine learning" in q or "predict" in q or "relative permeability" in q or "ml pipeline" in q:
+            loaded = len(packages or [])
+            return (
+                "ML workflow command detected. You can use the ML Analytics tab to run:\n"
+                "1) Build dataset from extracted JSON/MD/TXT\n"
+                "2) Train predictive model\n"
+                "3) Predict target values\n"
+                "4) View analytics dashboard\n"
+                f"Current loaded report packages: {loaded}."
+            )
+        return None
+
     def _extract_highlights(self, question: str, chunks: list[RetrievedChunk]) -> list[str]:
         query_tokens = {token for token in _tokenize(question) if len(token) > 2}
         highlights: list[str] = []

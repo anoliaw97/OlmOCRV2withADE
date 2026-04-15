@@ -8,6 +8,7 @@ from core.chat_sessions import ChatSessionStore
 from core.export_service import ChatRecord, ExportService
 from core.llm_backends import LLMSettings
 from core.loaders import DocumentPackage, PackageLoader
+from core.ml_pipeline_service import MlPipelineService
 from core.preview_service import PackagePreview, PreviewService
 from core.query_router import RouteDecision
 from core.rag_index import LocalRagIndex
@@ -28,6 +29,7 @@ class WorkflowRuntime:
         self.retrieval_engine = RetrievalEngine(self.rag_index)
         self.chat_agent = ChatAgent(self.retrieval_engine)
         self.export_service = ExportService()
+        self.ml_service = MlPipelineService(Path("."))
         self.session_store = ChatSessionStore(Path("data/chat_sessions.json"))
         self.logs = RuntimeLogs()
 
