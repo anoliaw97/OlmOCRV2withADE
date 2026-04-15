@@ -677,6 +677,13 @@ html, body {
   height: 100%;
 }
 
+#datasetPreviewWrap {
+  max-height: 220px;
+  height: auto;
+  border-bottom: 1px solid var(--border2);
+  background: var(--bg);
+}
+
 .html-tables-wrap table {
   border-collapse: collapse;
   width: 100%;

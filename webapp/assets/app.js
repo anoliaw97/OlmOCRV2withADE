@@ -289,6 +289,7 @@ async function loadFolder() {
       await selectPackage(S.currentPackageId);
     }
     addChatMsg('system', `Loaded folder. Package count: ${S.packages.length}.`);
+    await refreshRagStatus();
   } catch (error) {
     addChatMsg('system', `Load folder failed: ${error.message}`);
   }
@@ -313,6 +314,7 @@ async function loadDatabase() {
       await selectPackage(S.currentPackageId);
     }
     addChatMsg('system', `Loaded database state. Package count: ${packages.length}.`);
+    await refreshRagStatus();
   } catch (error) {
     addChatMsg('system', `Load database failed: ${error.message}`);
   }
@@ -322,8 +324,43 @@ async function buildIndex() {
   try {
     const data = await apiFetch('/api/retrieval/index/build', { method: 'POST' });
     addChatMsg('system', `RAG index ready: ${data.indexed_chunks} chunk(s) across ${data.package_count} package(s).`);
+    await refreshRagStatus();
   } catch (error) {
     addChatMsg('system', `RAG build failed: ${error.message}`);
+  }
+}
+
+async function updateIndex() {
+  try {
+    const data = await apiFetch('/api/retrieval/index/update', { method: 'POST' });
+    addChatMsg('system', `RAG index updated: ${data.indexed_chunks} chunk(s) across ${data.package_count} package(s).`);
+    await refreshRagStatus();
+  } catch (error) {
+    addChatMsg('system', `RAG update failed: ${error.message}`);
+  }
+}
+
+async function clearIndex() {
+  try {
+    const data = await apiFetch('/api/retrieval/index/clear', { method: 'POST' });
+    addChatMsg('system', data.message || 'RAG index cleared.');
+    await refreshRagStatus();
+  } catch (error) {
+    addChatMsg('system', `RAG clear failed: ${error.message}`);
+  }
+}
+
+async function refreshRagStatus() {
+  try {
+    const data = await apiFetch('/api/retrieval/index/status');
+    $('ragStatusInfo').textContent = [
+      `Ready: ${data.ready ? 'yes' : 'no'}`,
+      `Indexed packages: ${data.indexed_packages || 0}`,
+      `Indexed chunks: ${data.indexed_chunks || 0}`,
+      `Last updated: ${data.last_updated || '-'}`,
+    ].join('\n');
+  } catch (error) {
+    $('ragStatusInfo').textContent = `RAG status error: ${error.message}`;
   }
 }
 
@@ -802,30 +839,68 @@ async function exportChat(kind) {
 async function checkPopplerStatus() {
   try {
     const data = await apiFetch('/api/system/poppler/status');
-    if ($('popplerPathInput') && data.configured_path) {
-      $('popplerPathInput').value = data.configured_path;
-    }
     addChatMsg('system', data.message + (data.resolved_path ? `\nResolved: ${data.resolved_path}` : ''));
   } catch (error) {
     addChatMsg('system', `Poppler status check failed: ${error.message}`);
   }
 }
 
-async function setPopplerPath() {
-  const raw = ($('popplerPathInput')?.value || '').trim();
-  if (!raw) {
-    addChatMsg('system', 'Set a pdftoppm path first.');
+async function browseDatasetFile() {
+  const current = ($('mlDatasetPathInput').value || '').trim();
+  try {
+    const query = current ? `?path=${encodeURIComponent(current)}&pattern=${encodeURIComponent('*.csv')}` : '?pattern=*.csv';
+    const data = await apiFetch(`/api/system/browse/file-dialog${query}`, { method: 'POST' });
+    if (data.path) {
+      $('mlDatasetPathInput').value = data.path;
+      addChatMsg('system', `Selected dataset: ${data.path}`);
+    } else {
+      addChatMsg('system', 'Dataset browse canceled.');
+    }
+  } catch (error) {
+    addChatMsg('system', `Dataset browse failed: ${error.message}`);
+  }
+}
+
+function renderDatasetPreview(data) {
+  const wrap = $('datasetPreviewWrap');
+  if (!data || !Array.isArray(data.columns) || !data.columns.length) {
+    wrap.innerHTML = '<div class="preview-placeholder">Dataset has no columns.</div>';
     return;
   }
+
+  const rows = Array.isArray(data.preview_rows) ? data.preview_rows : [];
+  const html = [];
+  html.push(`<div class="table-title">${esc(data.path || '')} | rows=${Number(data.rows || 0)} | preview=${rows.length}</div>`);
+  html.push('<table><thead><tr>');
+  for (const col of data.columns) {
+    html.push(`<th>${esc(col)}</th>`);
+  }
+  html.push('</tr></thead><tbody>');
+  for (const row of rows) {
+    html.push('<tr>');
+    for (const col of data.columns) {
+      html.push(`<td>${esc((row && row[col]) || '')}</td>`);
+    }
+    html.push('</tr>');
+  }
+  html.push('</tbody></table>');
+  wrap.innerHTML = html.join('');
+}
+
+async function mlLoadDatasetPreview() {
+  const datasetCsv = ($('mlDatasetPathInput').value || '').trim();
+  if (!datasetCsv) {
+    addChatMsg('system', 'Set dataset CSV path first.');
+    return;
+  }
+
   try {
-    const data = await apiFetch('/api/system/poppler/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pdftoppm_path: raw }),
-    });
-    addChatMsg('system', data.message + (data.resolved_path ? `\nResolved: ${data.resolved_path}` : ''));
+    const data = await apiFetch(`/api/system/dataset/preview?path=${encodeURIComponent(datasetCsv)}&limit=100`);
+    renderDatasetPreview(data);
+    addChatMsg('system', `Dataset loaded: rows=${data.rows}, columns=${(data.columns || []).length}`);
   } catch (error) {
-    addChatMsg('system', `Set Poppler failed: ${error.message}`);
+    $('datasetPreviewWrap').innerHTML = `<div class="preview-placeholder">Dataset preview failed: ${esc(error.message)}</div>`;
+    addChatMsg('system', `Dataset preview failed: ${error.message}`);
   }
 }
 
@@ -1088,6 +1163,12 @@ function wireEvents() {
   $('loadDatabaseBtn').onclick = loadDatabase;
   $('packageSelect').onchange = (e) => selectPackage(e.target.value);
   $('buildIndexBtn').onclick = buildIndex;
+  if ($('updateIndexBtn')) {
+    $('updateIndexBtn').onclick = updateIndex;
+  }
+  if ($('clearIndexBtn')) {
+    $('clearIndexBtn').onclick = clearIndex;
+  }
 
   $('backendSelect').onchange = refreshModels;
   $('modelSelect').onchange = applyModelSelectionFromDropdown;
@@ -1125,6 +1206,12 @@ function wireEvents() {
   if ($('mlBuildDatasetBtn')) {
     $('mlBuildDatasetBtn').onclick = mlBuildDataset;
   }
+  if ($('browseDatasetBtn')) {
+    $('browseDatasetBtn').onclick = browseDatasetFile;
+  }
+  if ($('mlLoadDatasetBtn')) {
+    $('mlLoadDatasetBtn').onclick = mlLoadDatasetPreview;
+  }
   if ($('mlTrainBtn')) {
     $('mlTrainBtn').onclick = mlTrain;
   }
@@ -1141,12 +1228,6 @@ function wireEvents() {
     $('mlRunPipelineBtn').onclick = mlRunPipeline;
   }
 
-  if ($('setPopplerBtn')) {
-    $('setPopplerBtn').onclick = setPopplerPath;
-  }
-  if ($('checkPopplerBtn')) {
-    $('checkPopplerBtn').onclick = checkPopplerStatus;
-  }
 }
 
 async function init() {
@@ -1172,10 +1253,11 @@ async function init() {
 
   await refreshModels();
   await loadDatabase();
+  await refreshRagStatus();
   await pollState();
   await refreshLogs();
+  await mlLoadDatasetPreview();
   await mlLoadDashboard();
-  await checkPopplerStatus();
 
   setInterval(() => {
     pollState();

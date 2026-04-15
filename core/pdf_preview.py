@@ -74,9 +74,11 @@ def render_pdf_page_png(pdf_path: Path, page: int = 1, dpi: int = 140) -> bytes:
 
 
 def _resolve_pdftoppm() -> Path:
-    env = os.environ.get("POPPLER_PDFTOPPM", "").strip()
+    env = os.environ.get("POPPLER_PDFTOPPM", "").strip() or os.environ.get("POPPLER_PATH", "").strip()
     if env:
         candidate = Path(env).expanduser().resolve()
+        if candidate.is_dir():
+            candidate = candidate / "pdftoppm.exe"
         if candidate.exists() and candidate.is_file():
             return candidate
 
@@ -96,10 +98,12 @@ def _resolve_pdftoppm() -> Path:
 
 
 def resolve_pdftoppm_status() -> tuple[bool, str, str]:
-    env = os.environ.get("POPPLER_PDFTOPPM", "").strip()
+    env = os.environ.get("POPPLER_PDFTOPPM", "").strip() or os.environ.get("POPPLER_PATH", "").strip()
     configured = env
     if env:
         candidate = Path(env).expanduser().resolve()
+        if candidate.is_dir():
+            candidate = candidate / "pdftoppm.exe"
         if candidate.exists() and candidate.is_file():
             return True, configured, str(candidate)
 

@@ -56,7 +56,12 @@
 
     <div class="sidebar-section">
       <div class="section-label">Step 2 · Load RAG index</div>
-      <button id="buildIndexBtn" class="btn-full btn-accent">Build / Rebuild RAG</button>
+      <div class="row-2">
+        <button id="buildIndexBtn" class="btn-full btn-accent">Build Index</button>
+        <button id="updateIndexBtn" class="btn-full">Update</button>
+        <button id="clearIndexBtn" class="btn-full">Clear</button>
+      </div>
+      <div id="ragStatusInfo" class="coverage-chip">RAG status: not ready.</div>
     </div>
 
     <div class="sidebar-section">
@@ -187,17 +192,19 @@
     <div id="tab-ml" class="tab-pane hidden">
       <div class="viewer-content full-width">
         <div class="json-toolbar">
-          <span class="tiny-label">Poppler pdftoppm path</span>
-          <input id="popplerPathInput" type="text" class="folder-input" value="" placeholder="C:\\tools\\poppler\\Library\\bin\\pdftoppm.exe" />
-          <button id="setPopplerBtn" class="btn-xs">Set Poppler</button>
-          <button id="checkPopplerBtn" class="btn-xs">Check</button>
+          <span class="tiny-label">Dataset CSV</span>
+          <input id="mlDatasetPathInput" type="text" class="folder-input" value="data/ml/structured_dataset.csv" />
+          <button id="browseDatasetBtn" class="btn-xs">Browse Dataset</button>
+          <button id="mlLoadDatasetBtn" class="btn-xs">Load Dataset</button>
+          <button id="mlBuildDatasetBtn" class="btn-xs">Build Dataset</button>
+          <button id="mlLoadDashboardBtn" class="btn-xs">Refresh Dashboard</button>
         </div>
 
         <div class="json-toolbar">
-          <span class="tiny-label">Dataset CSV</span>
-          <input id="mlDatasetPathInput" type="text" class="folder-input" value="data/ml/structured_dataset.csv" />
-          <button id="mlBuildDatasetBtn" class="btn-xs">Build Dataset</button>
-          <button id="mlLoadDashboardBtn" class="btn-xs">Refresh Dashboard</button>
+          <span class="tiny-label">Dataset Preview</span>
+        </div>
+        <div id="datasetPreviewWrap" class="html-tables-wrap">
+          <div class="preview-placeholder">Load a CSV dataset to preview columns and first rows.</div>
         </div>
 
         <div class="json-toolbar">
@@ -238,7 +245,7 @@
 
         <div class="json-toolbar">
           <span class="tiny-label">Predict input (JSON)</span>
-          <input id="mlPredictJsonInput" type="text" class="folder-input" value='{"porosity_mean":18.0,"swirr_mean":0.23,"kro_end_mean":0.75,"krw_end_mean":0.28,"pc_entry_mean":12.5}' />
+          <input id="mlPredictJsonInput" type="text" class="folder-input" value='{"Kklin_md":60.0,"phi":18.0,"RQI":0.04}' />
           <button id="mlPredictBtn" class="btn-xs">Predict</button>
         </div>
 

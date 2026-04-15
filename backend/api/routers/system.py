@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.dependencies import get_runtime
@@ -12,13 +13,13 @@ from backend.schemas import (
     DirectoryEntry,
     ModelOption,
     ModelOptionsResponse,
+    DatasetPreviewResponse,
     RuntimeLogsResponse,
     RuntimeStateResponse,
-    PopplerConfigRequest,
     PopplerStatusResponse,
 )
 from core.model_registry import discover_llamacpp_models, list_ollama_models
-from core.pdf_preview import resolve_pdftoppm_status, set_pdftoppm_path
+from core.pdf_preview import resolve_pdftoppm_status
 
 
 router = APIRouter(prefix="/api/system", tags=["system"])
@@ -47,6 +48,16 @@ def browse_dialog(path: str = Query(default="")) -> BrowseDialogResponse:
     selected = _select_folder_dialog(path)
     if selected:
         runtime.log("status", f"Browse dialog selected folder: {selected}")
+    return BrowseDialogResponse(path=selected or "")
+
+
+@router.post("/browse/file-dialog", response_model=BrowseDialogResponse)
+def browse_file_dialog(path: str = Query(default=""), pattern: str = Query(default="*.csv")) -> BrowseDialogResponse:
+    runtime = get_runtime()
+    runtime.log("debug", f"File browse dialog requested. pattern={pattern}")
+    selected = _select_file_dialog(path, pattern)
+    if selected:
+        runtime.log("status", f"Browse dialog selected file: {selected}")
     return BrowseDialogResponse(path=selected or "")
 
 
@@ -115,6 +126,35 @@ def runtime_state() -> RuntimeStateResponse:
     )
 
 
+@router.get("/dataset/preview", response_model=DatasetPreviewResponse)
+def dataset_preview(path: str = Query(...), limit: int = Query(default=100, ge=1, le=500)) -> DatasetPreviewResponse:
+    runtime = get_runtime()
+    csv_path = Path(path).expanduser().resolve()
+    if not csv_path.exists() or not csv_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Dataset file not found: {csv_path}")
+    if csv_path.suffix.lower() != ".csv":
+        raise HTTPException(status_code=400, detail="Only CSV preview is supported.")
+
+    try:
+        frame = pd.read_csv(csv_path)
+    except Exception as exc:
+        runtime.log("error", f"Dataset preview failed: {exc}")
+        raise HTTPException(status_code=400, detail=f"Failed to read CSV: {exc}") from exc
+
+    preview = frame.head(limit).fillna("")
+    rows = [
+        {str(col): str(row[col]) for col in preview.columns}
+        for _, row in preview.iterrows()
+    ]
+    runtime.log("status", f"Dataset preview loaded: {csv_path} rows={len(frame)}")
+    return DatasetPreviewResponse(
+        path=str(csv_path),
+        rows=int(len(frame)),
+        columns=[str(c) for c in frame.columns],
+        preview_rows=rows,
+    )
+
+
 @router.get("/logs", response_model=RuntimeLogsResponse)
 def runtime_logs(kind: str = Query(default="status"), limit: int = Query(default=200)) -> RuntimeLogsResponse:
     runtime = get_runtime()
@@ -145,27 +185,9 @@ def poppler_status() -> PopplerStatusResponse:
         configured_path=configured,
         resolved_path=resolved,
         message=(
-            "Poppler pdftoppm executable not found. Configure full path in settings, "
-            "for example C:\\tools\\poppler\\Library\\bin\\pdftoppm.exe"
+            "Poppler pdftoppm executable not found. Install Poppler and set environment variable "
+            "POPPLER_PATH or POPPLER_PDFTOPPM, then restart the app."
         ),
-    )
-
-
-@router.post("/poppler/config", response_model=PopplerStatusResponse)
-def poppler_config(request: PopplerConfigRequest) -> PopplerStatusResponse:
-    runtime = get_runtime()
-    ok, payload = set_pdftoppm_path(request.pdftoppm_path)
-    if not ok:
-        runtime.log("error", f"Poppler config failed: {payload}")
-        raise HTTPException(status_code=400, detail=payload)
-
-    runtime.log("status", f"Poppler path configured: {payload}")
-    status_ok, configured, resolved = resolve_pdftoppm_status()
-    return PopplerStatusResponse(
-        ok=status_ok,
-        configured_path=configured,
-        resolved_path=resolved,
-        message="Poppler path configured successfully.",
     )
 
 
@@ -197,6 +219,40 @@ def _select_folder_dialog(initial_path: str = "") -> str | None:
         if not initial:
             initial = str(_resolve_default_browse_root())
         selected = filedialog.askdirectory(initialdir=initial, mustexist=True)
+        return selected or None
+    finally:
+        try:
+            root.destroy()
+        except Exception:
+            pass
+
+
+def _select_file_dialog(initial_path: str = "", pattern: str = "*.csv") -> str | None:
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception:
+        return None
+
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+    except Exception:
+        return None
+
+    try:
+        initial = initial_path.strip() if initial_path else ""
+        if not initial:
+            initial = str(_resolve_default_browse_root())
+        else:
+            initial_path_obj = Path(initial)
+            if initial_path_obj.is_file():
+                initial = str(initial_path_obj.parent)
+        selected = filedialog.askopenfilename(
+            initialdir=initial,
+            filetypes=[("CSV files", pattern), ("All files", "*.*")],
+        )
         return selected or None
     finally:
         try:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -48,10 +49,18 @@ class LocalRagIndex:
                     page TEXT,
                     table_name TEXT,
                     chunk_index INTEGER NOT NULL,
+                    indexed_at TEXT,
                     content TEXT NOT NULL
                 )
                 """
             )
+
+            existing_columns = {
+                str(row["name"])
+                for row in cur.execute("PRAGMA table_info(chunks)").fetchall()
+            }
+            if "indexed_at" not in existing_columns:
+                cur.execute("ALTER TABLE chunks ADD COLUMN indexed_at TEXT")
 
             try:
                 cur.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(content)")
@@ -69,6 +78,35 @@ class LocalRagIndex:
             cur = self.connection.execute("SELECT COUNT(*) AS n FROM chunks")
             row = cur.fetchone()
             return bool(row and row["n"] > 0)
+
+    def clear(self) -> None:
+        with self._lock:
+            cur = self.connection.cursor()
+            if self.fts_enabled:
+                cur.execute("DELETE FROM chunks_fts")
+            cur.execute("DELETE FROM chunks")
+            self.connection.commit()
+
+    def stats(self) -> dict[str, str | int | bool]:
+        with self._lock:
+            row = self.connection.execute(
+                """
+                SELECT
+                    COUNT(*) AS chunk_count,
+                    COUNT(DISTINCT package_id) AS package_count,
+                    COALESCE(MAX(indexed_at), '') AS last_updated
+                FROM chunks
+                """
+            ).fetchone()
+        chunk_count = int(row["chunk_count"] if row else 0)
+        package_count = int(row["package_count"] if row else 0)
+        last_updated = str(row["last_updated"] if row else "")
+        return {
+            "ready": chunk_count > 0,
+            "chunk_count": chunk_count,
+            "package_count": package_count,
+            "last_updated": last_updated,
+        }
 
     def build_or_update(self, packages: Iterable[DocumentPackage]) -> int:
         total = 0
@@ -97,10 +135,11 @@ class LocalRagIndex:
         return len(chunks)
 
     def _insert_chunk(self, cur: sqlite3.Cursor, chunk: TextChunk) -> None:
+        now_iso = datetime.now().isoformat(timespec="seconds")
         cur.execute(
             """
-            INSERT INTO chunks (package_id, source_file, source_type, section, page, table_name, chunk_index, content)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO chunks (package_id, source_file, source_type, section, page, table_name, chunk_index, indexed_at, content)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chunk.package_id,
@@ -110,6 +149,7 @@ class LocalRagIndex:
                 chunk.metadata.get("page", ""),
                 chunk.metadata.get("table_name", ""),
                 chunk.chunk_index,
+                now_iso,
                 chunk.content,
             ),
         )

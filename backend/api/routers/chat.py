@@ -386,8 +386,8 @@ def _runtime_metadata_answer(question: str, runtime) -> str | None:
     q = " ".join(str(question or "").lower().split())
     if "set poppler" in q or "configure poppler" in q or "pdftoppm path" in q:
         return (
-            "Use the ML Analytics tab Poppler controls to set/check pdftoppm path, or run: "
-            "python bootstrap_tools.py"
+            "Set environment variable POPPLER_PATH (or POPPLER_PDFTOPPM) to pdftoppm executable path, "
+            "then restart the app. You can also run: python bootstrap_tools.py"
         )
     if "how many reports" in q and "database" in q:
         loaded = len(runtime.packages)

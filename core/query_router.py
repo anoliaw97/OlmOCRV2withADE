@@ -129,7 +129,7 @@ class QueryRouter:
             chunks = self.retrieval_engine.retrieve_rag(
                 question=question,
                 top_k=3,
-                package_id=package_id,
+                package_id=None,
                 min_score=0.35,
                 allow_fallback=False,
             )
@@ -154,7 +154,7 @@ class QueryRouter:
                 chunks = self.retrieval_engine.retrieve_rag(
                     question=question,
                     top_k=3,
-                    package_id=package_id,
+                    package_id=None,
                     min_score=0.35,
                     allow_fallback=False,
                 )

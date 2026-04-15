@@ -61,6 +61,18 @@ class BuildIndexResponse(BaseModel):
     package_count: int
 
 
+class IndexStatusResponse(BaseModel):
+    ready: bool = False
+    indexed_chunks: int = 0
+    indexed_packages: int = 0
+    last_updated: str = ""
+
+
+class GenericMessageResponse(BaseModel):
+    ok: bool
+    message: str
+
+
 class LLMSettingsPayload(BaseModel):
     backend: str = "ollama"
     model: str = "llama3.1:8b"
@@ -209,6 +221,13 @@ class RuntimeStateResponse(BaseModel):
 
 class BrowseDialogResponse(BaseModel):
     path: str = ""
+
+
+class DatasetPreviewResponse(BaseModel):
+    path: str = ""
+    rows: int = 0
+    columns: list[str] = Field(default_factory=list)
+    preview_rows: list[dict[str, str]] = Field(default_factory=list)
 
 
 class SessionMessagePayload(BaseModel):

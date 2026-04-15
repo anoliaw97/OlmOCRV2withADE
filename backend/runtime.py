@@ -63,6 +63,15 @@ class WorkflowRuntime:
             return 0
         return self.rag_index.build_or_update(self.packages)
 
+    def update_index(self) -> int:
+        return self.build_index()
+
+    def clear_index(self) -> None:
+        self.rag_index.clear()
+
+    def rag_status(self) -> dict[str, str | int | bool]:
+        return self.rag_index.stats()
+
     def ask(
         self,
         question: str,
@@ -90,7 +99,7 @@ class WorkflowRuntime:
                 return []
             return self.retrieval_engine.retrieve_direct(package=package, question=question, top_k=top_k)
 
-        return self.retrieval_engine.retrieve_rag(question=question, top_k=top_k, package_id=package_id)
+        return self.retrieval_engine.retrieve_rag(question=question, top_k=top_k, package_id=None)
 
     def build_preview_tables(self, preview: PackagePreview) -> list[PreviewTable]:
         tables: list[PreviewTable] = []

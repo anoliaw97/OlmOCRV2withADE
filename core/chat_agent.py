@@ -112,7 +112,7 @@ class ChatAgent:
                 retrieved = self.retrieval_engine.retrieve_rag(
                     cleaned,
                     top_k=6,
-                    package_id=package_id,
+                    package_id=None,
                     min_score=0.55,
                     allow_fallback=True,
                 )
@@ -137,7 +137,7 @@ class ChatAgent:
                     retrieved = self.retrieval_engine.retrieve_rag(
                         cleaned,
                         top_k=6,
-                        package_id=package_id,
+                        package_id=None,
                         min_score=0.55,
                         allow_fallback=True,
                     )

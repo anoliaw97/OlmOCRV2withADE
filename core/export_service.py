@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -43,7 +44,31 @@ class ExportService:
 
     def _to_excel(self, records: list[ChatRecord], destination: Path) -> tuple[bool, str]:
         frame = pd.DataFrame([asdict(r) for r in records])
-        frame.to_excel(destination, index=False)
+        meta = pd.DataFrame(
+            [
+                {
+                    "generated_at": datetime.now().isoformat(timespec="seconds"),
+                    "rows": len(frame),
+                    "modes": ", ".join(sorted({str(v) for v in frame["mode"].dropna().unique().tolist()})),
+                    "models": ", ".join(sorted({str(v) for v in frame["model"].dropna().unique().tolist()})),
+                }
+            ]
+        )
+
+        with pd.ExcelWriter(destination, engine="openpyxl") as writer:
+            meta.to_excel(writer, sheet_name="Metadata", index=False)
+            frame.to_excel(writer, sheet_name="ChatRecords", index=False)
+
+            for sheet in writer.sheets.values():
+                for col in sheet.columns:
+                    max_len = 0
+                    letter = col[0].column_letter
+                    for cell in col[:300]:
+                        text = "" if cell.value is None else str(cell.value)
+                        if len(text) > max_len:
+                            max_len = len(text)
+                    sheet.column_dimensions[letter].width = min(70, max(12, max_len + 2))
+                sheet.freeze_panes = "A2"
         return True, f"Exported Excel: {destination}"
 
     def _to_docx(self, records: list[ChatRecord], destination: Path) -> tuple[bool, str]:
