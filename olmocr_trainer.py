@@ -23,6 +23,7 @@ import base64
 import gc
 import json
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -63,16 +64,33 @@ except ImportError:
 # ── PDF utilities ─────────────────────────────────────────────────────────────
 
 def count_pages(pdf_path: str) -> int:
+    n, _ = count_pages_with_reason(pdf_path)
+    return n
+
+
+def count_pages_with_reason(pdf_path: str) -> tuple[int, str]:
     if _HAS_PYPDF:
         try:
-            return len(PdfReader(pdf_path).pages)
-        except Exception:
-            pass
+            reader = PdfReader(pdf_path, strict=False)
+            if getattr(reader, "is_encrypted", False):
+                try:
+                    reader.decrypt("")
+                except Exception:
+                    return 0, "encrypted PDF (password required)"
+            return len(reader.pages), ""
+        except Exception as exc:
+            pypdf_err = str(exc)
+    else:
+        pypdf_err = "pypdf not installed"
+
     try:
+        if shutil.which("pdfinfo") is None or shutil.which("pdftoppm") is None:
+            return 0, f"Poppler tools missing (pdfinfo/pdftoppm). pypdf error: {pypdf_err}"
         from pdf2image import convert_from_path
-        return len(convert_from_path(pdf_path, dpi=72))
-    except Exception:
-        return 0
+        pages = convert_from_path(pdf_path, dpi=72)
+        return len(pages), ""
+    except Exception as exc:
+        return 0, f"pypdf/pdf2image failed ({exc}); pypdf error: {pypdf_err}"
 
 
 def render_page(pdf_path: str, page_num: int) -> Image.Image:
@@ -92,7 +110,12 @@ def extract_single_page_pdf(src_pdf: str, page_num: int, dest: str) -> bool:
     """Write page *page_num* (1-indexed) of *src_pdf* to *dest* as a 1-page PDF."""
     if not _HAS_PYPDF:
         raise RuntimeError("pypdf is required: pip install pypdf")
-    reader = PdfReader(src_pdf)
+    reader = PdfReader(src_pdf, strict=False)
+    if getattr(reader, "is_encrypted", False):
+        try:
+            reader.decrypt("")
+        except Exception:
+            raise RuntimeError(f"Encrypted PDF needs password: {Path(src_pdf).name}")
     writer = PdfWriter()
     writer.add_page(reader.pages[page_num - 1])
     Path(dest).parent.mkdir(parents=True, exist_ok=True)
@@ -622,9 +645,9 @@ class TrainerApp:
             title="Select PDF files",
             filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")])
         for path in paths:
-            n = count_pages(path)
+            n, reason = count_pages_with_reason(path)
             if n == 0:
-                self._log(f"Could not read {Path(path).name} — skipped")
+                self._log(f"Could not read {Path(path).name} — skipped ({reason or 'unknown error'})")
                 continue
             for pg in range(1, n + 1):
                 idx = len(self.pages)
@@ -646,9 +669,9 @@ class TrainerApp:
             return
         self.status_var.set("Scanning …")
 
-        def _insert_one(path, n):
+        def _insert_one(path, n, reason=""):
             if n == 0:
-                self._log_ui(f"  Could not read {path.name} — skipped")
+                self._log_ui(f"  Could not read {path.name} — skipped ({reason or 'unknown error'})")
                 return
             for pg in range(1, n + 1):
                 idx = len(self.pages)
@@ -661,7 +684,7 @@ class TrainerApp:
             """Process one PDF per call; reschedule self so the event loop
             can handle user input between each PDF's tree inserts."""
             try:
-                path, n = next(it)
+                path, n, reason = next(it)
             except StopIteration:
                 # All PDFs inserted — update status, no auto-preview.
                 self.status_var.set(
@@ -670,7 +693,7 @@ class TrainerApp:
                 self._mark_existing_output()
                 self._log_ui("Folder loaded.")
                 return
-            _insert_one(path, n)
+            _insert_one(path, n, reason)
             self.root.after(0, _drain, it)   # yield to event loop, then next
 
         def _worker():
@@ -687,8 +710,8 @@ class TrainerApp:
             for path in pdf_paths:
                 self.root.after(0, self.status_var.set,
                                 f"Scanning {path.name} …")
-                n = count_pages(str(path))
-                results.append((path, n))
+                n, reason = count_pages_with_reason(str(path))
+                results.append((path, n, reason))
             # Hand off to the main-thread drain chain (single after call)
             self.root.after(0, _drain, iter(results))
 
